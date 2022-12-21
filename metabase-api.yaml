@@ -8,9 +8,55 @@ info:
 security:
   - Session: []
 
+paths:
+  /session:
+    post:
+      operationId: createSession
+      description: Logs in using a user name (or email address) and a password.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSessionBody"
+      responses:
+        200:
+          description: The user authenticated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+
 components:
   securitySchemes:
     Session:
       type: apiKey
       in: header
       name: X-Metabase-Session
+
+  schemas:
+    # Sessions.
+    Session:
+      type: object
+      description: A session that can be used to perform authenticated requests to the API.
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+      required:
+        - id
+    CreateSessionBody:
+      type: object
+      description: The credentials required to create a session.
+      additionalProperties: false
+      properties:
+        username:
+          type: string
+          description: The name of the user, or his email.
+        password:
+          type: string
+          description: The password for the account.
+      required:
+        - username
+        - password
