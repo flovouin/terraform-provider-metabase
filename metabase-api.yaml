@@ -1,0 +1,16 @@
+openapi: 3.0.0
+
+info:
+  title: Metabase API
+  version: 0.44.6
+  description: API for Metabase.
+
+security:
+  - Session: []
+
+components:
+  securitySchemes:
+    Session:
+      type: apiKey
+      in: header
+      name: X-Metabase-Session
