@@ -119,7 +119,9 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 }
 
 func (p *MetabaseProvider) Resources(ctx context.Context) []func() resource.Resource {
-	return []func() resource.Resource{}
+	return []func() resource.Resource{
+		NewPermissionsGroupResource,
+	}
 }
 
 func (p *MetabaseProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
