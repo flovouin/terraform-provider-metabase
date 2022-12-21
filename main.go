@@ -9,6 +9,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 )
 
+//go:generate go run github.com/deepmap/oapi-codegen/cmd/oapi-codegen --config oapi-codegen.yaml metabase-api.yaml
+
 var (
 	version string = "dev"
 )

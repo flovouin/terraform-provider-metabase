@@ -1,0 +1,5 @@
+package: metabase
+generate:
+  - client
+  - types
+output: metabase/client.gen.go
