@@ -9,6 +9,67 @@ security:
   - Session: []
 
 paths:
+  /collection:
+    post:
+      operationId: createCollection
+      description: Creates a new collection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCollectionBody"
+      responses:
+        200:
+          description: The collection was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+
+  /collection/{collectionId}:
+    get:
+      operationId: getCollection
+      description: Retrieves a single collection.
+      parameters:
+        - in: path
+          name: collectionId
+          schema:
+            type: string
+          required: true
+          description: The ID of the collection.
+      responses:
+        200:
+          description: The collection was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+
+    put:
+      operationId: updateCollection
+      description: Updates a single collection.
+      parameters:
+        - in: path
+          name: collectionId
+          schema:
+            type: string
+          required: true
+          description: The ID of the collection.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCollectionBody"
+      responses:
+        200:
+          description: The collection was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Collection"
+
   /permissions/group:
     post:
       operationId: createPermissionsGroup
@@ -111,6 +172,100 @@ components:
       name: X-Metabase-Session
 
   schemas:
+    # Collections.
+    Collection:
+      type: object
+      description: A collection that regroups dashboards and cards.
+      additionalProperties: false
+      properties:
+        id:
+          oneOf:
+            - type: string
+            - type: integer
+          description: |-
+            The unique ID for the collection.
+            Created collections will have an integer ID. The automatically-created root collection's ID is `root`.
+        name:
+          type: string
+          description: The name of the collection.
+        color:
+          type: string
+          description: A color for the collection.
+        description:
+          type: string
+          description: A description for the collection.
+          nullable: true
+        slug:
+          type: string
+          description: The slug for the collection, used in URLs.
+        personal_owner_id:
+          type: integer
+          description: The ID of the user owning this collection, if it is a personal collection.
+          nullable: true
+        entity_id:
+          type: string
+          description: A unique string identifier for the collection.
+        location:
+          type: string
+          description: A path-like location, useful when this is a sub-collection.
+        parent_id:
+          type: integer
+          description: The ID of the parent collection, if any.
+          nullable: true
+        archived:
+          type: boolean
+          description: |-
+            Whether the collection is archived.
+            When archived, a collection no longer appears in the list publicly.
+      required:
+        - id
+        - name
+    CreateCollectionBody:
+      type: object
+      description: The payload used to create a new collection.
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: The name of the collection.
+        color:
+          type: string
+          description: A color for the collection.
+        description:
+          type: string
+          description: A description for the collection.
+          nullable: true
+        parent_id:
+          type: integer
+          description: The ID of the parent collection, if any.
+          nullable: true
+      required:
+        - name
+        - color
+    UpdateCollectionBody:
+      type: object
+      description: The payload used to update an existing collection.
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: The name of the collection.
+        color:
+          type: string
+          description: A color for the collection.
+        archived:
+          type: boolean
+          description: |-
+            Whether the collection is archived.
+            When archived, a collection no longer appears in the list publicly.
+        description:
+          type: string
+          description: A description for the collection.
+          nullable: true
+        parent_id:
+          type: integer
+          description: The ID of the parent collection, if any.
+          nullable: true
     # Permissions group.
     PermissionsGroup:
       type: object

@@ -9,7 +9,46 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// Converts a possibly `nil` string to a Terraform `String` type.
+func stringValueOrNull[T ~string](v *T) types.String {
+	if v == nil {
+		return types.StringNull()
+	}
+
+	return types.StringValue(string(*v))
+}
+
+// Converts a possibly `nil` integer to a Terraform `Int64` type.
+func int64ValueOrNull(v *int) types.Int64 {
+	if v == nil {
+		return types.Int64Null()
+	}
+
+	return types.Int64Value(int64(*v))
+}
+
+// Returns the value of a Terraform `String` type, or `nil` if it is null.
+func valueStringOrNull(v types.String) *string {
+	if v.IsNull() {
+		return nil
+	}
+
+	r := v.ValueString()
+	return &r
+}
+
+// Returns the value of a Terraform `Int64` type, or `nil` if it is null.
+func valueInt64OrNull(v types.Int64) *int {
+	if v.IsNull() {
+		return nil
+	}
+
+	r := int(v.ValueInt64())
+	return &r
+}
 
 // Ensures that a Metabase response is not an error and has the expected status code. Otherwise, returns a diagnostic
 // error.
