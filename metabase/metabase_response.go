@@ -7,6 +7,18 @@ type MetabaseResponse interface {
 	BodyString() string
 }
 
+func (r *CreateCollectionResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetCollectionResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateCollectionResponse) BodyString() string {
+	return string(r.Body)
+}
+
 func (r *CreatePermissionsGroupResponse) BodyString() string {
 	return string(r.Body)
 }

@@ -20,6 +20,68 @@ const (
 	SessionScopes = "Session.Scopes"
 )
 
+// Collection A collection that regroups dashboards and cards.
+type Collection struct {
+	// Archived Whether the collection is archived.
+	// When archived, a collection no longer appears in the list publicly.
+	Archived *bool `json:"archived,omitempty"`
+
+	// Color A color for the collection.
+	Color *string `json:"color,omitempty"`
+
+	// Description A description for the collection.
+	Description *string `json:"description"`
+
+	// EntityId A unique string identifier for the collection.
+	EntityId *string `json:"entity_id,omitempty"`
+
+	// Id The unique ID for the collection.
+	// Created collections will have an integer ID. The automatically-created root collection's ID is `root`.
+	Id Collection_Id `json:"id"`
+
+	// Location A path-like location, useful when this is a sub-collection.
+	Location *string `json:"location,omitempty"`
+
+	// Name The name of the collection.
+	Name string `json:"name"`
+
+	// ParentId The ID of the parent collection, if any.
+	ParentId *int `json:"parent_id"`
+
+	// PersonalOwnerId The ID of the user owning this collection, if it is a personal collection.
+	PersonalOwnerId *int `json:"personal_owner_id"`
+
+	// Slug The slug for the collection, used in URLs.
+	Slug *string `json:"slug,omitempty"`
+}
+
+// CollectionId0 defines model for .
+type CollectionId0 = string
+
+// CollectionId1 defines model for .
+type CollectionId1 = int
+
+// Collection_Id The unique ID for the collection.
+// Created collections will have an integer ID. The automatically-created root collection's ID is `root`.
+type Collection_Id struct {
+	union json.RawMessage
+}
+
+// CreateCollectionBody The payload used to create a new collection.
+type CreateCollectionBody struct {
+	// Color A color for the collection.
+	Color string `json:"color"`
+
+	// Description A description for the collection.
+	Description *string `json:"description"`
+
+	// Name The name of the collection.
+	Name string `json:"name"`
+
+	// ParentId The ID of the parent collection, if any.
+	ParentId *int `json:"parent_id"`
+}
+
 // CreatePermissionsGroupBody The payload used to create a new permissions group.
 type CreatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
@@ -49,11 +111,36 @@ type Session struct {
 	Id string `json:"id"`
 }
 
+// UpdateCollectionBody The payload used to update an existing collection.
+type UpdateCollectionBody struct {
+	// Archived Whether the collection is archived.
+	// When archived, a collection no longer appears in the list publicly.
+	Archived *bool `json:"archived,omitempty"`
+
+	// Color A color for the collection.
+	Color *string `json:"color,omitempty"`
+
+	// Description A description for the collection.
+	Description *string `json:"description"`
+
+	// Name The name of the collection.
+	Name *string `json:"name,omitempty"`
+
+	// ParentId The ID of the parent collection, if any.
+	ParentId *int `json:"parent_id"`
+}
+
 // UpdatePermissionsGroupBody The payload used to update an existing permissions group.
 type UpdatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
 	Name string `json:"name"`
 }
+
+// CreateCollectionJSONRequestBody defines body for CreateCollection for application/json ContentType.
+type CreateCollectionJSONRequestBody = CreateCollectionBody
+
+// UpdateCollectionJSONRequestBody defines body for UpdateCollection for application/json ContentType.
+type UpdateCollectionJSONRequestBody = UpdateCollectionBody
 
 // CreatePermissionsGroupJSONRequestBody defines body for CreatePermissionsGroup for application/json ContentType.
 type CreatePermissionsGroupJSONRequestBody = CreatePermissionsGroupBody
@@ -63,6 +150,68 @@ type UpdatePermissionsGroupJSONRequestBody = UpdatePermissionsGroupBody
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = CreateSessionBody
+
+// AsCollectionId0 returns the union data inside the Collection_Id as a CollectionId0
+func (t Collection_Id) AsCollectionId0() (CollectionId0, error) {
+	var body CollectionId0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCollectionId0 overwrites any union data inside the Collection_Id as the provided CollectionId0
+func (t *Collection_Id) FromCollectionId0(v CollectionId0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCollectionId0 performs a merge with any union data inside the Collection_Id, using the provided CollectionId0
+func (t *Collection_Id) MergeCollectionId0(v CollectionId0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(b, t.union)
+	t.union = merged
+	return err
+}
+
+// AsCollectionId1 returns the union data inside the Collection_Id as a CollectionId1
+func (t Collection_Id) AsCollectionId1() (CollectionId1, error) {
+	var body CollectionId1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromCollectionId1 overwrites any union data inside the Collection_Id as the provided CollectionId1
+func (t *Collection_Id) FromCollectionId1(v CollectionId1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeCollectionId1 performs a merge with any union data inside the Collection_Id, using the provided CollectionId1
+func (t *Collection_Id) MergeCollectionId1(v CollectionId1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(b, t.union)
+	t.union = merged
+	return err
+}
+
+func (t Collection_Id) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Collection_Id) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -137,6 +286,19 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// CreateCollection request with any body
+	CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateCollection(ctx context.Context, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetCollection request
+	GetCollection(ctx context.Context, collectionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateCollection request with any body
+	UpdateCollectionWithBody(ctx context.Context, collectionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreatePermissionsGroup request with any body
 	CreatePermissionsGroupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -157,6 +319,66 @@ type ClientInterface interface {
 	CreateSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateSession(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCollectionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateCollection(ctx context.Context, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCollectionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetCollection(ctx context.Context, collectionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCollectionRequest(c.Server, collectionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateCollectionWithBody(ctx context.Context, collectionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateCollectionRequestWithBody(c.Server, collectionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateCollectionRequest(c.Server, collectionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) CreatePermissionsGroupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -253,6 +475,127 @@ func (c *Client) CreateSession(ctx context.Context, body CreateSessionJSONReques
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewCreateCollectionRequest calls the generic CreateCollection builder with application/json body
+func NewCreateCollectionRequest(server string, body CreateCollectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateCollectionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateCollectionRequestWithBody generates requests for CreateCollection with any type of body
+func NewCreateCollectionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/collection")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetCollectionRequest generates requests for GetCollection
+func NewGetCollectionRequest(server string, collectionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "collectionId", runtime.ParamLocationPath, collectionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/collection/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateCollectionRequest calls the generic UpdateCollection builder with application/json body
+func NewUpdateCollectionRequest(server string, collectionId string, body UpdateCollectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateCollectionRequestWithBody(server, collectionId, "application/json", bodyReader)
+}
+
+// NewUpdateCollectionRequestWithBody generates requests for UpdateCollection with any type of body
+func NewUpdateCollectionRequestWithBody(server string, collectionId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "collectionId", runtime.ParamLocationPath, collectionId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/collection/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewCreatePermissionsGroupRequest calls the generic CreatePermissionsGroup builder with application/json body
@@ -493,6 +836,19 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// CreateCollection request with any body
+	CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
+
+	CreateCollectionWithResponse(ctx context.Context, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
+
+	// GetCollection request
+	GetCollectionWithResponse(ctx context.Context, collectionId string, reqEditors ...RequestEditorFn) (*GetCollectionResponse, error)
+
+	// UpdateCollection request with any body
+	UpdateCollectionWithBodyWithResponse(ctx context.Context, collectionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
+
+	UpdateCollectionWithResponse(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
+
 	// CreatePermissionsGroup request with any body
 	CreatePermissionsGroupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error)
 
@@ -513,6 +869,72 @@ type ClientWithResponsesInterface interface {
 	CreateSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
 
 	CreateSessionWithResponse(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
+}
+
+type CreateCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Collection
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Collection
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Collection
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type CreatePermissionsGroupResponse struct {
@@ -624,6 +1046,49 @@ func (r CreateSessionResponse) StatusCode() int {
 	return 0
 }
 
+// CreateCollectionWithBodyWithResponse request with arbitrary body returning *CreateCollectionResponse
+func (c *ClientWithResponses) CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
+	rsp, err := c.CreateCollectionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateCollectionResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateCollectionWithResponse(ctx context.Context, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
+	rsp, err := c.CreateCollection(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateCollectionResponse(rsp)
+}
+
+// GetCollectionWithResponse request returning *GetCollectionResponse
+func (c *ClientWithResponses) GetCollectionWithResponse(ctx context.Context, collectionId string, reqEditors ...RequestEditorFn) (*GetCollectionResponse, error) {
+	rsp, err := c.GetCollection(ctx, collectionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCollectionResponse(rsp)
+}
+
+// UpdateCollectionWithBodyWithResponse request with arbitrary body returning *UpdateCollectionResponse
+func (c *ClientWithResponses) UpdateCollectionWithBodyWithResponse(ctx context.Context, collectionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error) {
+	rsp, err := c.UpdateCollectionWithBody(ctx, collectionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateCollectionResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error) {
+	rsp, err := c.UpdateCollection(ctx, collectionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateCollectionResponse(rsp)
+}
+
 // CreatePermissionsGroupWithBodyWithResponse request with arbitrary body returning *CreatePermissionsGroupResponse
 func (c *ClientWithResponses) CreatePermissionsGroupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error) {
 	rsp, err := c.CreatePermissionsGroupWithBody(ctx, contentType, body, reqEditors...)
@@ -691,6 +1156,84 @@ func (c *ClientWithResponses) CreateSessionWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseCreateSessionResponse(rsp)
+}
+
+// ParseCreateCollectionResponse parses an HTTP response from a CreateCollectionWithResponse call
+func ParseCreateCollectionResponse(rsp *http.Response) (*CreateCollectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetCollectionResponse parses an HTTP response from a GetCollectionWithResponse call
+func ParseGetCollectionResponse(rsp *http.Response) (*GetCollectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateCollectionResponse parses an HTTP response from a UpdateCollectionWithResponse call
+func ParseUpdateCollectionResponse(rsp *http.Response) (*UpdateCollectionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseCreatePermissionsGroupResponse parses an HTTP response from a CreatePermissionsGroupWithResponse call
