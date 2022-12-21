@@ -9,6 +9,81 @@ security:
   - Session: []
 
 paths:
+  /permissions/group:
+    post:
+      operationId: createPermissionsGroup
+      description: Creates a new permissions group.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePermissionsGroupBody"
+      responses:
+        200:
+          description: The permissions group was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsGroup"
+
+  /permissions/group/{groupId}:
+    get:
+      operationId: getPermissionsGroup
+      description: Retrieves a single permissions group.
+      parameters:
+        - in: path
+          name: groupId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the permissions group.
+      responses:
+        200:
+          description: The permissions group was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsGroup"
+
+    put:
+      operationId: updatePermissionsGroup
+      description: Updates a single permissions group.
+      parameters:
+        - in: path
+          name: groupId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the permissions group.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePermissionsGroupBody"
+      responses:
+        200:
+          description: The permissions group was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsGroup"
+
+    delete:
+      operationId: deletePermissionsGroup
+      description: Deletes a single permissions group.
+      parameters:
+        - in: path
+          name: groupId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the permissions group.
+      responses:
+        204:
+          description: The permissions group was successfully deleted.
+
   /session:
     post:
       operationId: createSession
@@ -36,6 +111,38 @@ components:
       name: X-Metabase-Session
 
   schemas:
+    # Permissions group.
+    PermissionsGroup:
+      type: object
+      description: A group of users to which permissions can be granted.
+      properties:
+        id:
+          type: integer
+          description: The ID of the permissions group.
+        name:
+          type: string
+          description: A user-displayable name for the group.
+      required:
+        - id
+        - name
+    CreatePermissionsGroupBody:
+      type: object
+      description: The payload used to create a new permissions group.
+      properties:
+        name:
+          type: string
+          description: A user-displayable name for the group.
+      required:
+        - name
+    UpdatePermissionsGroupBody:
+      type: object
+      description: The payload used to update an existing permissions group.
+      properties:
+        name:
+          type: string
+          description: A user-displayable name for the group.
+      required:
+        - name
     # Sessions.
     Session:
       type: object
