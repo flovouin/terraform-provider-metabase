@@ -6,3 +6,7 @@ type MetabaseResponse interface {
 	StatusCode() int
 	BodyString() string
 }
+
+func (r *CreateSessionResponse) BodyString() string {
+	return string(r.Body)
+}
