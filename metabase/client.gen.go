@@ -12,7 +12,19 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/deepmap/oapi-codegen/pkg/runtime"
 )
+
+const (
+	SessionScopes = "Session.Scopes"
+)
+
+// CreatePermissionsGroupBody The payload used to create a new permissions group.
+type CreatePermissionsGroupBody struct {
+	// Name A user-displayable name for the group.
+	Name string `json:"name"`
+}
 
 // CreateSessionBody The credentials required to create a session.
 type CreateSessionBody struct {
@@ -23,10 +35,31 @@ type CreateSessionBody struct {
 	Username string `json:"username"`
 }
 
+// PermissionsGroup A group of users to which permissions can be granted.
+type PermissionsGroup struct {
+	// Id The ID of the permissions group.
+	Id int `json:"id"`
+
+	// Name A user-displayable name for the group.
+	Name string `json:"name"`
+}
+
 // Session A session that can be used to perform authenticated requests to the API.
 type Session struct {
 	Id string `json:"id"`
 }
+
+// UpdatePermissionsGroupBody The payload used to update an existing permissions group.
+type UpdatePermissionsGroupBody struct {
+	// Name A user-displayable name for the group.
+	Name string `json:"name"`
+}
+
+// CreatePermissionsGroupJSONRequestBody defines body for CreatePermissionsGroup for application/json ContentType.
+type CreatePermissionsGroupJSONRequestBody = CreatePermissionsGroupBody
+
+// UpdatePermissionsGroupJSONRequestBody defines body for UpdatePermissionsGroup for application/json ContentType.
+type UpdatePermissionsGroupJSONRequestBody = UpdatePermissionsGroupBody
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = CreateSessionBody
@@ -104,10 +137,98 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// CreatePermissionsGroup request with any body
+	CreatePermissionsGroupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreatePermissionsGroup(ctx context.Context, body CreatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeletePermissionsGroup request
+	DeletePermissionsGroup(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPermissionsGroup request
+	GetPermissionsGroup(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdatePermissionsGroup request with any body
+	UpdatePermissionsGroupWithBody(ctx context.Context, groupId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdatePermissionsGroup(ctx context.Context, groupId int, body UpdatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateSession request with any body
 	CreateSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateSession(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) CreatePermissionsGroupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePermissionsGroupRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreatePermissionsGroup(ctx context.Context, body CreatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreatePermissionsGroupRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeletePermissionsGroup(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeletePermissionsGroupRequest(c.Server, groupId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetPermissionsGroup(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPermissionsGroupRequest(c.Server, groupId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdatePermissionsGroupWithBody(ctx context.Context, groupId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePermissionsGroupRequestWithBody(c.Server, groupId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdatePermissionsGroup(ctx context.Context, groupId int, body UpdatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdatePermissionsGroupRequest(c.Server, groupId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) CreateSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -132,6 +253,161 @@ func (c *Client) CreateSession(ctx context.Context, body CreateSessionJSONReques
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewCreatePermissionsGroupRequest calls the generic CreatePermissionsGroup builder with application/json body
+func NewCreatePermissionsGroupRequest(server string, body CreatePermissionsGroupJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreatePermissionsGroupRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreatePermissionsGroupRequestWithBody generates requests for CreatePermissionsGroup with any type of body
+func NewCreatePermissionsGroupRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/permissions/group")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeletePermissionsGroupRequest generates requests for DeletePermissionsGroup
+func NewDeletePermissionsGroupRequest(server string, groupId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "groupId", runtime.ParamLocationPath, groupId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/permissions/group/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetPermissionsGroupRequest generates requests for GetPermissionsGroup
+func NewGetPermissionsGroupRequest(server string, groupId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "groupId", runtime.ParamLocationPath, groupId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/permissions/group/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdatePermissionsGroupRequest calls the generic UpdatePermissionsGroup builder with application/json body
+func NewUpdatePermissionsGroupRequest(server string, groupId int, body UpdatePermissionsGroupJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdatePermissionsGroupRequestWithBody(server, groupId, "application/json", bodyReader)
+}
+
+// NewUpdatePermissionsGroupRequestWithBody generates requests for UpdatePermissionsGroup with any type of body
+func NewUpdatePermissionsGroupRequestWithBody(server string, groupId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "groupId", runtime.ParamLocationPath, groupId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/permissions/group/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewCreateSessionRequest calls the generic CreateSession builder with application/json body
@@ -217,10 +493,113 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// CreatePermissionsGroup request with any body
+	CreatePermissionsGroupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error)
+
+	CreatePermissionsGroupWithResponse(ctx context.Context, body CreatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error)
+
+	// DeletePermissionsGroup request
+	DeletePermissionsGroupWithResponse(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*DeletePermissionsGroupResponse, error)
+
+	// GetPermissionsGroup request
+	GetPermissionsGroupWithResponse(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*GetPermissionsGroupResponse, error)
+
+	// UpdatePermissionsGroup request with any body
+	UpdatePermissionsGroupWithBodyWithResponse(ctx context.Context, groupId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePermissionsGroupResponse, error)
+
+	UpdatePermissionsGroupWithResponse(ctx context.Context, groupId int, body UpdatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePermissionsGroupResponse, error)
+
 	// CreateSession request with any body
 	CreateSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
 
 	CreateSessionWithResponse(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
+}
+
+type CreatePermissionsGroupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PermissionsGroup
+}
+
+// Status returns HTTPResponse.Status
+func (r CreatePermissionsGroupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreatePermissionsGroupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeletePermissionsGroupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeletePermissionsGroupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeletePermissionsGroupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetPermissionsGroupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PermissionsGroup
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPermissionsGroupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPermissionsGroupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdatePermissionsGroupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PermissionsGroup
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdatePermissionsGroupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdatePermissionsGroupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type CreateSessionResponse struct {
@@ -245,6 +624,58 @@ func (r CreateSessionResponse) StatusCode() int {
 	return 0
 }
 
+// CreatePermissionsGroupWithBodyWithResponse request with arbitrary body returning *CreatePermissionsGroupResponse
+func (c *ClientWithResponses) CreatePermissionsGroupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error) {
+	rsp, err := c.CreatePermissionsGroupWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePermissionsGroupResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreatePermissionsGroupWithResponse(ctx context.Context, body CreatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error) {
+	rsp, err := c.CreatePermissionsGroup(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreatePermissionsGroupResponse(rsp)
+}
+
+// DeletePermissionsGroupWithResponse request returning *DeletePermissionsGroupResponse
+func (c *ClientWithResponses) DeletePermissionsGroupWithResponse(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*DeletePermissionsGroupResponse, error) {
+	rsp, err := c.DeletePermissionsGroup(ctx, groupId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeletePermissionsGroupResponse(rsp)
+}
+
+// GetPermissionsGroupWithResponse request returning *GetPermissionsGroupResponse
+func (c *ClientWithResponses) GetPermissionsGroupWithResponse(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*GetPermissionsGroupResponse, error) {
+	rsp, err := c.GetPermissionsGroup(ctx, groupId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPermissionsGroupResponse(rsp)
+}
+
+// UpdatePermissionsGroupWithBodyWithResponse request with arbitrary body returning *UpdatePermissionsGroupResponse
+func (c *ClientWithResponses) UpdatePermissionsGroupWithBodyWithResponse(ctx context.Context, groupId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdatePermissionsGroupResponse, error) {
+	rsp, err := c.UpdatePermissionsGroupWithBody(ctx, groupId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePermissionsGroupResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdatePermissionsGroupWithResponse(ctx context.Context, groupId int, body UpdatePermissionsGroupJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePermissionsGroupResponse, error) {
+	rsp, err := c.UpdatePermissionsGroup(ctx, groupId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdatePermissionsGroupResponse(rsp)
+}
+
 // CreateSessionWithBodyWithResponse request with arbitrary body returning *CreateSessionResponse
 func (c *ClientWithResponses) CreateSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error) {
 	rsp, err := c.CreateSessionWithBody(ctx, contentType, body, reqEditors...)
@@ -260,6 +691,100 @@ func (c *ClientWithResponses) CreateSessionWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseCreateSessionResponse(rsp)
+}
+
+// ParseCreatePermissionsGroupResponse parses an HTTP response from a CreatePermissionsGroupWithResponse call
+func ParseCreatePermissionsGroupResponse(rsp *http.Response) (*CreatePermissionsGroupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreatePermissionsGroupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PermissionsGroup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeletePermissionsGroupResponse parses an HTTP response from a DeletePermissionsGroupWithResponse call
+func ParseDeletePermissionsGroupResponse(rsp *http.Response) (*DeletePermissionsGroupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeletePermissionsGroupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetPermissionsGroupResponse parses an HTTP response from a GetPermissionsGroupWithResponse call
+func ParseGetPermissionsGroupResponse(rsp *http.Response) (*GetPermissionsGroupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPermissionsGroupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PermissionsGroup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdatePermissionsGroupResponse parses an HTTP response from a UpdatePermissionsGroupWithResponse call
+func ParseUpdatePermissionsGroupResponse(rsp *http.Response) (*UpdatePermissionsGroupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdatePermissionsGroupResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PermissionsGroup
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseCreateSessionResponse parses an HTTP response from a CreateSessionWithResponse call
