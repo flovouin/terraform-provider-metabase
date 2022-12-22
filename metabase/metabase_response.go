@@ -39,6 +39,34 @@ func (r *UpdateCollectionResponse) BodyString() string {
 	return string(r.Body)
 }
 
+func (r *DeleteDashboardCardResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *CreateDashboardCardResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateDashboardCardsResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *CreateDashboardResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetDashboardResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateDashboardResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *DeleteDashboardResponse) BodyString() string {
+	return string(r.Body)
+}
+
 func (r *CreateDatabaseResponse) BodyString() string {
 	return string(r.Body)
 }
