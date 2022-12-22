@@ -7,6 +7,18 @@ type MetabaseResponse interface {
 	BodyString() string
 }
 
+func (r *CreateCardResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetCardResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateCardResponse) BodyString() string {
+	return string(r.Body)
+}
+
 func (r *GetCollectionPermissionsGraphResponse) BodyString() string {
 	return string(r.Body)
 }

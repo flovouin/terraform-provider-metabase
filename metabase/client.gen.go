@@ -59,6 +59,16 @@ const (
 	Yes PermissionsGraphDatabasePermissionsDetails = "yes"
 )
 
+// Card A card (or question).
+type Card struct {
+	// Archived Whether the card has been archived.
+	Archived bool `json:"archived"`
+
+	// Id The ID of the card.
+	Id                   int                    `json:"id"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
 // Collection A collection that regroups dashboards and cards.
 type Collection struct {
 	// Archived Whether the collection is archived.
@@ -120,6 +130,9 @@ type CollectionPermissionsGraph struct {
 
 // CollectionPermissionsGraphCollectionPermissionsMap A map where keys are collection IDs and values are permission levels.
 type CollectionPermissionsGraphCollectionPermissionsMap map[string]CollectionPermissionLevel
+
+// CreateCardBody The payload when creating a new card.
+type CreateCardBody map[string]interface{}
 
 // CreateCollectionBody The payload used to create a new collection.
 type CreateCollectionBody struct {
@@ -314,6 +327,13 @@ type TableMetadata struct {
 	Schema *string `json:"schema"`
 }
 
+// UpdateCardBody The payload when updating an existing card.
+type UpdateCardBody struct {
+	// Archived Set to `true` to archive the card.
+	Archived             *bool                  `json:"archived,omitempty"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
 // UpdateCollectionBody The payload used to update an existing collection.
 type UpdateCollectionBody struct {
 	// Archived Whether the collection is archived.
@@ -357,6 +377,12 @@ type GetTableMetadataParams struct {
 	IncludeHiddenFields *bool `form:"include_hidden_fields,omitempty" json:"include_hidden_fields,omitempty"`
 }
 
+// CreateCardJSONRequestBody defines body for CreateCard for application/json ContentType.
+type CreateCardJSONRequestBody = CreateCardBody
+
+// UpdateCardJSONRequestBody defines body for UpdateCard for application/json ContentType.
+type UpdateCardJSONRequestBody = UpdateCardBody
+
 // CreateCollectionJSONRequestBody defines body for CreateCollection for application/json ContentType.
 type CreateCollectionJSONRequestBody = CreateCollectionBody
 
@@ -383,6 +409,153 @@ type UpdatePermissionsGroupJSONRequestBody = UpdatePermissionsGroupBody
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = CreateSessionBody
+
+// Getter for additional properties for Card. Returns the specified
+// element and whether it was found
+func (a Card) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for Card
+func (a *Card) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for Card to handle AdditionalProperties
+func (a *Card) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["archived"]; found {
+		err = json.Unmarshal(raw, &a.Archived)
+		if err != nil {
+			return fmt.Errorf("error reading 'archived': %w", err)
+		}
+		delete(object, "archived")
+	}
+
+	if raw, found := object["id"]; found {
+		err = json.Unmarshal(raw, &a.Id)
+		if err != nil {
+			return fmt.Errorf("error reading 'id': %w", err)
+		}
+		delete(object, "id")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshalling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for Card to handle AdditionalProperties
+func (a Card) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["archived"], err = json.Marshal(a.Archived)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'archived': %w", err)
+	}
+
+	object["id"], err = json.Marshal(a.Id)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'id': %w", err)
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for UpdateCardBody. Returns the specified
+// element and whether it was found
+func (a UpdateCardBody) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for UpdateCardBody
+func (a *UpdateCardBody) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for UpdateCardBody to handle AdditionalProperties
+func (a *UpdateCardBody) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["archived"]; found {
+		err = json.Unmarshal(raw, &a.Archived)
+		if err != nil {
+			return fmt.Errorf("error reading 'archived': %w", err)
+		}
+		delete(object, "archived")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshalling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for UpdateCardBody to handle AdditionalProperties
+func (a UpdateCardBody) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Archived != nil {
+		object["archived"], err = json.Marshal(a.Archived)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'archived': %w", err)
+		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
 
 // AsCollectionId0 returns the union data inside the Collection_Id as a CollectionId0
 func (t Collection_Id) AsCollectionId0() (CollectionId0, error) {
@@ -519,6 +692,19 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// CreateCard request with any body
+	CreateCardWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateCard(ctx context.Context, body CreateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetCard request
+	GetCard(ctx context.Context, cardId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateCard request with any body
+	UpdateCardWithBody(ctx context.Context, cardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateCard(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateCollection request with any body
 	CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -590,6 +776,66 @@ type ClientInterface interface {
 
 	// GetTableMetadata request
 	GetTableMetadata(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) CreateCardWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCardRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateCard(ctx context.Context, body CreateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCardRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetCard(ctx context.Context, cardId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCardRequest(c.Server, cardId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateCardWithBody(ctx context.Context, cardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateCardRequestWithBody(c.Server, cardId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateCard(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateCardRequest(c.Server, cardId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -914,6 +1160,127 @@ func (c *Client) GetTableMetadata(ctx context.Context, tableId int, params *GetT
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewCreateCardRequest calls the generic CreateCard builder with application/json body
+func NewCreateCardRequest(server string, body CreateCardJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateCardRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateCardRequestWithBody generates requests for CreateCard with any type of body
+func NewCreateCardRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/card")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetCardRequest generates requests for GetCard
+func NewGetCardRequest(server string, cardId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "cardId", runtime.ParamLocationPath, cardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/card/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateCardRequest calls the generic UpdateCard builder with application/json body
+func NewUpdateCardRequest(server string, cardId int, body UpdateCardJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateCardRequestWithBody(server, cardId, "application/json", bodyReader)
+}
+
+// NewUpdateCardRequestWithBody generates requests for UpdateCard with any type of body
+func NewUpdateCardRequestWithBody(server string, cardId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "cardId", runtime.ParamLocationPath, cardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/card/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
 }
 
 // NewCreateCollectionRequest calls the generic CreateCollection builder with application/json body
@@ -1645,6 +2012,19 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// CreateCard request with any body
+	CreateCardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCardResponse, error)
+
+	CreateCardWithResponse(ctx context.Context, body CreateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCardResponse, error)
+
+	// GetCard request
+	GetCardWithResponse(ctx context.Context, cardId int, reqEditors ...RequestEditorFn) (*GetCardResponse, error)
+
+	// UpdateCard request with any body
+	UpdateCardWithBodyWithResponse(ctx context.Context, cardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCardResponse, error)
+
+	UpdateCardWithResponse(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCardResponse, error)
+
 	// CreateCollection request with any body
 	CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
 
@@ -1716,6 +2096,72 @@ type ClientWithResponsesInterface interface {
 
 	// GetTableMetadata request
 	GetTableMetadataWithResponse(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*GetTableMetadataResponse, error)
+}
+
+type CreateCardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Card
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateCardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateCardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetCardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Card
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateCardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Card
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateCardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateCardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type CreateCollectionResponse struct {
@@ -2112,6 +2558,49 @@ func (r GetTableMetadataResponse) StatusCode() int {
 	return 0
 }
 
+// CreateCardWithBodyWithResponse request with arbitrary body returning *CreateCardResponse
+func (c *ClientWithResponses) CreateCardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCardResponse, error) {
+	rsp, err := c.CreateCardWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateCardResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateCardWithResponse(ctx context.Context, body CreateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCardResponse, error) {
+	rsp, err := c.CreateCard(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateCardResponse(rsp)
+}
+
+// GetCardWithResponse request returning *GetCardResponse
+func (c *ClientWithResponses) GetCardWithResponse(ctx context.Context, cardId int, reqEditors ...RequestEditorFn) (*GetCardResponse, error) {
+	rsp, err := c.GetCard(ctx, cardId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCardResponse(rsp)
+}
+
+// UpdateCardWithBodyWithResponse request with arbitrary body returning *UpdateCardResponse
+func (c *ClientWithResponses) UpdateCardWithBodyWithResponse(ctx context.Context, cardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCardResponse, error) {
+	rsp, err := c.UpdateCardWithBody(ctx, cardId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateCardResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateCardWithResponse(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCardResponse, error) {
+	rsp, err := c.UpdateCard(ctx, cardId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateCardResponse(rsp)
+}
+
 // CreateCollectionWithBodyWithResponse request with arbitrary body returning *CreateCollectionResponse
 func (c *ClientWithResponses) CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
 	rsp, err := c.CreateCollectionWithBody(ctx, contentType, body, reqEditors...)
@@ -2344,6 +2833,84 @@ func (c *ClientWithResponses) GetTableMetadataWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseGetTableMetadataResponse(rsp)
+}
+
+// ParseCreateCardResponse parses an HTTP response from a CreateCardWithResponse call
+func ParseCreateCardResponse(rsp *http.Response) (*CreateCardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateCardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Card
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetCardResponse parses an HTTP response from a GetCardWithResponse call
+func ParseGetCardResponse(rsp *http.Response) (*GetCardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Card
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateCardResponse parses an HTTP response from a UpdateCardWithResponse call
+func ParseUpdateCardResponse(rsp *http.Response) (*UpdateCardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateCardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Card
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseCreateCollectionResponse parses an HTTP response from a CreateCollectionWithResponse call

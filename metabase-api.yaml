@@ -9,6 +9,67 @@ security:
   - Session: []
 
 paths:
+  /card:
+    post:
+      operationId: createCard
+      description: Creates a new card.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCardBody"
+      responses:
+        200:
+          description: The card was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+
+  /card/{cardId}:
+    get:
+      operationId: getCard
+      description: Retrieves a single card.
+      parameters:
+        - in: path
+          name: cardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the card.
+      responses:
+        200:
+          description: The card was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+
+    put:
+      operationId: updateCard
+      description: Updates a single card.
+      parameters:
+        - in: path
+          name: cardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the card.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCardBody"
+      responses:
+        200:
+          description: The card was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+
   /collection:
     post:
       operationId: createCollection
@@ -344,6 +405,33 @@ components:
       name: X-Metabase-Session
 
   schemas:
+    # Cards.
+    Card:
+      type: object
+      description: A card (or question).
+      additionalProperties: true
+      properties:
+        id:
+          type: integer
+          description: The ID of the card.
+        archived:
+          type: boolean
+          description: Whether the card has been archived.
+      required:
+        - id
+        - archived
+    CreateCardBody:
+      type: object
+      description: The payload when creating a new card.
+      additionalProperties: true
+    UpdateCardBody:
+      type: object
+      description: The payload when updating an existing card.
+      additionalProperties: true
+      properties:
+        archived:
+          type: boolean
+          description: Set to `true` to archive the card.
     # Collections.
     Collection:
       type: object
