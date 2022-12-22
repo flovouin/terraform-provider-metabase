@@ -27,6 +27,35 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
 
+  /collection/graph:
+    get:
+      operationId: getCollectionPermissionsGraph
+      description: Retrieves the collection permissions graph.
+      responses:
+        200:
+          description: The collection permissions graph.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionPermissionsGraph"
+
+    put:
+      operationId: replaceCollectionPermissionsGraph
+      description: Replaces the collection permissions graph.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CollectionPermissionsGraph"
+      responses:
+        200:
+          description: The updated collection permissions graph.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CollectionPermissionsGraph"
+
   /collection/{collectionId}:
     get:
       operationId: getCollection
@@ -144,6 +173,35 @@ paths:
       responses:
         204:
           description: The database was successfully deleted.
+
+  /permissions/graph:
+    get:
+      operationId: getPermissionsGraph
+      description: Retrieves the permissions graph.
+      responses:
+        200:
+          description: The permissions graph.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsGraph"
+
+    put:
+      operationId: replacePermissionsGraph
+      description: Replaces the permissions graph.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PermissionsGraph"
+      responses:
+        200:
+          description: The updated permissions graph.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsGraph"
 
   /permissions/group:
     post:
@@ -380,6 +438,34 @@ components:
           type: integer
           description: The ID of the parent collection, if any.
           nullable: true
+    # Collection permissions graph.
+    CollectionPermissionsGraph:
+      type: object
+      description: The entire permission graph for collections.
+      properties:
+        revision:
+          type: integer
+          description: The revision of the permissions graph.
+        groups:
+          type: object
+          description: A map where keys are group IDs and values are permissions for this group.
+          additionalProperties:
+            $ref: "#/components/schemas/CollectionPermissionsGraphCollectionPermissionsMap"
+      required:
+        - revision
+        - groups
+    CollectionPermissionsGraphCollectionPermissionsMap:
+      type: object
+      description: A map where keys are collection IDs and values are permission levels.
+      additionalProperties:
+        $ref: "#/components/schemas/CollectionPermissionLevel"
+    CollectionPermissionLevel:
+      type: string
+      description: The level of permission allowed when accessing the collection.
+      enum:
+        - none
+        - read
+        - write
     # Databases.
     Database:
       type: object
@@ -500,6 +586,61 @@ components:
           description: A user-displayable name for the group.
       required:
         - name
+    # Group's permissions on databases.
+    PermissionsGraph:
+      type: object
+      description: The entire permission graph for databases.
+      properties:
+        revision:
+          type: integer
+          description: The revision of the permissions graph.
+        groups:
+          type: object
+          description: A map where keys are group IDs and values are permissions for this group.
+          additionalProperties:
+            $ref: "#/components/schemas/PermissionsGraphDatabasePermissionsMap"
+      required:
+        - revision
+        - groups
+    PermissionsGraphDatabasePermissionsMap:
+      type: object
+      description: A map where keys are database IDs and values are permissions related to the database.
+      additionalProperties:
+        $ref: "#/components/schemas/PermissionsGraphDatabasePermissions"
+    PermissionsGraphDatabasePermissions:
+      type: object
+      description: The permissions related to a single database.
+      properties:
+        data:
+          $ref: "#/components/schemas/PermissionsGraphDatabaseAccess"
+        download:
+          $ref: "#/components/schemas/PermissionsGraphDatabaseAccess"
+        data-model:
+          $ref: "#/components/schemas/PermissionsGraphDatabaseAccess"
+        details:
+          type: string
+          description: The permission definition for accessing details.
+          enum:
+            - "yes"
+            - "no"
+    PermissionsGraphDatabaseAccess:
+      type: object
+      description: The permissions for a single access type.
+      properties:
+        native:
+          type: string
+          description: Whether "Native query editing" is allowed.
+          enum:
+            - full
+            - write
+            - none
+        schemas:
+          type: string
+          description: Whether "Data access" is allowed.
+          enum:
+            - full
+            - all
+            - none
     # Sessions.
     Session:
       type: object

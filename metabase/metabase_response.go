@@ -7,6 +7,14 @@ type MetabaseResponse interface {
 	BodyString() string
 }
 
+func (r *GetCollectionPermissionsGraphResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ReplaceCollectionPermissionsGraphResponse) BodyString() string {
+	return string(r.Body)
+}
+
 func (r *CreateCollectionResponse) BodyString() string {
 	return string(r.Body)
 }
@@ -32,6 +40,14 @@ func (r *UpdateDatabaseResponse) BodyString() string {
 }
 
 func (r *DeleteDatabaseResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetPermissionsGraphResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ReplacePermissionsGraphResponse) BodyString() string {
 	return string(r.Body)
 }
 
