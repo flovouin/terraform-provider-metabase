@@ -19,7 +19,6 @@ import (
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.
-var _ resource.ResourceWithSchema = &DashboardResource{}
 var _ resource.ResourceWithImportState = &DashboardResource{}
 
 // Creates a new dashboard resource.

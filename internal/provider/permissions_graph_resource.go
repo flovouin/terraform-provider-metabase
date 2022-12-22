@@ -12,10 +12,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.
-var _ resource.ResourceWithSchema = &PermissionsGraphResource{}
 var _ resource.ResourceWithImportState = &PermissionsGraphResource{}
 
 // Creates a new permissions graph resource.
@@ -282,7 +282,7 @@ func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNu
 
 	if !apObj.IsNull() {
 		var ap AccessPermissions
-		asDiags := apObj.As(ctx, &ap, types.ObjectAsOptions{})
+		asDiags := apObj.As(ctx, &ap, basetypes.ObjectAsOptions{})
 		diags.Append(asDiags...)
 		if diags.HasError() {
 			return nil, diags

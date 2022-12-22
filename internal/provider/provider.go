@@ -16,8 +16,7 @@ import (
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.
-var _ provider.ProviderWithSchema = &MetabaseProvider{}
-var _ provider.ProviderWithMetadata = &MetabaseProvider{}
+var _ provider.Provider = &MetabaseProvider{}
 
 // Handles Metabase-related resources.
 type MetabaseProvider struct {

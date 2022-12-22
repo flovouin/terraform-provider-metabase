@@ -13,7 +13,6 @@ import (
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.
-var _ resource.ResourceWithSchema = &PermissionsGroupResource{}
 var _ resource.ResourceWithImportState = &PermissionsGroupResource{}
 
 // Creates a new permissions group resource.
