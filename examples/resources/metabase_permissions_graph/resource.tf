@@ -44,13 +44,13 @@ resource "metabase_permissions_graph" "graph" {
     # The example below gives the minimum set of permissions for the free version of Metabase:
     {
       group    = 1 # ID for the "All Users" group.
-      database = 2
+      database = metabase_database.bigquery.id
       # Cannot be removed but has no impact when using the free version of Metabase.
       download = {
         native  = "full"
         schemas = "full"
       }
-      # Omitting the `data` attribute entirely result in the lowest level of permissions:
+      # Omitting the `data` attribute entirely results in the lowest level of permissions:
       # Data access: No self-service
       # Native: No
     },
