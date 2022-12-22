@@ -239,6 +239,45 @@ paths:
               schema:
                 $ref: "#/components/schemas/Session"
 
+  /table:
+    get:
+      operationId: listTables
+      description: Retrieves the list of all tables.
+      responses:
+        200:
+          description: The list of tables
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Table"
+
+  /table/{tableId}/query_metadata:
+    get:
+      operationId: getTableMetadata
+      description: Gets the metadata for a single table.
+      parameters:
+        - in: path
+          name: tableId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the table.
+        - in: query
+          name: include_hidden_fields
+          schema:
+            type: boolean
+          required: false
+          description: Whether the query should return hidden fields.
+      responses:
+        200:
+          description: The list of tables
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TableMetadata"
+
 components:
   securitySchemes:
     Session:
@@ -414,6 +453,21 @@ components:
       description: The type of database to connect to.
       enum:
         - bigquery-cloud-sdk
+    # Fields.
+    Field:
+      type: object
+      description: A field in a database.
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: The ID of the field.
+        name:
+          type: string
+          description: The name of the field (column) in the table.
+      required:
+        - id
+        - name
     # Permissions group.
     PermissionsGroup:
       type: object
@@ -470,3 +524,49 @@ components:
       required:
         - username
         - password
+    # Tables.
+    Table:
+      type: object
+      description: A table in a database.
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: The ID of the table.
+        db_id:
+          type: integer
+          description: The ID of the parent database.
+        name:
+          type: string
+          description: The name of the table.
+        display_name:
+          type: string
+          description: The name displayed in the interface for the table.
+        entity_type:
+          type: string
+          description: The type of table.
+        schema:
+          type: string
+          description: |-
+            The database schema in which the table is located.
+            For BigQuery, this is the dataset name.
+          nullable: true
+      required:
+        - id
+        - db_id
+        - name
+        - entity_type
+    TableMetadata:
+      description: A table in a database, along with additional metadata, like the fields it contains.
+      allOf:
+        - $ref: "#/components/schemas/Table"
+        - type: object
+          additionalProperties: false
+          properties:
+            fields:
+              type: array
+              description: The list of fields in the table.
+              items:
+                $ref: "#/components/schemas/Field"
+          required:
+            - fields

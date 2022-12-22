@@ -157,6 +157,15 @@ type DatabaseDetailsBigQueryDatasetFiltersType string
 // DatabaseEngine The type of database to connect to.
 type DatabaseEngine string
 
+// Field A field in a database.
+type Field struct {
+	// Id The ID of the field.
+	Id int `json:"id"`
+
+	// Name The name of the field (column) in the table.
+	Name string `json:"name"`
+}
+
 // PermissionsGroup A group of users to which permissions can be granted.
 type PermissionsGroup struct {
 	// Id The ID of the permissions group.
@@ -169,6 +178,53 @@ type PermissionsGroup struct {
 // Session A session that can be used to perform authenticated requests to the API.
 type Session struct {
 	Id string `json:"id"`
+}
+
+// Table A table in a database.
+type Table struct {
+	// DbId The ID of the parent database.
+	DbId int `json:"db_id"`
+
+	// DisplayName The name displayed in the interface for the table.
+	DisplayName *string `json:"display_name,omitempty"`
+
+	// EntityType The type of table.
+	EntityType string `json:"entity_type"`
+
+	// Id The ID of the table.
+	Id int `json:"id"`
+
+	// Name The name of the table.
+	Name string `json:"name"`
+
+	// Schema The database schema in which the table is located.
+	// For BigQuery, this is the dataset name.
+	Schema *string `json:"schema"`
+}
+
+// TableMetadata defines model for TableMetadata.
+type TableMetadata struct {
+	// DbId The ID of the parent database.
+	DbId int `json:"db_id"`
+
+	// DisplayName The name displayed in the interface for the table.
+	DisplayName *string `json:"display_name,omitempty"`
+
+	// EntityType The type of table.
+	EntityType string `json:"entity_type"`
+
+	// Fields The list of fields in the table.
+	Fields []Field `json:"fields"`
+
+	// Id The ID of the table.
+	Id int `json:"id"`
+
+	// Name The name of the table.
+	Name string `json:"name"`
+
+	// Schema The database schema in which the table is located.
+	// For BigQuery, this is the dataset name.
+	Schema *string `json:"schema"`
 }
 
 // UpdateCollectionBody The payload used to update an existing collection.
@@ -206,6 +262,12 @@ type UpdateDatabaseBody struct {
 type UpdatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
 	Name string `json:"name"`
+}
+
+// GetTableMetadataParams defines parameters for GetTableMetadata.
+type GetTableMetadataParams struct {
+	// IncludeHiddenFields Whether the query should return hidden fields.
+	IncludeHiddenFields *bool `form:"include_hidden_fields,omitempty" json:"include_hidden_fields,omitempty"`
 }
 
 // CreateCollectionJSONRequestBody defines body for CreateCollection for application/json ContentType.
@@ -413,6 +475,12 @@ type ClientInterface interface {
 	CreateSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	CreateSession(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListTables request
+	ListTables(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTableMetadata request
+	GetTableMetadata(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -633,6 +701,30 @@ func (c *Client) CreateSessionWithBody(ctx context.Context, contentType string, 
 
 func (c *Client) CreateSession(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateSessionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListTables(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListTablesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTableMetadata(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTableMetadataRequest(c.Server, tableId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1114,6 +1206,87 @@ func NewCreateSessionRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewListTablesRequest generates requests for ListTables
+func NewListTablesRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/table")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetTableMetadataRequest generates requests for GetTableMetadata
+func NewGetTableMetadataRequest(server string, tableId int, params *GetTableMetadataParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tableId", runtime.ParamLocationPath, tableId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/table/%s/query_metadata", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if params.IncludeHiddenFields != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include_hidden_fields", runtime.ParamLocationQuery, *params.IncludeHiddenFields); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -1206,6 +1379,12 @@ type ClientWithResponsesInterface interface {
 	CreateSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
 
 	CreateSessionWithResponse(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
+
+	// ListTables request
+	ListTablesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTablesResponse, error)
+
+	// GetTableMetadata request
+	GetTableMetadataWithResponse(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*GetTableMetadataResponse, error)
 }
 
 type CreateCollectionResponse struct {
@@ -1470,6 +1649,50 @@ func (r CreateSessionResponse) StatusCode() int {
 	return 0
 }
 
+type ListTablesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Table
+}
+
+// Status returns HTTPResponse.Status
+func (r ListTablesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListTablesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetTableMetadataResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *TableMetadata
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTableMetadataResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTableMetadataResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // CreateCollectionWithBodyWithResponse request with arbitrary body returning *CreateCollectionResponse
 func (c *ClientWithResponses) CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
 	rsp, err := c.CreateCollectionWithBody(ctx, contentType, body, reqEditors...)
@@ -1632,6 +1855,24 @@ func (c *ClientWithResponses) CreateSessionWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseCreateSessionResponse(rsp)
+}
+
+// ListTablesWithResponse request returning *ListTablesResponse
+func (c *ClientWithResponses) ListTablesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTablesResponse, error) {
+	rsp, err := c.ListTables(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListTablesResponse(rsp)
+}
+
+// GetTableMetadataWithResponse request returning *GetTableMetadataResponse
+func (c *ClientWithResponses) GetTableMetadataWithResponse(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*GetTableMetadataResponse, error) {
+	rsp, err := c.GetTableMetadata(ctx, tableId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTableMetadataResponse(rsp)
 }
 
 // ParseCreateCollectionResponse parses an HTTP response from a CreateCollectionWithResponse call
@@ -1916,6 +2157,58 @@ func ParseCreateSessionResponse(rsp *http.Response) (*CreateSessionResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Session
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListTablesResponse parses an HTTP response from a ListTablesWithResponse call
+func ParseListTablesResponse(rsp *http.Response) (*ListTablesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListTablesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Table
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTableMetadataResponse parses an HTTP response from a GetTableMetadataWithResponse call
+func ParseGetTableMetadataResponse(rsp *http.Response) (*GetTableMetadataResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTableMetadataResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest TableMetadata
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

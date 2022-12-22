@@ -127,7 +127,9 @@ func (p *MetabaseProvider) Resources(ctx context.Context) []func() resource.Reso
 }
 
 func (p *MetabaseProvider) DataSources(ctx context.Context) []func() datasource.DataSource {
-	return []func() datasource.DataSource{}
+	return []func() datasource.DataSource{
+		NewTableDataSource,
+	}
 }
 
 func New(version string) func() provider.Provider {
