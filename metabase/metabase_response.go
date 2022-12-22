@@ -54,3 +54,11 @@ func (r *DeletePermissionsGroupResponse) BodyString() string {
 func (r *CreateSessionResponse) BodyString() string {
 	return string(r.Body)
 }
+
+func (r *ListTablesResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetTableMetadataResponse) BodyString() string {
+	return string(r.Body)
+}
