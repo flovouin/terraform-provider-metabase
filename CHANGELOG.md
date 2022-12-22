@@ -9,3 +9,4 @@ NEW FEATURES:
 - Introduce the `metabase_collection_graph` resource.
 - Introduce the `metabase_permissions_graph` resource.
 - Introduce the `metabase_card` resource.
+- Introduce the `metabase_dashboard` resource.

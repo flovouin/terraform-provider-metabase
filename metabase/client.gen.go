@@ -149,6 +149,36 @@ type CreateCollectionBody struct {
 	ParentId *int `json:"parent_id"`
 }
 
+// CreateDashboardBody The body of the payload when creating a dashboard.
+type CreateDashboardBody struct {
+	// CacheTtl The cache TTL.
+	CacheTtl *int `json:"cache_ttl"`
+
+	// CollectionId The ID of the collection in which the dashboard is placed.
+	CollectionId *int `json:"collection_id"`
+
+	// CollectionPosition The position of the dashboard in the collection.
+	CollectionPosition *int `json:"collection_position"`
+
+	// Description A description for the dashboard.
+	Description *string `json:"description"`
+
+	// Name The name of the dashboard.
+	Name string `json:"name"`
+
+	// Parameters A list of parameters for the dashboard, that the user can tweak.
+	Parameters *[]DashboardParameter `json:"parameters"`
+}
+
+// CreateDashboardCardBody The payload when creating a new card within a dashboard.
+type CreateDashboardCardBody struct {
+	// CardId The ID of the card to add to the dashboard.
+	CardId *int `json:"cardId"`
+
+	// ParameterMappings A list of parameter mappings for the card.
+	ParameterMappings *[]interface{} `json:"parameter_mappings,omitempty"`
+}
+
 // CreateDatabaseBody The payload used to create a new database.
 type CreateDatabaseBody struct {
 	// Details The content of the `details` map for a database when connecting to BigQuery.
@@ -174,6 +204,125 @@ type CreateSessionBody struct {
 
 	// Username The name of the user, or his email.
 	Username string `json:"username"`
+}
+
+// Dashboard A dashboard containing cards.
+type Dashboard struct {
+	// Archived Whether the dashboard has been archived.
+	Archived bool `json:"archived"`
+
+	// CacheTtl The cache TTL.
+	CacheTtl *int `json:"cache_ttl"`
+
+	// CollectionId The ID of the collection in which the dashboard is placed.
+	CollectionId *int `json:"collection_id"`
+
+	// CollectionPosition The position of the dashboard in the collection.
+	CollectionPosition *int `json:"collection_position"`
+
+	// Description A description for the dashboard.
+	Description *string `json:"description"`
+
+	// Id The ID of the dashboard.
+	Id int `json:"id"`
+
+	// Name The name of the dashboard.
+	Name string `json:"name"`
+
+	// Parameters A list of parameters for the dashboard, that the user can tweak.
+	Parameters []DashboardParameter `json:"parameters"`
+}
+
+// DashboardCard A card within a dashboard.
+type DashboardCard struct {
+	// CardId The ID of the card.
+	CardId int `json:"card_id"`
+
+	// Col The index of the column at which the card is placed.
+	Col int `json:"col"`
+
+	// Id The ID of the dashboard card.
+	Id int `json:"id"`
+
+	// ParameterMappings A list of parameter mappings.
+	ParameterMappings []interface{} `json:"parameter_mappings"`
+
+	// Row The index of the row at which the card is placed.
+	Row int `json:"row"`
+
+	// Series A list of series.
+	Series []interface{} `json:"series"`
+
+	// SizeX The horizontal size of the card in the dashboard.
+	SizeX int `json:"sizeX"`
+
+	// SizeY The vertical size of the card in the dashboard.
+	SizeY int `json:"sizeY"`
+
+	// VisualizationSettings The visualization settings for the card.
+	VisualizationSettings map[string]interface{} `json:"visualization_settings"`
+}
+
+// DashboardParameter A parameter for a dashboard, that the user can tweak.
+type DashboardParameter struct {
+	// Default The default value for the parameter.
+	Default *DashboardParameter_Default `json:"default,omitempty"`
+
+	// Id The ID of the parameter.
+	Id string `json:"id"`
+
+	// Name The displayed name for the parameter.
+	Name string `json:"name"`
+
+	// SectionId The ID of the section.
+	SectionId string `json:"sectionId"`
+
+	// Slug The slug name for the parameter.
+	Slug string `json:"slug"`
+
+	// Type The type of parameter.
+	Type string `json:"type"`
+}
+
+// DashboardParameterDefault0 defines model for .
+type DashboardParameterDefault0 = string
+
+// DashboardParameterDefault1 defines model for .
+type DashboardParameterDefault1 = []interface{}
+
+// DashboardParameter_Default The default value for the parameter.
+type DashboardParameter_Default struct {
+	union json.RawMessage
+}
+
+// DashboardWithCards defines model for DashboardWithCards.
+type DashboardWithCards struct {
+	// Archived Whether the dashboard has been archived.
+	Archived bool `json:"archived"`
+
+	// CacheTtl The cache TTL.
+	CacheTtl *int `json:"cache_ttl"`
+
+	// CollectionId The ID of the collection in which the dashboard is placed.
+	CollectionId *int `json:"collection_id"`
+
+	// CollectionPosition The position of the dashboard in the collection.
+	CollectionPosition *int `json:"collection_position"`
+
+	// Description A description for the dashboard.
+	Description *string `json:"description"`
+
+	// Id The ID of the dashboard.
+	Id int `json:"id"`
+
+	// Name The name of the dashboard.
+	Name string `json:"name"`
+
+	// OrderedCards The list of cards in the dashboard.
+	OrderedCards []DashboardCard `json:"ordered_cards"`
+
+	// Parameters A list of parameters for the dashboard, that the user can tweak.
+	Parameters []DashboardParameter `json:"parameters"`
 }
 
 // Database An external database that can be queried by cards and dashboards.
@@ -353,6 +502,36 @@ type UpdateCollectionBody struct {
 	ParentId *int `json:"parent_id"`
 }
 
+// UpdateDashboardBody The body of the payload when updating a dashboard.
+type UpdateDashboardBody struct {
+	// Archived Set to `true` to archive the dashboard.
+	Archived *bool `json:"archived,omitempty"`
+
+	// CacheTtl The cache TTL.
+	CacheTtl *int `json:"cache_ttl"`
+
+	// CollectionId The ID of the collection in which the dashboard is placed.
+	CollectionId *int `json:"collection_id"`
+
+	// CollectionPosition The position of the dashboard in the collection.
+	CollectionPosition *int `json:"collection_position"`
+
+	// Description A description for the dashboard.
+	Description *string `json:"description"`
+
+	// Name The name of the dashboard.
+	Name *string `json:"name,omitempty"`
+
+	// Parameters A list of parameters for the dashboard, that the user can tweak.
+	Parameters *[]DashboardParameter `json:"parameters,omitempty"`
+}
+
+// UpdateDashboardCardsBody The payload when updating all cards in a dashboard.
+type UpdateDashboardCardsBody struct {
+	// Cards The list of cards in the dashboard.
+	Cards []DashboardCard `json:"cards"`
+}
+
 // UpdateDatabaseBody The payload used to update an existing database.
 type UpdateDatabaseBody struct {
 	// Details The content of the `details` map for a database when connecting to BigQuery.
@@ -369,6 +548,11 @@ type UpdateDatabaseBody struct {
 type UpdatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
 	Name string `json:"name"`
+}
+
+// DeleteDashboardCardParams defines parameters for DeleteDashboardCard.
+type DeleteDashboardCardParams struct {
+	DashcardId int `form:"dashcardId" json:"dashcardId"`
 }
 
 // GetTableMetadataParams defines parameters for GetTableMetadata.
@@ -391,6 +575,18 @@ type ReplaceCollectionPermissionsGraphJSONRequestBody = CollectionPermissionsGra
 
 // UpdateCollectionJSONRequestBody defines body for UpdateCollection for application/json ContentType.
 type UpdateCollectionJSONRequestBody = UpdateCollectionBody
+
+// CreateDashboardJSONRequestBody defines body for CreateDashboard for application/json ContentType.
+type CreateDashboardJSONRequestBody = CreateDashboardBody
+
+// UpdateDashboardJSONRequestBody defines body for UpdateDashboard for application/json ContentType.
+type UpdateDashboardJSONRequestBody = UpdateDashboardBody
+
+// CreateDashboardCardJSONRequestBody defines body for CreateDashboardCard for application/json ContentType.
+type CreateDashboardCardJSONRequestBody = CreateDashboardCardBody
+
+// UpdateDashboardCardsJSONRequestBody defines body for UpdateDashboardCards for application/json ContentType.
+type UpdateDashboardCardsJSONRequestBody = UpdateDashboardCardsBody
 
 // CreateDatabaseJSONRequestBody defines body for CreateDatabase for application/json ContentType.
 type CreateDatabaseJSONRequestBody = CreateDatabaseBody
@@ -619,6 +815,68 @@ func (t *Collection_Id) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsDashboardParameterDefault0 returns the union data inside the DashboardParameter_Default as a DashboardParameterDefault0
+func (t DashboardParameter_Default) AsDashboardParameterDefault0() (DashboardParameterDefault0, error) {
+	var body DashboardParameterDefault0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDashboardParameterDefault0 overwrites any union data inside the DashboardParameter_Default as the provided DashboardParameterDefault0
+func (t *DashboardParameter_Default) FromDashboardParameterDefault0(v DashboardParameterDefault0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDashboardParameterDefault0 performs a merge with any union data inside the DashboardParameter_Default, using the provided DashboardParameterDefault0
+func (t *DashboardParameter_Default) MergeDashboardParameterDefault0(v DashboardParameterDefault0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(b, t.union)
+	t.union = merged
+	return err
+}
+
+// AsDashboardParameterDefault1 returns the union data inside the DashboardParameter_Default as a DashboardParameterDefault1
+func (t DashboardParameter_Default) AsDashboardParameterDefault1() (DashboardParameterDefault1, error) {
+	var body DashboardParameterDefault1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDashboardParameterDefault1 overwrites any union data inside the DashboardParameter_Default as the provided DashboardParameterDefault1
+func (t *DashboardParameter_Default) FromDashboardParameterDefault1(v DashboardParameterDefault1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDashboardParameterDefault1 performs a merge with any union data inside the DashboardParameter_Default, using the provided DashboardParameterDefault1
+func (t *DashboardParameter_Default) MergeDashboardParameterDefault1(v DashboardParameterDefault1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(b, t.union)
+	t.union = merged
+	return err
+}
+
+func (t DashboardParameter_Default) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *DashboardParameter_Default) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // RequestEditorFn  is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
 
@@ -725,6 +983,35 @@ type ClientInterface interface {
 	UpdateCollectionWithBody(ctx context.Context, collectionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateDashboard request with any body
+	CreateDashboardWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateDashboard(ctx context.Context, body CreateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteDashboard request
+	DeleteDashboard(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDashboard request
+	GetDashboard(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateDashboard request with any body
+	UpdateDashboardWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateDashboard(ctx context.Context, dashboardId int, body UpdateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteDashboardCard request
+	DeleteDashboardCard(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateDashboardCard request with any body
+	CreateDashboardCardWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateDashboardCard(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateDashboardCards request with any body
+	UpdateDashboardCardsWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateDashboardCards(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateDatabase request with any body
 	CreateDatabaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -924,6 +1211,138 @@ func (c *Client) UpdateCollectionWithBody(ctx context.Context, collectionId stri
 
 func (c *Client) UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateCollectionRequest(c.Server, collectionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateDashboardWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDashboardRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateDashboard(ctx context.Context, body CreateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDashboardRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteDashboard(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteDashboardRequest(c.Server, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDashboard(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDashboardRequest(c.Server, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDashboardWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDashboardRequestWithBody(c.Server, dashboardId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDashboard(ctx context.Context, dashboardId int, body UpdateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDashboardRequest(c.Server, dashboardId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteDashboardCard(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteDashboardCardRequest(c.Server, dashboardId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateDashboardCardWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDashboardCardRequestWithBody(c.Server, dashboardId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateDashboardCard(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDashboardCardRequest(c.Server, dashboardId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDashboardCardsWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDashboardCardsRequestWithBody(c.Server, dashboardId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDashboardCards(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDashboardCardsRequest(c.Server, dashboardId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -1452,6 +1871,305 @@ func NewUpdateCollectionRequestWithBody(server string, collectionId string, cont
 	}
 
 	operationPath := fmt.Sprintf("/collection/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCreateDashboardRequest calls the generic CreateDashboard builder with application/json body
+func NewCreateDashboardRequest(server string, body CreateDashboardJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateDashboardRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateDashboardRequestWithBody generates requests for CreateDashboard with any type of body
+func NewCreateDashboardRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteDashboardRequest generates requests for DeleteDashboard
+func NewDeleteDashboardRequest(server string, dashboardId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetDashboardRequest generates requests for GetDashboard
+func NewGetDashboardRequest(server string, dashboardId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateDashboardRequest calls the generic UpdateDashboard builder with application/json body
+func NewUpdateDashboardRequest(server string, dashboardId int, body UpdateDashboardJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateDashboardRequestWithBody(server, dashboardId, "application/json", bodyReader)
+}
+
+// NewUpdateDashboardRequestWithBody generates requests for UpdateDashboard with any type of body
+func NewUpdateDashboardRequestWithBody(server string, dashboardId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteDashboardCardRequest generates requests for DeleteDashboardCard
+func NewDeleteDashboardCardRequest(server string, dashboardId int, params *DeleteDashboardCardParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/%s/cards", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if queryFrag, err := runtime.StyleParamWithLocation("form", true, "dashcardId", runtime.ParamLocationQuery, params.DashcardId); err != nil {
+		return nil, err
+	} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+		return nil, err
+	} else {
+		for k, v := range parsed {
+			for _, v2 := range v {
+				queryValues.Add(k, v2)
+			}
+		}
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateDashboardCardRequest calls the generic CreateDashboardCard builder with application/json body
+func NewCreateDashboardCardRequest(server string, dashboardId int, body CreateDashboardCardJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateDashboardCardRequestWithBody(server, dashboardId, "application/json", bodyReader)
+}
+
+// NewCreateDashboardCardRequestWithBody generates requests for CreateDashboardCard with any type of body
+func NewCreateDashboardCardRequestWithBody(server string, dashboardId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/%s/cards", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewUpdateDashboardCardsRequest calls the generic UpdateDashboardCards builder with application/json body
+func NewUpdateDashboardCardsRequest(server string, dashboardId int, body UpdateDashboardCardsJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateDashboardCardsRequestWithBody(server, dashboardId, "application/json", bodyReader)
+}
+
+// NewUpdateDashboardCardsRequestWithBody generates requests for UpdateDashboardCards with any type of body
+func NewUpdateDashboardCardsRequestWithBody(server string, dashboardId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard/%s/cards", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2046,6 +2764,35 @@ type ClientWithResponsesInterface interface {
 
 	UpdateCollectionWithResponse(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
 
+	// CreateDashboard request with any body
+	CreateDashboardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error)
+
+	CreateDashboardWithResponse(ctx context.Context, body CreateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error)
+
+	// DeleteDashboard request
+	DeleteDashboardWithResponse(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*DeleteDashboardResponse, error)
+
+	// GetDashboard request
+	GetDashboardWithResponse(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*GetDashboardResponse, error)
+
+	// UpdateDashboard request with any body
+	UpdateDashboardWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDashboardResponse, error)
+
+	UpdateDashboardWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardResponse, error)
+
+	// DeleteDashboardCard request
+	DeleteDashboardCardWithResponse(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*DeleteDashboardCardResponse, error)
+
+	// CreateDashboardCard request with any body
+	CreateDashboardCardWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error)
+
+	CreateDashboardCardWithResponse(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error)
+
+	// UpdateDashboardCards request with any body
+	UpdateDashboardCardsWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error)
+
+	UpdateDashboardCardsWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error)
+
 	// CreateDatabase request with any body
 	CreateDatabaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error)
 
@@ -2268,6 +3015,161 @@ func (r UpdateCollectionResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateDashboardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Dashboard
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateDashboardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateDashboardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteDashboardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDashboardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDashboardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetDashboardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DashboardWithCards
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDashboardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDashboardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateDashboardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Dashboard
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDashboardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDashboardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteDashboardCardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDashboardCardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDashboardCardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateDashboardCardResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DashboardCard
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateDashboardCardResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateDashboardCardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateDashboardCardsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		// Status The return status of the operation.
+		Status string `json:"status"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDashboardCardsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDashboardCardsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2670,6 +3572,101 @@ func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, 
 	return ParseUpdateCollectionResponse(rsp)
 }
 
+// CreateDashboardWithBodyWithResponse request with arbitrary body returning *CreateDashboardResponse
+func (c *ClientWithResponses) CreateDashboardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error) {
+	rsp, err := c.CreateDashboardWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDashboardResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateDashboardWithResponse(ctx context.Context, body CreateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error) {
+	rsp, err := c.CreateDashboard(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDashboardResponse(rsp)
+}
+
+// DeleteDashboardWithResponse request returning *DeleteDashboardResponse
+func (c *ClientWithResponses) DeleteDashboardWithResponse(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*DeleteDashboardResponse, error) {
+	rsp, err := c.DeleteDashboard(ctx, dashboardId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteDashboardResponse(rsp)
+}
+
+// GetDashboardWithResponse request returning *GetDashboardResponse
+func (c *ClientWithResponses) GetDashboardWithResponse(ctx context.Context, dashboardId int, reqEditors ...RequestEditorFn) (*GetDashboardResponse, error) {
+	rsp, err := c.GetDashboard(ctx, dashboardId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDashboardResponse(rsp)
+}
+
+// UpdateDashboardWithBodyWithResponse request with arbitrary body returning *UpdateDashboardResponse
+func (c *ClientWithResponses) UpdateDashboardWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDashboardResponse, error) {
+	rsp, err := c.UpdateDashboardWithBody(ctx, dashboardId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDashboardResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateDashboardWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardResponse, error) {
+	rsp, err := c.UpdateDashboard(ctx, dashboardId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDashboardResponse(rsp)
+}
+
+// DeleteDashboardCardWithResponse request returning *DeleteDashboardCardResponse
+func (c *ClientWithResponses) DeleteDashboardCardWithResponse(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*DeleteDashboardCardResponse, error) {
+	rsp, err := c.DeleteDashboardCard(ctx, dashboardId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteDashboardCardResponse(rsp)
+}
+
+// CreateDashboardCardWithBodyWithResponse request with arbitrary body returning *CreateDashboardCardResponse
+func (c *ClientWithResponses) CreateDashboardCardWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error) {
+	rsp, err := c.CreateDashboardCardWithBody(ctx, dashboardId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDashboardCardResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateDashboardCardWithResponse(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error) {
+	rsp, err := c.CreateDashboardCard(ctx, dashboardId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDashboardCardResponse(rsp)
+}
+
+// UpdateDashboardCardsWithBodyWithResponse request with arbitrary body returning *UpdateDashboardCardsResponse
+func (c *ClientWithResponses) UpdateDashboardCardsWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error) {
+	rsp, err := c.UpdateDashboardCardsWithBody(ctx, dashboardId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDashboardCardsResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateDashboardCardsWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error) {
+	rsp, err := c.UpdateDashboardCards(ctx, dashboardId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDashboardCardsResponse(rsp)
+}
+
 // CreateDatabaseWithBodyWithResponse request with arbitrary body returning *CreateDatabaseResponse
 func (c *ClientWithResponses) CreateDatabaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error) {
 	rsp, err := c.CreateDatabaseWithBody(ctx, contentType, body, reqEditors...)
@@ -3033,6 +4030,171 @@ func ParseUpdateCollectionResponse(rsp *http.Response) (*UpdateCollectionRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateDashboardResponse parses an HTTP response from a CreateDashboardWithResponse call
+func ParseCreateDashboardResponse(rsp *http.Response) (*CreateDashboardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateDashboardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Dashboard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDashboardResponse parses an HTTP response from a DeleteDashboardWithResponse call
+func ParseDeleteDashboardResponse(rsp *http.Response) (*DeleteDashboardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDashboardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetDashboardResponse parses an HTTP response from a GetDashboardWithResponse call
+func ParseGetDashboardResponse(rsp *http.Response) (*GetDashboardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDashboardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardWithCards
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDashboardResponse parses an HTTP response from a UpdateDashboardWithResponse call
+func ParseUpdateDashboardResponse(rsp *http.Response) (*UpdateDashboardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDashboardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Dashboard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDashboardCardResponse parses an HTTP response from a DeleteDashboardCardWithResponse call
+func ParseDeleteDashboardCardResponse(rsp *http.Response) (*DeleteDashboardCardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDashboardCardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseCreateDashboardCardResponse parses an HTTP response from a CreateDashboardCardWithResponse call
+func ParseCreateDashboardCardResponse(rsp *http.Response) (*CreateDashboardCardResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateDashboardCardResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DashboardCard
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDashboardCardsResponse parses an HTTP response from a UpdateDashboardCardsWithResponse call
+func ParseUpdateDashboardCardsResponse(rsp *http.Response) (*UpdateDashboardCardsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDashboardCardsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			// Status The return status of the operation.
+			Status string `json:"status"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

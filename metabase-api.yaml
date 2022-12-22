@@ -160,6 +160,156 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
 
+  /dashboard:
+    post:
+      operationId: createDashboard
+      description: Creates a new dashboard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDashboardBody"
+      responses:
+        200:
+          description: The dashboard was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+
+  /dashboard/{dashboardId}:
+    get:
+      operationId: getDashboard
+      description: Retrieves a single dashboard.
+      parameters:
+        - in: path
+          name: dashboardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the dashboard.
+      responses:
+        200:
+          description: The dashboard was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardWithCards"
+
+    put:
+      operationId: updateDashboard
+      description: Updates a single dashboard.
+      parameters:
+        - in: path
+          name: dashboardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the dashboard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDashboardBody"
+      responses:
+        200:
+          description: The dashboard was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+
+    delete:
+      operationId: deleteDashboard
+      description: Deletes a single dashboard.
+      parameters:
+        - in: path
+          name: dashboardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the dashboard.
+      responses:
+        204:
+          description: The dashboard was successfully deleted.
+
+  /dashboard/{dashboardId}/cards:
+    post:
+      operationId: createDashboardCard
+      description: Creates a new card within a dashboard.
+      parameters:
+        - in: path
+          name: dashboardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the dashboard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDashboardCardBody"
+      responses:
+        200:
+          description: The dashboard card was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardCard"
+
+    put:
+      operationId: updateDashboardCards
+      description: Updates the list of cards in a dashboard.
+      parameters:
+        - in: path
+          name: dashboardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the dashboard.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDashboardCardsBody"
+      responses:
+        200:
+          description: The dashboard cards were successfully updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: A generic response object.
+                properties:
+                  status:
+                    type: string
+                    description: The return status of the operation.
+                required:
+                  - status
+
+    delete:
+      operationId: deleteDashboardCard
+      description: Deletes a single card within a dashboard.
+      parameters:
+        - in: path
+          name: dashboardId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the dashboard.
+        - in: query
+          name: dashcardId
+          schema:
+            type: integer
+          required: true
+      responses:
+        204:
+          description: The dashboard was successfully deleted.
+
   /database:
     post:
       operationId: createDatabase
@@ -554,6 +704,224 @@ components:
         - none
         - read
         - write
+    # Dashboards.
+    Dashboard:
+      type: object
+      description: A dashboard containing cards.
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: The ID of the dashboard.
+        name:
+          type: string
+          description: The name of the dashboard.
+        description:
+          type: string
+          description: A description for the dashboard.
+          nullable: true
+        collection_position:
+          type: integer
+          description: The position of the dashboard in the collection.
+          nullable: true
+        collection_id:
+          type: integer
+          description: The ID of the collection in which the dashboard is placed.
+          nullable: true
+        cache_ttl:
+          type: integer
+          description: The cache TTL.
+          nullable: true
+        archived:
+          type: boolean
+          description: Whether the dashboard has been archived.
+        parameters:
+          type: array
+          description: A list of parameters for the dashboard, that the user can tweak.
+          items:
+            $ref: "#/components/schemas/DashboardParameter"
+      required:
+        - id
+        - name
+        - description
+        - collection_position
+        - collection_id
+        - cache_ttl
+        - archived
+        - parameters
+    DashboardWithCards:
+      description: A dashboard enriched with the list of cards within it.
+      allOf:
+        - $ref: "#/components/schemas/Dashboard"
+        - type: object
+          properties:
+            ordered_cards:
+              type: array
+              description: The list of cards in the dashboard.
+              items:
+                $ref: "#/components/schemas/DashboardCard"
+          required:
+            - ordered_cards
+    CreateDashboardBody:
+      type: object
+      description: The body of the payload when creating a dashboard.
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: The name of the dashboard.
+        description:
+          type: string
+          description: A description for the dashboard.
+          nullable: true
+        collection_position:
+          type: integer
+          description: The position of the dashboard in the collection.
+          nullable: true
+        collection_id:
+          type: integer
+          description: The ID of the collection in which the dashboard is placed.
+          nullable: true
+        cache_ttl:
+          type: integer
+          description: The cache TTL.
+          nullable: true
+        parameters:
+          type: array
+          description: A list of parameters for the dashboard, that the user can tweak.
+          nullable: true
+          items:
+            $ref: "#/components/schemas/DashboardParameter"
+      required:
+        - name
+    UpdateDashboardBody:
+      type: object
+      description: The body of the payload when updating a dashboard.
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: The name of the dashboard.
+        description:
+          type: string
+          description: A description for the dashboard.
+          nullable: true
+        collection_position:
+          type: integer
+          description: The position of the dashboard in the collection.
+          nullable: true
+        collection_id:
+          type: integer
+          description: The ID of the collection in which the dashboard is placed.
+          nullable: true
+        cache_ttl:
+          type: integer
+          description: The cache TTL.
+          nullable: true
+        archived:
+          type: boolean
+          description: Set to `true` to archive the dashboard.
+        parameters:
+          type: array
+          description: A list of parameters for the dashboard, that the user can tweak.
+          items:
+            $ref: "#/components/schemas/DashboardParameter"
+    DashboardParameter:
+      type: object
+      description: A parameter for a dashboard, that the user can tweak.
+      properties:
+        id:
+          type: string
+          description: The ID of the parameter.
+        name:
+          type: string
+          description: The displayed name for the parameter.
+        slug:
+          type: string
+          description: The slug name for the parameter.
+        type:
+          type: string
+          description: The type of parameter.
+        sectionId:
+          type: string
+          description: The ID of the section.
+        default:
+          oneOf:
+            - type: string
+            - type: array
+          description: The default value for the parameter.
+      required:
+        - id
+        - name
+        - slug
+        - type
+        - sectionId
+    DashboardCard:
+      type: object
+      description: A card within a dashboard.
+      properties:
+        id:
+          type: integer
+          description: The ID of the dashboard card.
+        card_id:
+          type: integer
+          description: The ID of the card.
+        row:
+          type: integer
+          description: The index of the row at which the card is placed.
+        col:
+          type: integer
+          description: The index of the column at which the card is placed.
+        sizeX:
+          type: integer
+          description: The horizontal size of the card in the dashboard.
+        sizeY:
+          type: integer
+          description: The vertical size of the card in the dashboard.
+        series:
+          type: array
+          description: A list of series.
+        parameter_mappings:
+          type: array
+          description: A list of parameter mappings.
+        visualization_settings:
+          type: object
+          description: The visualization settings for the card.
+          additionalProperties: true
+      required:
+        - card_id
+        - col
+        - id
+        - parameter_mappings
+        - row
+        - series
+        - sizeX
+        - sizeY
+        - visualization_settings
+    CreateDashboardCardBody:
+      type: object
+      description: The payload when creating a new card within a dashboard.
+      properties:
+        cardId:
+          type: integer
+          description: The ID of the card to add to the dashboard.
+          nullable: true
+        parameter_mappings:
+          type: array
+          description: A list of parameter mappings for the card.
+      required:
+        - cardId
+    UpdateDashboardCardsBody:
+      type: object
+      description: The payload when updating all cards in a dashboard.
+      properties:
+        cards:
+          type: array
+          description: The list of cards in the dashboard.
+          items:
+            $ref: "#/components/schemas/DashboardCard"
+      required:
+        - cards
     # Databases.
     Database:
       type: object
