@@ -123,6 +123,7 @@ func (p *MetabaseProvider) Resources(ctx context.Context) []func() resource.Reso
 		NewCardResource,
 		NewCollectionGraphResource,
 		NewCollectionResource,
+		NewDashboardResource,
 		NewDatabaseResource,
 		NewPermissionsGraphResource,
 		NewPermissionsGroupResource,
