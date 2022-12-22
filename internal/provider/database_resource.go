@@ -11,10 +11,10 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.
-var _ resource.ResourceWithSchema = &DatabaseResource{}
 var _ resource.ResourceWithImportState = &DatabaseResource{}
 
 // Creates a new database resource.
@@ -106,7 +106,7 @@ func updateModelFromDatabase(ctx context.Context, db metabase.Database, data *Da
 		// the Metabase API.
 		if !data.BigQueryDetails.IsNull() {
 			var bqd BigQueryDetails
-			diags.Append(data.BigQueryDetails.As(ctx, &bqd, types.ObjectAsOptions{})...)
+			diags.Append(data.BigQueryDetails.As(ctx, &bqd, basetypes.ObjectAsOptions{})...)
 			if diags.HasError() {
 				return diags
 			}
@@ -155,7 +155,7 @@ func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceMod
 
 	if !data.BigQueryDetails.IsNull() {
 		var bqd BigQueryDetails
-		diags.Append(data.BigQueryDetails.As(ctx, &bqd, types.ObjectAsOptions{})...)
+		diags.Append(data.BigQueryDetails.As(ctx, &bqd, basetypes.ObjectAsOptions{})...)
 		if diags.HasError() {
 			return nil, diags
 		}

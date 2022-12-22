@@ -19,7 +19,6 @@ import (
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.
-var _ resource.ResourceWithSchema = &CollectionResource{}
 var _ resource.ResourceWithImportState = &CollectionResource{}
 
 // Creates a new collection resource.

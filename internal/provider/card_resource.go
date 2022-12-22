@@ -32,7 +32,6 @@ var allowedCardAttributes = map[string]bool{
 }
 
 // Ensures provider defined types fully satisfy framework interfaces.
-var _ resource.ResourceWithSchema = &CardResource{}
 var _ resource.ResourceWithImportState = &CardResource{}
 
 // Creates a new card resource.
