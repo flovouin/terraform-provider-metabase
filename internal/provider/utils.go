@@ -96,3 +96,30 @@ func importStatePassthroughIntegerId(ctx context.Context, req resource.ImportSta
 
 	resp.Diagnostics.Append(resp.State.SetAttribute(ctx, path.Root("id"), id)...)
 }
+
+// Returns a map where keys are the IDs of the permissions groups that should be ignored when synchronizing the
+// permissions graph. If the set of ignored groups in the Terraform resource is null, it will default to the
+// administrators group only (the group is automatically granted access to all collections and datasets, and this cannot
+// be changed).
+func getIgnoredPermissionsGroups(ctx context.Context, list types.Set) (map[string]bool, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if list.IsNull() {
+		return map[string]bool{
+			fmt.Sprint(metabase.AdministratorsPermissionsGroupId): true,
+		}, diags
+	}
+
+	var groupIds []int64
+	diags.Append(list.ElementsAs(ctx, &groupIds, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	ignoredGroups := make(map[string]bool, len(groupIds))
+	for _, g := range groupIds {
+		ignoredGroups[fmt.Sprint(g)] = true
+	}
+
+	return ignoredGroups, diags
+}

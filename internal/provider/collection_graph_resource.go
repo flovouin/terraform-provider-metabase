@@ -90,10 +90,6 @@ Permissions for the Administrators group cannot be changed. To avoid issues duri
 	}
 }
 
-// The default ID of the `Administrators` permissions group, created automatically by Terraform.
-// Permissions to this group are ignored by default (the group is automatically granted access to all collections).
-const administratorsPermissionsGroupId = 2
-
 // Makes a single permission (edge) object to be stored in the model.
 func makePermissionObjectFromPermission(ctx context.Context, groupId string, colId string, p metabase.CollectionPermissionLevel) (*types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
@@ -122,39 +118,13 @@ func makePermissionObjectFromPermission(ctx context.Context, groupId string, col
 	return &permissionObject, diags
 }
 
-// Returns a map where keys are the IDs of the permissions groups that should be ignored when synchronizing the
-// permissions graph. If the set of ignored groups in the Terraform resource is null, it will default to the
-// administrators group only.
-func getIgnoredGroups(ctx context.Context, list types.Set) (map[string]bool, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if list.IsNull() {
-		return map[string]bool{
-			fmt.Sprint(administratorsPermissionsGroupId): true,
-		}, diags
-	}
-
-	var groupIds []int64
-	diags.Append(list.ElementsAs(ctx, &groupIds, false)...)
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	ignoredGroups := make(map[string]bool, len(groupIds))
-	for _, g := range groupIds {
-		ignoredGroups[fmt.Sprint(g)] = true
-	}
-
-	return ignoredGroups, diags
-}
-
 // Updates the given `CollectionGraphResourceModel` from the `CollectionPermissionsGraph` returned by the Metabase API.
 func updateModelFromCollectionPermissionsGraph(ctx context.Context, g metabase.CollectionPermissionsGraph, data *CollectionGraphResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	data.Revision = types.Int64Value(int64(g.Revision))
 
-	ignoredGroups, groupsDiags := getIgnoredGroups(ctx, data.IgnoredGroups)
+	ignoredGroups, groupsDiags := getIgnoredPermissionsGroups(ctx, data.IgnoredGroups)
 	diags.Append(groupsDiags...)
 	if diags.HasError() {
 		return diags
