@@ -20,16 +20,43 @@ const (
 	SessionScopes = "Session.Scopes"
 )
 
+// Defines values for CollectionPermissionLevel.
+const (
+	CollectionPermissionLevelNone  CollectionPermissionLevel = "none"
+	CollectionPermissionLevelRead  CollectionPermissionLevel = "read"
+	CollectionPermissionLevelWrite CollectionPermissionLevel = "write"
+)
+
 // Defines values for DatabaseDetailsBigQueryDatasetFiltersType.
 const (
-	All       DatabaseDetailsBigQueryDatasetFiltersType = "all"
-	Exclusion DatabaseDetailsBigQueryDatasetFiltersType = "exclusion"
-	Inclusion DatabaseDetailsBigQueryDatasetFiltersType = "inclusion"
+	DatabaseDetailsBigQueryDatasetFiltersTypeAll       DatabaseDetailsBigQueryDatasetFiltersType = "all"
+	DatabaseDetailsBigQueryDatasetFiltersTypeExclusion DatabaseDetailsBigQueryDatasetFiltersType = "exclusion"
+	DatabaseDetailsBigQueryDatasetFiltersTypeInclusion DatabaseDetailsBigQueryDatasetFiltersType = "inclusion"
 )
 
 // Defines values for DatabaseEngine.
 const (
 	BigqueryCloudSdk DatabaseEngine = "bigquery-cloud-sdk"
+)
+
+// Defines values for PermissionsGraphDatabaseAccessNative.
+const (
+	PermissionsGraphDatabaseAccessNativeFull  PermissionsGraphDatabaseAccessNative = "full"
+	PermissionsGraphDatabaseAccessNativeNone  PermissionsGraphDatabaseAccessNative = "none"
+	PermissionsGraphDatabaseAccessNativeWrite PermissionsGraphDatabaseAccessNative = "write"
+)
+
+// Defines values for PermissionsGraphDatabaseAccessSchemas.
+const (
+	PermissionsGraphDatabaseAccessSchemasAll  PermissionsGraphDatabaseAccessSchemas = "all"
+	PermissionsGraphDatabaseAccessSchemasFull PermissionsGraphDatabaseAccessSchemas = "full"
+	PermissionsGraphDatabaseAccessSchemasNone PermissionsGraphDatabaseAccessSchemas = "none"
+)
+
+// Defines values for PermissionsGraphDatabasePermissionsDetails.
+const (
+	No  PermissionsGraphDatabasePermissionsDetails = "no"
+	Yes PermissionsGraphDatabasePermissionsDetails = "yes"
 )
 
 // Collection A collection that regroups dashboards and cards.
@@ -78,6 +105,21 @@ type CollectionId1 = int
 type Collection_Id struct {
 	union json.RawMessage
 }
+
+// CollectionPermissionLevel The level of permission allowed when accessing the collection.
+type CollectionPermissionLevel string
+
+// CollectionPermissionsGraph The entire permission graph for collections.
+type CollectionPermissionsGraph struct {
+	// Groups A map where keys are group IDs and values are permissions for this group.
+	Groups map[string]CollectionPermissionsGraphCollectionPermissionsMap `json:"groups"`
+
+	// Revision The revision of the permissions graph.
+	Revision int `json:"revision"`
+}
+
+// CollectionPermissionsGraphCollectionPermissionsMap A map where keys are collection IDs and values are permission levels.
+type CollectionPermissionsGraphCollectionPermissionsMap map[string]CollectionPermissionLevel
 
 // CreateCollectionBody The payload used to create a new collection.
 type CreateCollectionBody struct {
@@ -165,6 +207,51 @@ type Field struct {
 	// Name The name of the field (column) in the table.
 	Name string `json:"name"`
 }
+
+// PermissionsGraph The entire permission graph for databases.
+type PermissionsGraph struct {
+	// Groups A map where keys are group IDs and values are permissions for this group.
+	Groups map[string]PermissionsGraphDatabasePermissionsMap `json:"groups"`
+
+	// Revision The revision of the permissions graph.
+	Revision int `json:"revision"`
+}
+
+// PermissionsGraphDatabaseAccess The permissions for a single access type.
+type PermissionsGraphDatabaseAccess struct {
+	// Native Whether "Native query editing" is allowed.
+	Native *PermissionsGraphDatabaseAccessNative `json:"native,omitempty"`
+
+	// Schemas Whether "Data access" is allowed.
+	Schemas *PermissionsGraphDatabaseAccessSchemas `json:"schemas,omitempty"`
+}
+
+// PermissionsGraphDatabaseAccessNative Whether "Native query editing" is allowed.
+type PermissionsGraphDatabaseAccessNative string
+
+// PermissionsGraphDatabaseAccessSchemas Whether "Data access" is allowed.
+type PermissionsGraphDatabaseAccessSchemas string
+
+// PermissionsGraphDatabasePermissions The permissions related to a single database.
+type PermissionsGraphDatabasePermissions struct {
+	// Data The permissions for a single access type.
+	Data *PermissionsGraphDatabaseAccess `json:"data,omitempty"`
+
+	// DataModel The permissions for a single access type.
+	DataModel *PermissionsGraphDatabaseAccess `json:"data-model,omitempty"`
+
+	// Details The permission definition for accessing details.
+	Details *PermissionsGraphDatabasePermissionsDetails `json:"details,omitempty"`
+
+	// Download The permissions for a single access type.
+	Download *PermissionsGraphDatabaseAccess `json:"download,omitempty"`
+}
+
+// PermissionsGraphDatabasePermissionsDetails The permission definition for accessing details.
+type PermissionsGraphDatabasePermissionsDetails string
+
+// PermissionsGraphDatabasePermissionsMap A map where keys are database IDs and values are permissions related to the database.
+type PermissionsGraphDatabasePermissionsMap map[string]PermissionsGraphDatabasePermissions
 
 // PermissionsGroup A group of users to which permissions can be granted.
 type PermissionsGroup struct {
@@ -273,6 +360,9 @@ type GetTableMetadataParams struct {
 // CreateCollectionJSONRequestBody defines body for CreateCollection for application/json ContentType.
 type CreateCollectionJSONRequestBody = CreateCollectionBody
 
+// ReplaceCollectionPermissionsGraphJSONRequestBody defines body for ReplaceCollectionPermissionsGraph for application/json ContentType.
+type ReplaceCollectionPermissionsGraphJSONRequestBody = CollectionPermissionsGraph
+
 // UpdateCollectionJSONRequestBody defines body for UpdateCollection for application/json ContentType.
 type UpdateCollectionJSONRequestBody = UpdateCollectionBody
 
@@ -281,6 +371,9 @@ type CreateDatabaseJSONRequestBody = CreateDatabaseBody
 
 // UpdateDatabaseJSONRequestBody defines body for UpdateDatabase for application/json ContentType.
 type UpdateDatabaseJSONRequestBody = UpdateDatabaseBody
+
+// ReplacePermissionsGraphJSONRequestBody defines body for ReplacePermissionsGraph for application/json ContentType.
+type ReplacePermissionsGraphJSONRequestBody = PermissionsGraph
 
 // CreatePermissionsGroupJSONRequestBody defines body for CreatePermissionsGroup for application/json ContentType.
 type CreatePermissionsGroupJSONRequestBody = CreatePermissionsGroupBody
@@ -431,6 +524,14 @@ type ClientInterface interface {
 
 	CreateCollection(ctx context.Context, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetCollectionPermissionsGraph request
+	GetCollectionPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceCollectionPermissionsGraph request with any body
+	ReplaceCollectionPermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceCollectionPermissionsGraph(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetCollection request
 	GetCollection(ctx context.Context, collectionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -454,6 +555,14 @@ type ClientInterface interface {
 	UpdateDatabaseWithBody(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPermissionsGraph request
+	GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplacePermissionsGraph request with any body
+	ReplacePermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplacePermissionsGraph(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreatePermissionsGroup request with any body
 	CreatePermissionsGroupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -497,6 +606,42 @@ func (c *Client) CreateCollectionWithBody(ctx context.Context, contentType strin
 
 func (c *Client) CreateCollection(ctx context.Context, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateCollectionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetCollectionPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCollectionPermissionsGraphRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceCollectionPermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceCollectionPermissionsGraphRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceCollectionPermissionsGraph(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceCollectionPermissionsGraphRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -605,6 +750,42 @@ func (c *Client) UpdateDatabaseWithBody(ctx context.Context, databaseId int, con
 
 func (c *Client) UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateDatabaseRequest(c.Server, databaseId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPermissionsGraphRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplacePermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplacePermissionsGraphRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplacePermissionsGraph(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplacePermissionsGraphRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -766,6 +947,73 @@ func NewCreateCollectionRequestWithBody(server string, contentType string, body 
 	}
 
 	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetCollectionPermissionsGraphRequest generates requests for GetCollectionPermissionsGraph
+func NewGetCollectionPermissionsGraphRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/collection/graph")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplaceCollectionPermissionsGraphRequest calls the generic ReplaceCollectionPermissionsGraph builder with application/json body
+func NewReplaceCollectionPermissionsGraphRequest(server string, body ReplaceCollectionPermissionsGraphJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceCollectionPermissionsGraphRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReplaceCollectionPermissionsGraphRequestWithBody generates requests for ReplaceCollectionPermissionsGraph with any type of body
+func NewReplaceCollectionPermissionsGraphRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/collection/graph")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -992,6 +1240,73 @@ func NewUpdateDatabaseRequestWithBody(server string, databaseId int, contentType
 	}
 
 	operationPath := fmt.Sprintf("/database/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetPermissionsGraphRequest generates requests for GetPermissionsGraph
+func NewGetPermissionsGraphRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/permissions/graph")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplacePermissionsGraphRequest calls the generic ReplacePermissionsGraph builder with application/json body
+func NewReplacePermissionsGraphRequest(server string, body ReplacePermissionsGraphJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplacePermissionsGraphRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewReplacePermissionsGraphRequestWithBody generates requests for ReplacePermissionsGraph with any type of body
+func NewReplacePermissionsGraphRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/permissions/graph")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -1335,6 +1650,14 @@ type ClientWithResponsesInterface interface {
 
 	CreateCollectionWithResponse(ctx context.Context, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
 
+	// GetCollectionPermissionsGraph request
+	GetCollectionPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCollectionPermissionsGraphResponse, error)
+
+	// ReplaceCollectionPermissionsGraph request with any body
+	ReplaceCollectionPermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error)
+
+	ReplaceCollectionPermissionsGraphWithResponse(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error)
+
 	// GetCollection request
 	GetCollectionWithResponse(ctx context.Context, collectionId string, reqEditors ...RequestEditorFn) (*GetCollectionResponse, error)
 
@@ -1358,6 +1681,14 @@ type ClientWithResponsesInterface interface {
 	UpdateDatabaseWithBodyWithResponse(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
 
 	UpdateDatabaseWithResponse(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
+
+	// GetPermissionsGraph request
+	GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error)
+
+	// ReplacePermissionsGraph request with any body
+	ReplacePermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error)
+
+	ReplacePermissionsGraphWithResponse(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error)
 
 	// CreatePermissionsGroup request with any body
 	CreatePermissionsGroupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error)
@@ -1403,6 +1734,50 @@ func (r CreateCollectionResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r CreateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetCollectionPermissionsGraphResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CollectionPermissionsGraph
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCollectionPermissionsGraphResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCollectionPermissionsGraphResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReplaceCollectionPermissionsGraphResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *CollectionPermissionsGraph
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceCollectionPermissionsGraphResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceCollectionPermissionsGraphResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1534,6 +1909,50 @@ func (r UpdateDatabaseResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateDatabaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetPermissionsGraphResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PermissionsGraph
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPermissionsGraphResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPermissionsGraphResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReplacePermissionsGraphResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *PermissionsGraph
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplacePermissionsGraphResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplacePermissionsGraphResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1710,6 +2129,32 @@ func (c *ClientWithResponses) CreateCollectionWithResponse(ctx context.Context, 
 	return ParseCreateCollectionResponse(rsp)
 }
 
+// GetCollectionPermissionsGraphWithResponse request returning *GetCollectionPermissionsGraphResponse
+func (c *ClientWithResponses) GetCollectionPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetCollectionPermissionsGraphResponse, error) {
+	rsp, err := c.GetCollectionPermissionsGraph(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetCollectionPermissionsGraphResponse(rsp)
+}
+
+// ReplaceCollectionPermissionsGraphWithBodyWithResponse request with arbitrary body returning *ReplaceCollectionPermissionsGraphResponse
+func (c *ClientWithResponses) ReplaceCollectionPermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error) {
+	rsp, err := c.ReplaceCollectionPermissionsGraphWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceCollectionPermissionsGraphResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceCollectionPermissionsGraphWithResponse(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error) {
+	rsp, err := c.ReplaceCollectionPermissionsGraph(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceCollectionPermissionsGraphResponse(rsp)
+}
+
 // GetCollectionWithResponse request returning *GetCollectionResponse
 func (c *ClientWithResponses) GetCollectionWithResponse(ctx context.Context, collectionId string, reqEditors ...RequestEditorFn) (*GetCollectionResponse, error) {
 	rsp, err := c.GetCollection(ctx, collectionId, reqEditors...)
@@ -1786,6 +2231,32 @@ func (c *ClientWithResponses) UpdateDatabaseWithResponse(ctx context.Context, da
 		return nil, err
 	}
 	return ParseUpdateDatabaseResponse(rsp)
+}
+
+// GetPermissionsGraphWithResponse request returning *GetPermissionsGraphResponse
+func (c *ClientWithResponses) GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error) {
+	rsp, err := c.GetPermissionsGraph(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPermissionsGraphResponse(rsp)
+}
+
+// ReplacePermissionsGraphWithBodyWithResponse request with arbitrary body returning *ReplacePermissionsGraphResponse
+func (c *ClientWithResponses) ReplacePermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error) {
+	rsp, err := c.ReplacePermissionsGraphWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplacePermissionsGraphResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplacePermissionsGraphWithResponse(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error) {
+	rsp, err := c.ReplacePermissionsGraph(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplacePermissionsGraphResponse(rsp)
 }
 
 // CreatePermissionsGroupWithBodyWithResponse request with arbitrary body returning *CreatePermissionsGroupResponse
@@ -1891,6 +2362,58 @@ func ParseCreateCollectionResponse(rsp *http.Response) (*CreateCollectionRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetCollectionPermissionsGraphResponse parses an HTTP response from a GetCollectionPermissionsGraphWithResponse call
+func ParseGetCollectionPermissionsGraphResponse(rsp *http.Response) (*GetCollectionPermissionsGraphResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetCollectionPermissionsGraphResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CollectionPermissionsGraph
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceCollectionPermissionsGraphResponse parses an HTTP response from a ReplaceCollectionPermissionsGraphWithResponse call
+func ParseReplaceCollectionPermissionsGraphResponse(rsp *http.Response) (*ReplaceCollectionPermissionsGraphResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceCollectionPermissionsGraphResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CollectionPermissionsGraph
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -2037,6 +2560,58 @@ func ParseUpdateDatabaseResponse(rsp *http.Response) (*UpdateDatabaseResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPermissionsGraphResponse parses an HTTP response from a GetPermissionsGraphWithResponse call
+func ParseGetPermissionsGraphResponse(rsp *http.Response) (*GetPermissionsGraphResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPermissionsGraphResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PermissionsGraph
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplacePermissionsGraphResponse parses an HTTP response from a ReplacePermissionsGraphWithResponse call
+func ParseReplacePermissionsGraphResponse(rsp *http.Response) (*ReplacePermissionsGraphResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplacePermissionsGraphResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PermissionsGraph
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

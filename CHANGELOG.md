@@ -6,3 +6,4 @@ NEW FEATURES:
 - Introduce the `metabase_collection` resource.
 - Introduce the `metabase_database` resource.
 - Introduce the `metabase_table` data source.
+- Introduce the `metabase_collection_graph` resource.
