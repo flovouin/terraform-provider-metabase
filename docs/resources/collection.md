@@ -45,7 +45,6 @@ resource "metabase_collection" "marketing_reports" {
 - `entity_id` (String) A unique string identifier for the collection.
 - `id` (String) The collection ID.
 - `location` (String) A path-like location, useful when this is a sub-collection.
-- `personal_owner_id` (Number) The ID of the user owning this collection, if it is a personal collection.
 - `slug` (String) The slug for the collection, used in URLs.
 
 ## Import

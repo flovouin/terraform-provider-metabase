@@ -40,6 +40,16 @@ func valueStringOrNull(v types.String) *string {
 	return &r
 }
 
+// Returns the value of a Terraform `String` type, or `nil` if it is null.
+func valueApproximateStringOrNull[T ~string](v types.String) *T {
+	if v.IsNull() {
+		return nil
+	}
+
+	r := T(v.ValueString())
+	return &r
+}
+
 // Returns the value of a Terraform `Int64` type, or `nil` if it is null.
 func valueInt64OrNull(v types.Int64) *int {
 	if v.IsNull() {
