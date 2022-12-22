@@ -121,6 +121,7 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 func (p *MetabaseProvider) Resources(ctx context.Context) []func() resource.Resource {
 	return []func() resource.Resource{
 		NewCollectionResource,
+		NewDatabaseResource,
 		NewPermissionsGroupResource,
 	}
 }
