@@ -19,6 +19,22 @@ func (r *UpdateCollectionResponse) BodyString() string {
 	return string(r.Body)
 }
 
+func (r *CreateDatabaseResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetDatabaseResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateDatabaseResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *DeleteDatabaseResponse) BodyString() string {
+	return string(r.Body)
+}
+
 func (r *CreatePermissionsGroupResponse) BodyString() string {
 	return string(r.Body)
 }

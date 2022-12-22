@@ -70,6 +70,81 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
 
+  /database:
+    post:
+      operationId: createDatabase
+      description: Creates a new database.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDatabaseBody"
+      responses:
+        200:
+          description: The database was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Database"
+
+  /database/{databaseId}:
+    get:
+      operationId: getDatabase
+      description: Retrieves a single database.
+      parameters:
+        - in: path
+          name: databaseId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the database.
+      responses:
+        200:
+          description: The database was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Database"
+
+    put:
+      operationId: updateDatabase
+      description: Updates a single database.
+      parameters:
+        - in: path
+          name: databaseId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the database.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDatabaseBody"
+      responses:
+        200:
+          description: The database was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Database"
+
+    delete:
+      operationId: deleteDatabase
+      description: Deletes a single database.
+      parameters:
+        - in: path
+          name: databaseId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the database.
+      responses:
+        204:
+          description: The database was successfully deleted.
+
   /permissions/group:
     post:
       operationId: createPermissionsGroup
@@ -266,6 +341,79 @@ components:
           type: integer
           description: The ID of the parent collection, if any.
           nullable: true
+    # Databases.
+    Database:
+      type: object
+      description: An external database that can be queried by cards and dashboards.
+      properties:
+        id:
+          type: integer
+          description: The ID for the database.
+        name:
+          type: string
+          description: The user-displayable name for the database.
+        engine:
+          $ref: "#/components/schemas/DatabaseEngine"
+        details:
+          $ref: "#/components/schemas/DatabaseDetailsBigQuery"
+      required:
+        - id
+        - name
+        - engine
+        - details
+    DatabaseDetailsBigQuery:
+      type: object
+      description: The content of the `details` map for a database when connecting to BigQuery.
+      properties:
+        service-account-json:
+          type: string
+          description: The content of the service account key file.
+        project-id:
+          type: string
+          description: The ID of the GCP project containing the BigQuery datasets.
+        dataset-filters-type:
+          type: string
+          description: The behavior of how BigQuery datasets should be selected.
+          enum:
+            - inclusion
+            - exclusion
+            - all
+        dataset-filters-patterns:
+          type: string
+          description: The pattern used by the `dataset-filters-type`.
+      required:
+        - service-account-json
+    CreateDatabaseBody:
+      type: object
+      description: The payload used to create a new database.
+      properties:
+        name:
+          type: string
+          description: The user-displayable name for the database.
+        engine:
+          $ref: "#/components/schemas/DatabaseEngine"
+        details:
+          $ref: "#/components/schemas/DatabaseDetailsBigQuery"
+      required:
+        - name
+        - engine
+        - details
+    UpdateDatabaseBody:
+      type: object
+      description: The payload used to update an existing database.
+      properties:
+        name:
+          type: string
+          description: The user-displayable name for the database.
+        engine:
+          $ref: "#/components/schemas/DatabaseEngine"
+        details:
+          $ref: "#/components/schemas/DatabaseDetailsBigQuery"
+    DatabaseEngine:
+      type: string
+      description: The type of database to connect to.
+      enum:
+        - bigquery-cloud-sdk
     # Permissions group.
     PermissionsGroup:
       type: object

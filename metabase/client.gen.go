@@ -20,6 +20,18 @@ const (
 	SessionScopes = "Session.Scopes"
 )
 
+// Defines values for DatabaseDetailsBigQueryDatasetFiltersType.
+const (
+	All       DatabaseDetailsBigQueryDatasetFiltersType = "all"
+	Exclusion DatabaseDetailsBigQueryDatasetFiltersType = "exclusion"
+	Inclusion DatabaseDetailsBigQueryDatasetFiltersType = "inclusion"
+)
+
+// Defines values for DatabaseEngine.
+const (
+	BigqueryCloudSdk DatabaseEngine = "bigquery-cloud-sdk"
+)
+
 // Collection A collection that regroups dashboards and cards.
 type Collection struct {
 	// Archived Whether the collection is archived.
@@ -82,6 +94,18 @@ type CreateCollectionBody struct {
 	ParentId *int `json:"parent_id"`
 }
 
+// CreateDatabaseBody The payload used to create a new database.
+type CreateDatabaseBody struct {
+	// Details The content of the `details` map for a database when connecting to BigQuery.
+	Details DatabaseDetailsBigQuery `json:"details"`
+
+	// Engine The type of database to connect to.
+	Engine DatabaseEngine `json:"engine"`
+
+	// Name The user-displayable name for the database.
+	Name string `json:"name"`
+}
+
 // CreatePermissionsGroupBody The payload used to create a new permissions group.
 type CreatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
@@ -96,6 +120,42 @@ type CreateSessionBody struct {
 	// Username The name of the user, or his email.
 	Username string `json:"username"`
 }
+
+// Database An external database that can be queried by cards and dashboards.
+type Database struct {
+	// Details The content of the `details` map for a database when connecting to BigQuery.
+	Details DatabaseDetailsBigQuery `json:"details"`
+
+	// Engine The type of database to connect to.
+	Engine DatabaseEngine `json:"engine"`
+
+	// Id The ID for the database.
+	Id int `json:"id"`
+
+	// Name The user-displayable name for the database.
+	Name string `json:"name"`
+}
+
+// DatabaseDetailsBigQuery The content of the `details` map for a database when connecting to BigQuery.
+type DatabaseDetailsBigQuery struct {
+	// DatasetFiltersPatterns The pattern used by the `dataset-filters-type`.
+	DatasetFiltersPatterns *string `json:"dataset-filters-patterns,omitempty"`
+
+	// DatasetFiltersType The behavior of how BigQuery datasets should be selected.
+	DatasetFiltersType *DatabaseDetailsBigQueryDatasetFiltersType `json:"dataset-filters-type,omitempty"`
+
+	// ProjectId The ID of the GCP project containing the BigQuery datasets.
+	ProjectId *string `json:"project-id,omitempty"`
+
+	// ServiceAccountJson The content of the service account key file.
+	ServiceAccountJson string `json:"service-account-json"`
+}
+
+// DatabaseDetailsBigQueryDatasetFiltersType The behavior of how BigQuery datasets should be selected.
+type DatabaseDetailsBigQueryDatasetFiltersType string
+
+// DatabaseEngine The type of database to connect to.
+type DatabaseEngine string
 
 // PermissionsGroup A group of users to which permissions can be granted.
 type PermissionsGroup struct {
@@ -130,6 +190,18 @@ type UpdateCollectionBody struct {
 	ParentId *int `json:"parent_id"`
 }
 
+// UpdateDatabaseBody The payload used to update an existing database.
+type UpdateDatabaseBody struct {
+	// Details The content of the `details` map for a database when connecting to BigQuery.
+	Details *DatabaseDetailsBigQuery `json:"details,omitempty"`
+
+	// Engine The type of database to connect to.
+	Engine *DatabaseEngine `json:"engine,omitempty"`
+
+	// Name The user-displayable name for the database.
+	Name *string `json:"name,omitempty"`
+}
+
 // UpdatePermissionsGroupBody The payload used to update an existing permissions group.
 type UpdatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
@@ -141,6 +213,12 @@ type CreateCollectionJSONRequestBody = CreateCollectionBody
 
 // UpdateCollectionJSONRequestBody defines body for UpdateCollection for application/json ContentType.
 type UpdateCollectionJSONRequestBody = UpdateCollectionBody
+
+// CreateDatabaseJSONRequestBody defines body for CreateDatabase for application/json ContentType.
+type CreateDatabaseJSONRequestBody = CreateDatabaseBody
+
+// UpdateDatabaseJSONRequestBody defines body for UpdateDatabase for application/json ContentType.
+type UpdateDatabaseJSONRequestBody = UpdateDatabaseBody
 
 // CreatePermissionsGroupJSONRequestBody defines body for CreatePermissionsGroup for application/json ContentType.
 type CreatePermissionsGroupJSONRequestBody = CreatePermissionsGroupBody
@@ -299,6 +377,22 @@ type ClientInterface interface {
 
 	UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateDatabase request with any body
+	CreateDatabaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateDatabase(ctx context.Context, body CreateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteDatabase request
+	DeleteDatabase(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetDatabase request
+	GetDatabase(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateDatabase request with any body
+	UpdateDatabaseWithBody(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreatePermissionsGroup request with any body
 	CreatePermissionsGroupWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -371,6 +465,78 @@ func (c *Client) UpdateCollectionWithBody(ctx context.Context, collectionId stri
 
 func (c *Client) UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateCollectionRequest(c.Server, collectionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateDatabaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDatabaseRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateDatabase(ctx context.Context, body CreateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateDatabaseRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteDatabase(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteDatabaseRequest(c.Server, databaseId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetDatabase(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetDatabaseRequest(c.Server, databaseId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDatabaseWithBody(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDatabaseRequestWithBody(c.Server, databaseId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateDatabaseRequest(c.Server, databaseId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -579,6 +745,161 @@ func NewUpdateCollectionRequestWithBody(server string, collectionId string, cont
 	}
 
 	operationPath := fmt.Sprintf("/collection/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCreateDatabaseRequest calls the generic CreateDatabase builder with application/json body
+func NewCreateDatabaseRequest(server string, body CreateDatabaseJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateDatabaseRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateDatabaseRequestWithBody generates requests for CreateDatabase with any type of body
+func NewCreateDatabaseRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/database")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteDatabaseRequest generates requests for DeleteDatabase
+func NewDeleteDatabaseRequest(server string, databaseId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "databaseId", runtime.ParamLocationPath, databaseId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/database/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetDatabaseRequest generates requests for GetDatabase
+func NewGetDatabaseRequest(server string, databaseId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "databaseId", runtime.ParamLocationPath, databaseId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/database/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateDatabaseRequest calls the generic UpdateDatabase builder with application/json body
+func NewUpdateDatabaseRequest(server string, databaseId int, body UpdateDatabaseJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateDatabaseRequestWithBody(server, databaseId, "application/json", bodyReader)
+}
+
+// NewUpdateDatabaseRequestWithBody generates requests for UpdateDatabase with any type of body
+func NewUpdateDatabaseRequestWithBody(server string, databaseId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "databaseId", runtime.ParamLocationPath, databaseId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/database/%s", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -849,6 +1170,22 @@ type ClientWithResponsesInterface interface {
 
 	UpdateCollectionWithResponse(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
 
+	// CreateDatabase request with any body
+	CreateDatabaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error)
+
+	CreateDatabaseWithResponse(ctx context.Context, body CreateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error)
+
+	// DeleteDatabase request
+	DeleteDatabaseWithResponse(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*DeleteDatabaseResponse, error)
+
+	// GetDatabase request
+	GetDatabaseWithResponse(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*GetDatabaseResponse, error)
+
+	// UpdateDatabase request with any body
+	UpdateDatabaseWithBodyWithResponse(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
+
+	UpdateDatabaseWithResponse(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
+
 	// CreatePermissionsGroup request with any body
 	CreatePermissionsGroupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error)
 
@@ -931,6 +1268,93 @@ func (r UpdateCollectionResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateDatabaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Database
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateDatabaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateDatabaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteDatabaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteDatabaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteDatabaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetDatabaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Database
+}
+
+// Status returns HTTPResponse.Status
+func (r GetDatabaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetDatabaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateDatabaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Database
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateDatabaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateDatabaseResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1089,6 +1513,58 @@ func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, 
 	return ParseUpdateCollectionResponse(rsp)
 }
 
+// CreateDatabaseWithBodyWithResponse request with arbitrary body returning *CreateDatabaseResponse
+func (c *ClientWithResponses) CreateDatabaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error) {
+	rsp, err := c.CreateDatabaseWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDatabaseResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateDatabaseWithResponse(ctx context.Context, body CreateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error) {
+	rsp, err := c.CreateDatabase(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateDatabaseResponse(rsp)
+}
+
+// DeleteDatabaseWithResponse request returning *DeleteDatabaseResponse
+func (c *ClientWithResponses) DeleteDatabaseWithResponse(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*DeleteDatabaseResponse, error) {
+	rsp, err := c.DeleteDatabase(ctx, databaseId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteDatabaseResponse(rsp)
+}
+
+// GetDatabaseWithResponse request returning *GetDatabaseResponse
+func (c *ClientWithResponses) GetDatabaseWithResponse(ctx context.Context, databaseId int, reqEditors ...RequestEditorFn) (*GetDatabaseResponse, error) {
+	rsp, err := c.GetDatabase(ctx, databaseId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetDatabaseResponse(rsp)
+}
+
+// UpdateDatabaseWithBodyWithResponse request with arbitrary body returning *UpdateDatabaseResponse
+func (c *ClientWithResponses) UpdateDatabaseWithBodyWithResponse(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error) {
+	rsp, err := c.UpdateDatabaseWithBody(ctx, databaseId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDatabaseResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateDatabaseWithResponse(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error) {
+	rsp, err := c.UpdateDatabase(ctx, databaseId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateDatabaseResponse(rsp)
+}
+
 // CreatePermissionsGroupWithBodyWithResponse request with arbitrary body returning *CreatePermissionsGroupResponse
 func (c *ClientWithResponses) CreatePermissionsGroupWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePermissionsGroupResponse, error) {
 	rsp, err := c.CreatePermissionsGroupWithBody(ctx, contentType, body, reqEditors...)
@@ -1226,6 +1702,100 @@ func ParseUpdateCollectionResponse(rsp *http.Response) (*UpdateCollectionRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateDatabaseResponse parses an HTTP response from a CreateDatabaseWithResponse call
+func ParseCreateDatabaseResponse(rsp *http.Response) (*CreateDatabaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateDatabaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteDatabaseResponse parses an HTTP response from a DeleteDatabaseWithResponse call
+func ParseDeleteDatabaseResponse(rsp *http.Response) (*DeleteDatabaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteDatabaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetDatabaseResponse parses an HTTP response from a GetDatabaseWithResponse call
+func ParseGetDatabaseResponse(rsp *http.Response) (*GetDatabaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetDatabaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateDatabaseResponse parses an HTTP response from a UpdateDatabaseWithResponse call
+func ParseUpdateDatabaseResponse(rsp *http.Response) (*UpdateDatabaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateDatabaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Database
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
