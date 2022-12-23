@@ -4,13 +4,10 @@ import (
 	"context"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
-	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-
-	"github.com/deepmap/oapi-codegen/pkg/securityprovider"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 )
@@ -61,43 +58,6 @@ While most Terraform resources fully define the Metabase objects using attribute
 	}
 }
 
-// Authenticates to the Metabase API using the given username and password, and returns an API client configured with
-// the session obtained during authentication.
-func makeAuthenticatedClient(ctx context.Context, endpoint string, username string, password string) (*metabase.ClientWithResponses, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	client, err := metabase.NewClientWithResponses(endpoint)
-	if err != nil {
-		diags.AddError("Error when creating the Metabase client.", err.Error())
-		return nil, diags
-	}
-
-	sessionResp, err := client.CreateSessionWithResponse(ctx, metabase.CreateSessionBody{
-		Username: username,
-		Password: password,
-	})
-
-	diags.Append(checkMetabaseResponse(sessionResp, err, []int{200}, "create session")...)
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	// Authenticated calls are made by passing the session ID in a Metabase-specific header.
-	apiKeyProvider, err := securityprovider.NewSecurityProviderApiKey("header", "X-Metabase-Session", sessionResp.JSON200.Id)
-	if err != nil {
-		diags.AddError("Error while creating the authenticated Metabase client.", err.Error())
-		return nil, diags
-	}
-
-	authenticatedClient, err := metabase.NewClientWithResponses(endpoint, metabase.WithRequestEditorFn(apiKeyProvider.Intercept))
-	if err != nil {
-		diags.AddError("Error while creating the authenticated Metabase client.", err.Error())
-		return nil, diags
-	}
-
-	return authenticatedClient, diags
-}
-
 func (p *MetabaseProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
 	var data MetabaseProviderModel
 
@@ -107,9 +67,9 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	authenticatedClient, diags := makeAuthenticatedClient(ctx, data.Endpoint.ValueString(), data.Username.ValueString(), data.Password.ValueString())
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
+	authenticatedClient, err := metabase.MakeAuthenticatedClient(ctx, data.Endpoint.ValueString(), data.Username.ValueString(), data.Password.ValueString())
+	if err != nil {
+		resp.Diagnostics.AddError("Failed to create the Metabase client.", err.Error())
 		return
 	}
 
