@@ -236,7 +236,7 @@ type Dashboard struct {
 // DashboardCard A card within a dashboard.
 type DashboardCard struct {
 	// CardId The ID of the card.
-	CardId int `json:"card_id"`
+	CardId *int `json:"card_id"`
 
 	// Col The index of the column at which the card is placed.
 	Col int `json:"col"`

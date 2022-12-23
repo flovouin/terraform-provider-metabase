@@ -514,7 +514,7 @@ paths:
       description: Retrieves the list of all tables.
       responses:
         200:
-          description: The list of tables
+          description: The list of tables.
           content:
             application/json:
               schema:
@@ -866,6 +866,7 @@ components:
         card_id:
           type: integer
           description: The ID of the card.
+          nullable: true
         row:
           type: integer
           description: The index of the row at which the card is placed.
