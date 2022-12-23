@@ -398,6 +398,25 @@ paths:
         204:
           description: The database was successfully deleted.
 
+  /field/{fieldId}:
+    get:
+      operationId: getField
+      description: Retrieves a single field.
+      parameters:
+        - in: path
+          name: fieldId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the field.
+      responses:
+        200:
+          description: The field was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Field"
+
   /permissions/graph:
     get:
       operationId: getPermissionsGraph
@@ -1021,9 +1040,13 @@ components:
         name:
           type: string
           description: The name of the field (column) in the table.
+        table_id:
+          type: integer
+          description: The ID of the parent table.
       required:
         - id
         - name
+        - table_id
     # Permissions group.
     PermissionsGroup:
       type: object

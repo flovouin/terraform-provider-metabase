@@ -368,6 +368,9 @@ type Field struct {
 
 	// Name The name of the field (column) in the table.
 	Name string `json:"name"`
+
+	// TableId The ID of the parent table.
+	TableId int `json:"table_id"`
 }
 
 // PermissionsGraph The entire permission graph for databases.
@@ -1032,6 +1035,9 @@ type ClientInterface interface {
 
 	UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetField request
+	GetField(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetPermissionsGraph request
 	GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1430,6 +1436,18 @@ func (c *Client) UpdateDatabaseWithBody(ctx context.Context, databaseId int, con
 
 func (c *Client) UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateDatabaseRequest(c.Server, databaseId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetField(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFieldRequest(c.Server, fieldId)
 	if err != nil {
 		return nil, err
 	}
@@ -2386,6 +2404,40 @@ func NewUpdateDatabaseRequestWithBody(server string, databaseId int, contentType
 	return req, nil
 }
 
+// NewGetFieldRequest generates requests for GetField
+func NewGetFieldRequest(server string, fieldId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "fieldId", runtime.ParamLocationPath, fieldId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/field/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetPermissionsGraphRequest generates requests for GetPermissionsGraph
 func NewGetPermissionsGraphRequest(server string) (*http.Request, error) {
 	var err error
@@ -2853,6 +2905,9 @@ type ClientWithResponsesInterface interface {
 	UpdateDatabaseWithBodyWithResponse(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
 
 	UpdateDatabaseWithResponse(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
+
+	// GetField request
+	GetFieldWithResponse(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*GetFieldResponse, error)
 
 	// GetPermissionsGraph request
 	GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error)
@@ -3330,6 +3385,28 @@ func (r UpdateDatabaseResponse) StatusCode() int {
 	return 0
 }
 
+type GetFieldResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Field
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFieldResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFieldResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetPermissionsGraphResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3793,6 +3870,15 @@ func (c *ClientWithResponses) UpdateDatabaseWithResponse(ctx context.Context, da
 		return nil, err
 	}
 	return ParseUpdateDatabaseResponse(rsp)
+}
+
+// GetFieldWithResponse request returning *GetFieldResponse
+func (c *ClientWithResponses) GetFieldWithResponse(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*GetFieldResponse, error) {
+	rsp, err := c.GetField(ctx, fieldId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFieldResponse(rsp)
 }
 
 // GetPermissionsGraphWithResponse request returning *GetPermissionsGraphResponse
@@ -4391,6 +4477,32 @@ func ParseUpdateDatabaseResponse(rsp *http.Response) (*UpdateDatabaseResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFieldResponse parses an HTTP response from a GetFieldWithResponse call
+func ParseGetFieldResponse(rsp *http.Response) (*GetFieldResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFieldResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Field
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
