@@ -178,6 +178,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/Dashboard"
 
+    get:
+      operationId: listDashboards
+      description: Retrieves all dashboards.
+      responses:
+        200:
+          description: The list of dashboards.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Dashboard"
+
   /dashboard/{dashboardId}:
     get:
       operationId: getDashboard

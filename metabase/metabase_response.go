@@ -55,6 +55,10 @@ func (r *CreateDashboardResponse) BodyString() string {
 	return string(r.Body)
 }
 
+func (r *ListDashboardsResponse) BodyString() string {
+	return string(r.Body)
+}
+
 func (r *GetDashboardResponse) BodyString() string {
 	return string(r.Body)
 }

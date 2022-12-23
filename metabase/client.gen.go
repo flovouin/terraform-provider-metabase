@@ -984,6 +984,9 @@ type ClientInterface interface {
 
 	UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListDashboards request
+	ListDashboards(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateDashboard request with any body
 	CreateDashboardWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1211,6 +1214,18 @@ func (c *Client) UpdateCollectionWithBody(ctx context.Context, collectionId stri
 
 func (c *Client) UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateCollectionRequest(c.Server, collectionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDashboards(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDashboardsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1886,6 +1901,33 @@ func NewUpdateCollectionRequestWithBody(server string, collectionId string, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListDashboardsRequest generates requests for ListDashboards
+func NewListDashboardsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2764,6 +2806,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateCollectionWithResponse(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
 
+	// ListDashboards request
+	ListDashboardsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDashboardsResponse, error)
+
 	// CreateDashboard request with any body
 	CreateDashboardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error)
 
@@ -3015,6 +3060,28 @@ func (r UpdateCollectionResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListDashboardsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Dashboard
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDashboardsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDashboardsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3572,6 +3639,15 @@ func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, 
 	return ParseUpdateCollectionResponse(rsp)
 }
 
+// ListDashboardsWithResponse request returning *ListDashboardsResponse
+func (c *ClientWithResponses) ListDashboardsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDashboardsResponse, error) {
+	rsp, err := c.ListDashboards(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDashboardsResponse(rsp)
+}
+
 // CreateDashboardWithBodyWithResponse request with arbitrary body returning *CreateDashboardResponse
 func (c *ClientWithResponses) CreateDashboardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error) {
 	rsp, err := c.CreateDashboardWithBody(ctx, contentType, body, reqEditors...)
@@ -4030,6 +4106,32 @@ func ParseUpdateCollectionResponse(rsp *http.Response) (*UpdateCollectionRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDashboardsResponse parses an HTTP response from a ListDashboardsWithResponse call
+func ParseListDashboardsResponse(rsp *http.Response) (*ListDashboardsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDashboardsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Dashboard
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
