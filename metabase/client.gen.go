@@ -59,6 +59,11 @@ const (
 	Yes PermissionsGraphDatabasePermissionsDetails = "yes"
 )
 
+// Defines values for ListDatabasesParamsInclude.
+const (
+	Tables ListDatabasesParamsInclude = "tables"
+)
+
 // Card A card (or question).
 type Card struct {
 	// Archived Whether the card has been archived.
@@ -361,6 +366,15 @@ type DatabaseDetailsBigQueryDatasetFiltersType string
 // DatabaseEngine The type of database to connect to.
 type DatabaseEngine string
 
+// DatabaseList The list of databases returned by the Metabase API.
+type DatabaseList struct {
+	// Data The list of databases.
+	Data []Database `json:"data"`
+
+	// Total The total number of databases.
+	Total int `json:"total"`
+}
+
 // Field A field in a database.
 type Field struct {
 	// Id The ID of the field.
@@ -563,6 +577,18 @@ type ListCollectionsParams struct {
 type DeleteDashboardCardParams struct {
 	DashcardId int `form:"dashcardId" json:"dashcardId"`
 }
+
+// ListDatabasesParams defines parameters for ListDatabases.
+type ListDatabasesParams struct {
+	// Include Whether the returned databases should include the list of tables for each database.
+	Include *ListDatabasesParamsInclude `form:"include,omitempty" json:"include,omitempty"`
+
+	// Saved Whether the saved questions should appear as a virtual database.
+	Saved *bool `form:"saved,omitempty" json:"saved,omitempty"`
+}
+
+// ListDatabasesParamsInclude defines parameters for ListDatabases.
+type ListDatabasesParamsInclude string
 
 // GetTableMetadataParams defines parameters for GetTableMetadata.
 type GetTableMetadataParams struct {
@@ -1028,6 +1054,9 @@ type ClientInterface interface {
 
 	UpdateDashboardCards(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListDatabases request
+	ListDatabases(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateDatabase request with any body
 	CreateDatabaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1385,6 +1414,18 @@ func (c *Client) UpdateDashboardCardsWithBody(ctx context.Context, dashboardId i
 
 func (c *Client) UpdateDashboardCards(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateDashboardCardsRequest(c.Server, dashboardId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDatabases(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDatabasesRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -2317,6 +2358,69 @@ func NewUpdateDashboardCardsRequestWithBody(server string, dashboardId int, cont
 	return req, nil
 }
 
+// NewListDatabasesRequest generates requests for ListDatabases
+func NewListDatabasesRequest(server string, params *ListDatabasesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/database")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if params.Include != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include", runtime.ParamLocationQuery, *params.Include); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Saved != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "saved", runtime.ParamLocationQuery, *params.Saved); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCreateDatabaseRequest calls the generic CreateDatabase builder with application/json body
 func NewCreateDatabaseRequest(server string, body CreateDatabaseJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2961,6 +3065,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateDashboardCardsWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error)
 
+	// ListDatabases request
+	ListDatabasesWithResponse(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*ListDatabasesResponse, error)
+
 	// CreateDatabase request with any body
 	CreateDatabaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error)
 
@@ -3385,6 +3492,28 @@ func (r UpdateDashboardCardsResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateDashboardCardsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListDatabasesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DatabaseList
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDatabasesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDatabasesResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3920,6 +4049,15 @@ func (c *ClientWithResponses) UpdateDashboardCardsWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseUpdateDashboardCardsResponse(rsp)
+}
+
+// ListDatabasesWithResponse request returning *ListDatabasesResponse
+func (c *ClientWithResponses) ListDatabasesWithResponse(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*ListDatabasesResponse, error) {
+	rsp, err := c.ListDatabases(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDatabasesResponse(rsp)
 }
 
 // CreateDatabaseWithBodyWithResponse request with arbitrary body returning *CreateDatabaseResponse
@@ -4511,6 +4649,32 @@ func ParseUpdateDashboardCardsResponse(rsp *http.Response) (*UpdateDashboardCard
 			// Status The return status of the operation.
 			Status string `json:"status"`
 		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDatabasesResponse parses an HTTP response from a ListDatabasesWithResponse call
+func ParseListDatabasesResponse(rsp *http.Response) (*ListDatabasesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDatabasesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DatabaseList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

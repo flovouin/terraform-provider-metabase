@@ -361,6 +361,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/Database"
 
+    get:
+      operationId: listDatabases
+      description: Retrieves all databases.
+      parameters:
+        - in: query
+          name: include
+          schema:
+            type: string
+            enum:
+              - tables
+          description: Whether the returned databases should include the list of tables for each database.
+          required: false
+        - in: query
+          name: saved
+          schema:
+            type: boolean
+          description: Whether the saved questions should appear as a virtual database.
+          required: false
+      responses:
+        200:
+          description: The list of databases.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseList"
+
   /database/{databaseId}:
     get:
       operationId: getDatabase
@@ -1048,6 +1074,21 @@ components:
       description: The type of database to connect to.
       enum:
         - bigquery-cloud-sdk
+    DatabaseList:
+      type: object
+      description: The list of databases returned by the Metabase API.
+      properties:
+        data:
+          type: array
+          description: The list of databases.
+          items:
+            $ref: "#/components/schemas/Database"
+        total:
+          type: integer
+          description: The total number of databases.
+      required:
+        - data
+        - total
     # Fields.
     Field:
       type: object
