@@ -8,9 +8,25 @@ import (
 	"github.com/gosimple/slug"
 )
 
+// The regexp matching the placeholder for `metabase_table` data sources, accessing their `fields` attribute.
+// The first group is the table and the second group is the name of the field (column).
+var fieldRegexp = regexp.MustCompile("\\\"!!(data\\.metabase_table\\.\\w+\\.fields)\\[(\\w+)\\]!!\\\"")
+
+// The regexp matching the placeholder for `metabase_table` data sources, accessing their `fields` attribute.
+// The first group is the table and the second group is the name of the field (column).
+// This regexp matches the placeholder when it has been serialized twice, and that the surrounding double quotes have
+// been escaped.
+var fieldInStringRegexp = regexp.MustCompile("\\\\\\\"!!(data\\.metabase_table\\.\\w+\\.fields)\\[(\\w+)\\]!!\\\\\\\"")
+
 // The regexp matching the placeholder for `metabase_table` data sources.
 // The captured group can be used as is in an HCL file.
 var tableRegexp = regexp.MustCompile("\\\"!!(data\\.metabase_table\\.\\w+\\.id)!!\\\"")
+
+// Marshals an `importedField` as a placeholder which references the corresponding Terraform table data source, and
+// accesses the `field` attribute for this `metabase_table`.
+func (f *importedField) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("\"!!data.metabase_table.%s.fields[%s]!!\"", f.ParentTable.Slug, f.Field.Name)), nil
+}
 
 // Marshals an `importedTable` as a placeholder which references the corresponding Terraform data source.
 func (t *importedTable) MarshalJSON() ([]byte, error) {
@@ -20,6 +36,8 @@ func (t *importedTable) MarshalJSON() ([]byte, error) {
 // Replaces all placeholders introduced by marshalling `imported*` structures to JSON.
 // This produces a valid HCL snippet which references Metabase Terraform resources and data sources.
 func replacePlaceholders(hcl string) string {
+	hcl = fieldRegexp.ReplaceAllString(hcl, "$1[\"$2\"]")
+	hcl = fieldInStringRegexp.ReplaceAllString(hcl, "${$1[\"$2\"]}")
 	hcl = tableRegexp.ReplaceAllString(hcl, "$1")
 	return hcl
 }
