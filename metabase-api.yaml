@@ -88,6 +88,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
 
+    get:
+      operationId: listCollections
+      description: Retrieves all collections.
+      parameters:
+        - in: query
+          name: archived
+          schema:
+            type: boolean
+          description: Whether the archived collections should be returned.
+          required: false
+      responses:
+        200:
+          description: The list of collections.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Collection"
+
   /collection/graph:
     get:
       operationId: getCollectionPermissionsGraph

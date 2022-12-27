@@ -553,6 +553,12 @@ type UpdatePermissionsGroupBody struct {
 	Name string `json:"name"`
 }
 
+// ListCollectionsParams defines parameters for ListCollections.
+type ListCollectionsParams struct {
+	// Archived Whether the archived collections should be returned.
+	Archived *bool `form:"archived,omitempty" json:"archived,omitempty"`
+}
+
 // DeleteDashboardCardParams defines parameters for DeleteDashboardCard.
 type DeleteDashboardCardParams struct {
 	DashcardId int `form:"dashcardId" json:"dashcardId"`
@@ -966,6 +972,9 @@ type ClientInterface interface {
 
 	UpdateCard(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListCollections request
+	ListCollections(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateCollection request with any body
 	CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1124,6 +1133,18 @@ func (c *Client) UpdateCardWithBody(ctx context.Context, cardId int, contentType
 
 func (c *Client) UpdateCard(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateCardRequest(c.Server, cardId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListCollections(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListCollectionsRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1731,6 +1752,53 @@ func NewUpdateCardRequestWithBody(server string, cardId int, contentType string,
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListCollectionsRequest generates requests for ListCollections
+func NewListCollectionsRequest(server string, params *ListCollectionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/collection")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if params.Archived != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "archived", runtime.ParamLocationQuery, *params.Archived); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2837,6 +2905,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateCardWithResponse(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCardResponse, error)
 
+	// ListCollections request
+	ListCollectionsWithResponse(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*ListCollectionsResponse, error)
+
 	// CreateCollection request with any body
 	CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
 
@@ -3005,6 +3076,28 @@ func (r UpdateCardResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateCardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListCollectionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Collection
+}
+
+// Status returns HTTPResponse.Status
+func (r ListCollectionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListCollectionsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3647,6 +3740,15 @@ func (c *ClientWithResponses) UpdateCardWithResponse(ctx context.Context, cardId
 	return ParseUpdateCardResponse(rsp)
 }
 
+// ListCollectionsWithResponse request returning *ListCollectionsResponse
+func (c *ClientWithResponses) ListCollectionsWithResponse(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*ListCollectionsResponse, error) {
+	rsp, err := c.ListCollections(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListCollectionsResponse(rsp)
+}
+
 // CreateCollectionWithBodyWithResponse request with arbitrary body returning *CreateCollectionResponse
 func (c *ClientWithResponses) CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
 	rsp, err := c.CreateCollectionWithBody(ctx, contentType, body, reqEditors...)
@@ -4062,6 +4164,32 @@ func ParseUpdateCardResponse(rsp *http.Response) (*UpdateCardResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Card
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListCollectionsResponse parses an HTTP response from a ListCollectionsWithResponse call
+func ParseListCollectionsResponse(rsp *http.Response) (*ListCollectionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListCollectionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Collection
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
