@@ -41,3 +41,12 @@ const ColumnSettingsAttribute = "column_settings"
 
 // The name of the attribute which references the parent collection in a card.
 const CollectionIdAttribute = "collection_id"
+
+// The name of the attribute referencing a card in a dashboard.
+const CardIdAttribute = "card_id"
+
+// The name of the attribute describing how dashboard parameters map to a specific card.
+const ParameterMappingsAttribute = "parameter_mappings"
+
+// The name of the attribute describing the target of a dashboard parameter for a specific card in the dashboard.
+const TargetAttribute = "target"
