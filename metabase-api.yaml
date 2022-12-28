@@ -642,11 +642,15 @@ components:
         id:
           type: integer
           description: The ID of the card.
+        name:
+          type: string
+          description: The name of the card.
         archived:
           type: boolean
           description: Whether the card has been archived.
       required:
         - id
+        - name
         - archived
     CreateCardBody:
       type: object
