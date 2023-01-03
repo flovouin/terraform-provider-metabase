@@ -79,12 +79,12 @@ dashboard_filter:
     - name: Private collection
 
   # A regexp that the dashboard name should match in order to be imported.
-	dashboard_name: ^\[Public\]
+  dashboard_name: ^\[Public\]
   # A regexp that the dashboard description should match in order to be imported.
-	dashboard_description: tag:reviewed
+  dashboard_description: tag:reviewed
 
   # The list of IDs of the dashboards to import. If this is non-empty, all other parameters are ignored.
-	dashboard_ids: [2, 3, 4]
+  dashboard_ids: [2, 3, 4]
 
 # Defines how the Terraform configuration is written to files.
 output:
