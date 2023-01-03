@@ -1,3 +1,9 @@
+## 0.2.0 (Unreleased)
+
+NEW FEATURES:
+
+- First version of the `mbtf` utility to import dashboard and cards from Metabase to Terraform.
+
 ## 0.1.0 (2022-12-22)
 
 NEW FEATURES:
