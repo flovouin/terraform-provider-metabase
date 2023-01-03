@@ -59,13 +59,21 @@ const (
 	Yes PermissionsGraphDatabasePermissionsDetails = "yes"
 )
 
+// Defines values for ListDatabasesParamsInclude.
+const (
+	Tables ListDatabasesParamsInclude = "tables"
+)
+
 // Card A card (or question).
 type Card struct {
 	// Archived Whether the card has been archived.
 	Archived bool `json:"archived"`
 
 	// Id The ID of the card.
-	Id                   int                    `json:"id"`
+	Id int `json:"id"`
+
+	// Name The name of the card.
+	Name                 string                 `json:"name"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
@@ -236,7 +244,7 @@ type Dashboard struct {
 // DashboardCard A card within a dashboard.
 type DashboardCard struct {
 	// CardId The ID of the card.
-	CardId int `json:"card_id"`
+	CardId *int `json:"card_id"`
 
 	// Col The index of the column at which the card is placed.
 	Col int `json:"col"`
@@ -361,6 +369,15 @@ type DatabaseDetailsBigQueryDatasetFiltersType string
 // DatabaseEngine The type of database to connect to.
 type DatabaseEngine string
 
+// DatabaseList The list of databases returned by the Metabase API.
+type DatabaseList struct {
+	// Data The list of databases.
+	Data []Database `json:"data"`
+
+	// Total The total number of databases.
+	Total int `json:"total"`
+}
+
 // Field A field in a database.
 type Field struct {
 	// Id The ID of the field.
@@ -368,6 +385,9 @@ type Field struct {
 
 	// Name The name of the field (column) in the table.
 	Name string `json:"name"`
+
+	// TableId The ID of the parent table.
+	TableId int `json:"table_id"`
 }
 
 // PermissionsGraph The entire permission graph for databases.
@@ -550,10 +570,28 @@ type UpdatePermissionsGroupBody struct {
 	Name string `json:"name"`
 }
 
+// ListCollectionsParams defines parameters for ListCollections.
+type ListCollectionsParams struct {
+	// Archived Whether the archived collections should be returned.
+	Archived *bool `form:"archived,omitempty" json:"archived,omitempty"`
+}
+
 // DeleteDashboardCardParams defines parameters for DeleteDashboardCard.
 type DeleteDashboardCardParams struct {
 	DashcardId int `form:"dashcardId" json:"dashcardId"`
 }
+
+// ListDatabasesParams defines parameters for ListDatabases.
+type ListDatabasesParams struct {
+	// Include Whether the returned databases should include the list of tables for each database.
+	Include *ListDatabasesParamsInclude `form:"include,omitempty" json:"include,omitempty"`
+
+	// Saved Whether the saved questions should appear as a virtual database.
+	Saved *bool `form:"saved,omitempty" json:"saved,omitempty"`
+}
+
+// ListDatabasesParamsInclude defines parameters for ListDatabases.
+type ListDatabasesParamsInclude string
 
 // GetTableMetadataParams defines parameters for GetTableMetadata.
 type GetTableMetadataParams struct {
@@ -647,6 +685,14 @@ func (a *Card) UnmarshalJSON(b []byte) error {
 		delete(object, "id")
 	}
 
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
 	if len(object) != 0 {
 		a.AdditionalProperties = make(map[string]interface{})
 		for fieldName, fieldBuf := range object {
@@ -674,6 +720,11 @@ func (a Card) MarshalJSON() ([]byte, error) {
 	object["id"], err = json.Marshal(a.Id)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'id': %w", err)
+	}
+
+	object["name"], err = json.Marshal(a.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
 	}
 
 	for fieldName, field := range a.AdditionalProperties {
@@ -963,6 +1014,9 @@ type ClientInterface interface {
 
 	UpdateCard(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListCollections request
+	ListCollections(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateCollection request with any body
 	CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -983,6 +1037,9 @@ type ClientInterface interface {
 	UpdateCollectionWithBody(ctx context.Context, collectionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListDashboards request
+	ListDashboards(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateDashboard request with any body
 	CreateDashboardWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1013,6 +1070,9 @@ type ClientInterface interface {
 
 	UpdateDashboardCards(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListDatabases request
+	ListDatabases(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CreateDatabase request with any body
 	CreateDatabaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1028,6 +1088,9 @@ type ClientInterface interface {
 	UpdateDatabaseWithBody(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetField request
+	GetField(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetPermissionsGraph request
 	GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1125,6 +1188,18 @@ func (c *Client) UpdateCard(ctx context.Context, cardId int, body UpdateCardJSON
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListCollections(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListCollectionsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateCollectionRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -1211,6 +1286,18 @@ func (c *Client) UpdateCollectionWithBody(ctx context.Context, collectionId stri
 
 func (c *Client) UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateCollectionRequest(c.Server, collectionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListDashboards(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDashboardsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -1353,6 +1440,18 @@ func (c *Client) UpdateDashboardCards(ctx context.Context, dashboardId int, body
 	return c.Client.Do(req)
 }
 
+func (c *Client) ListDatabases(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDatabasesRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) CreateDatabaseWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateDatabaseRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -1415,6 +1514,18 @@ func (c *Client) UpdateDatabaseWithBody(ctx context.Context, databaseId int, con
 
 func (c *Client) UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateDatabaseRequest(c.Server, databaseId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetField(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetFieldRequest(c.Server, fieldId)
 	if err != nil {
 		return nil, err
 	}
@@ -1702,6 +1813,53 @@ func NewUpdateCardRequestWithBody(server string, cardId int, contentType string,
 	return req, nil
 }
 
+// NewListCollectionsRequest generates requests for ListCollections
+func NewListCollectionsRequest(server string, params *ListCollectionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/collection")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if params.Archived != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "archived", runtime.ParamLocationQuery, *params.Archived); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCreateCollectionRequest calls the generic CreateCollection builder with application/json body
 func NewCreateCollectionRequest(server string, body CreateCollectionJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -1886,6 +2044,33 @@ func NewUpdateCollectionRequestWithBody(server string, collectionId string, cont
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListDashboardsRequest generates requests for ListDashboards
+func NewListDashboardsRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/dashboard")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2189,6 +2374,69 @@ func NewUpdateDashboardCardsRequestWithBody(server string, dashboardId int, cont
 	return req, nil
 }
 
+// NewListDatabasesRequest generates requests for ListDatabases
+func NewListDatabasesRequest(server string, params *ListDatabasesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/database")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	queryValues := queryURL.Query()
+
+	if params.Include != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "include", runtime.ParamLocationQuery, *params.Include); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	if params.Saved != nil {
+
+		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "saved", runtime.ParamLocationQuery, *params.Saved); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+	}
+
+	queryURL.RawQuery = queryValues.Encode()
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCreateDatabaseRequest calls the generic CreateDatabase builder with application/json body
 func NewCreateDatabaseRequest(server string, body CreateDatabaseJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -2340,6 +2588,40 @@ func NewUpdateDatabaseRequestWithBody(server string, databaseId int, contentType
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetFieldRequest generates requests for GetField
+func NewGetFieldRequest(server string, fieldId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "fieldId", runtime.ParamLocationPath, fieldId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/field/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -2743,6 +3025,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateCardWithResponse(ctx context.Context, cardId int, body UpdateCardJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCardResponse, error)
 
+	// ListCollections request
+	ListCollectionsWithResponse(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*ListCollectionsResponse, error)
+
 	// CreateCollection request with any body
 	CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
 
@@ -2763,6 +3048,9 @@ type ClientWithResponsesInterface interface {
 	UpdateCollectionWithBodyWithResponse(ctx context.Context, collectionId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
 
 	UpdateCollectionWithResponse(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
+
+	// ListDashboards request
+	ListDashboardsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDashboardsResponse, error)
 
 	// CreateDashboard request with any body
 	CreateDashboardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error)
@@ -2793,6 +3081,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateDashboardCardsWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error)
 
+	// ListDatabases request
+	ListDatabasesWithResponse(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*ListDatabasesResponse, error)
+
 	// CreateDatabase request with any body
 	CreateDatabaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error)
 
@@ -2808,6 +3099,9 @@ type ClientWithResponsesInterface interface {
 	UpdateDatabaseWithBodyWithResponse(ctx context.Context, databaseId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
 
 	UpdateDatabaseWithResponse(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
+
+	// GetField request
+	GetFieldWithResponse(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*GetFieldResponse, error)
 
 	// GetPermissionsGraph request
 	GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error)
@@ -2905,6 +3199,28 @@ func (r UpdateCardResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateCardResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListCollectionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Collection
+}
+
+// Status returns HTTPResponse.Status
+func (r ListCollectionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListCollectionsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3015,6 +3331,28 @@ func (r UpdateCollectionResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListDashboardsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *[]Dashboard
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDashboardsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDashboardsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3176,6 +3514,28 @@ func (r UpdateDashboardCardsResponse) StatusCode() int {
 	return 0
 }
 
+type ListDatabasesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DatabaseList
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDatabasesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDatabasesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CreateDatabaseResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3257,6 +3617,28 @@ func (r UpdateDatabaseResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateDatabaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetFieldResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Field
+}
+
+// Status returns HTTPResponse.Status
+func (r GetFieldResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetFieldResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3503,6 +3885,15 @@ func (c *ClientWithResponses) UpdateCardWithResponse(ctx context.Context, cardId
 	return ParseUpdateCardResponse(rsp)
 }
 
+// ListCollectionsWithResponse request returning *ListCollectionsResponse
+func (c *ClientWithResponses) ListCollectionsWithResponse(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*ListCollectionsResponse, error) {
+	rsp, err := c.ListCollections(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListCollectionsResponse(rsp)
+}
+
 // CreateCollectionWithBodyWithResponse request with arbitrary body returning *CreateCollectionResponse
 func (c *ClientWithResponses) CreateCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
 	rsp, err := c.CreateCollectionWithBody(ctx, contentType, body, reqEditors...)
@@ -3570,6 +3961,15 @@ func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseUpdateCollectionResponse(rsp)
+}
+
+// ListDashboardsWithResponse request returning *ListDashboardsResponse
+func (c *ClientWithResponses) ListDashboardsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDashboardsResponse, error) {
+	rsp, err := c.ListDashboards(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDashboardsResponse(rsp)
 }
 
 // CreateDashboardWithBodyWithResponse request with arbitrary body returning *CreateDashboardResponse
@@ -3667,6 +4067,15 @@ func (c *ClientWithResponses) UpdateDashboardCardsWithResponse(ctx context.Conte
 	return ParseUpdateDashboardCardsResponse(rsp)
 }
 
+// ListDatabasesWithResponse request returning *ListDatabasesResponse
+func (c *ClientWithResponses) ListDatabasesWithResponse(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*ListDatabasesResponse, error) {
+	rsp, err := c.ListDatabases(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDatabasesResponse(rsp)
+}
+
 // CreateDatabaseWithBodyWithResponse request with arbitrary body returning *CreateDatabaseResponse
 func (c *ClientWithResponses) CreateDatabaseWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDatabaseResponse, error) {
 	rsp, err := c.CreateDatabaseWithBody(ctx, contentType, body, reqEditors...)
@@ -3717,6 +4126,15 @@ func (c *ClientWithResponses) UpdateDatabaseWithResponse(ctx context.Context, da
 		return nil, err
 	}
 	return ParseUpdateDatabaseResponse(rsp)
+}
+
+// GetFieldWithResponse request returning *GetFieldResponse
+func (c *ClientWithResponses) GetFieldWithResponse(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*GetFieldResponse, error) {
+	rsp, err := c.GetField(ctx, fieldId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetFieldResponse(rsp)
 }
 
 // GetPermissionsGraphWithResponse request returning *GetPermissionsGraphResponse
@@ -3910,6 +4328,32 @@ func ParseUpdateCardResponse(rsp *http.Response) (*UpdateCardResponse, error) {
 	return response, nil
 }
 
+// ParseListCollectionsResponse parses an HTTP response from a ListCollectionsWithResponse call
+func ParseListCollectionsResponse(rsp *http.Response) (*ListCollectionsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListCollectionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCreateCollectionResponse parses an HTTP response from a CreateCollectionWithResponse call
 func ParseCreateCollectionResponse(rsp *http.Response) (*CreateCollectionResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4030,6 +4474,32 @@ func ParseUpdateCollectionResponse(rsp *http.Response) (*UpdateCollectionRespons
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Collection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListDashboardsResponse parses an HTTP response from a ListDashboardsWithResponse call
+func ParseListDashboardsResponse(rsp *http.Response) (*ListDashboardsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDashboardsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest []Dashboard
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4205,6 +4675,32 @@ func ParseUpdateDashboardCardsResponse(rsp *http.Response) (*UpdateDashboardCard
 	return response, nil
 }
 
+// ParseListDatabasesResponse parses an HTTP response from a ListDatabasesWithResponse call
+func ParseListDatabasesResponse(rsp *http.Response) (*ListDatabasesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDatabasesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DatabaseList
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCreateDatabaseResponse parses an HTTP response from a CreateDatabaseWithResponse call
 func ParseCreateDatabaseResponse(rsp *http.Response) (*CreateDatabaseResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -4289,6 +4785,32 @@ func ParseUpdateDatabaseResponse(rsp *http.Response) (*UpdateDatabaseResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetFieldResponse parses an HTTP response from a GetFieldWithResponse call
+func ParseGetFieldResponse(rsp *http.Response) (*GetFieldResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetFieldResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Field
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

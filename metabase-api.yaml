@@ -88,6 +88,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/Collection"
 
+    get:
+      operationId: listCollections
+      description: Retrieves all collections.
+      parameters:
+        - in: query
+          name: archived
+          schema:
+            type: boolean
+          description: Whether the archived collections should be returned.
+          required: false
+      responses:
+        200:
+          description: The list of collections.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Collection"
+
   /collection/graph:
     get:
       operationId: getCollectionPermissionsGraph
@@ -177,6 +197,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Dashboard"
+
+    get:
+      operationId: listDashboards
+      description: Retrieves all dashboards.
+      responses:
+        200:
+          description: The list of dashboards.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Dashboard"
 
   /dashboard/{dashboardId}:
     get:
@@ -328,6 +361,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/Database"
 
+    get:
+      operationId: listDatabases
+      description: Retrieves all databases.
+      parameters:
+        - in: query
+          name: include
+          schema:
+            type: string
+            enum:
+              - tables
+          description: Whether the returned databases should include the list of tables for each database.
+          required: false
+        - in: query
+          name: saved
+          schema:
+            type: boolean
+          description: Whether the saved questions should appear as a virtual database.
+          required: false
+      responses:
+        200:
+          description: The list of databases.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseList"
+
   /database/{databaseId}:
     get:
       operationId: getDatabase
@@ -384,6 +443,25 @@ paths:
       responses:
         204:
           description: The database was successfully deleted.
+
+  /field/{fieldId}:
+    get:
+      operationId: getField
+      description: Retrieves a single field.
+      parameters:
+        - in: path
+          name: fieldId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the field.
+      responses:
+        200:
+          description: The field was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Field"
 
   /permissions/graph:
     get:
@@ -514,7 +592,7 @@ paths:
       description: Retrieves the list of all tables.
       responses:
         200:
-          description: The list of tables
+          description: The list of tables.
           content:
             application/json:
               schema:
@@ -564,11 +642,15 @@ components:
         id:
           type: integer
           description: The ID of the card.
+        name:
+          type: string
+          description: The name of the card.
         archived:
           type: boolean
           description: Whether the card has been archived.
       required:
         - id
+        - name
         - archived
     CreateCardBody:
       type: object
@@ -866,6 +948,7 @@ components:
         card_id:
           type: integer
           description: The ID of the card.
+          nullable: true
         row:
           type: integer
           description: The index of the row at which the card is placed.
@@ -995,6 +1078,21 @@ components:
       description: The type of database to connect to.
       enum:
         - bigquery-cloud-sdk
+    DatabaseList:
+      type: object
+      description: The list of databases returned by the Metabase API.
+      properties:
+        data:
+          type: array
+          description: The list of databases.
+          items:
+            $ref: "#/components/schemas/Database"
+        total:
+          type: integer
+          description: The total number of databases.
+      required:
+        - data
+        - total
     # Fields.
     Field:
       type: object
@@ -1007,9 +1105,13 @@ components:
         name:
           type: string
           description: The name of the field (column) in the table.
+        table_id:
+          type: integer
+          description: The ID of the parent table.
       required:
         - id
         - name
+        - table_id
     # Permissions group.
     PermissionsGroup:
       type: object
