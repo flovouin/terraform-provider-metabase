@@ -88,7 +88,7 @@ func (ic *ImportContext) ImportCollectionsFromDefinitions(ctx context.Context, e
 
 		_, exists := ic.collections[collectionId]
 		if exists {
-			return fmt.Errorf("collection %s has already been imported", collection.Id)
+			return fmt.Errorf("collection %s has already been imported", collectionId)
 		}
 
 		ic.collections[collectionId] = importedCollection{
