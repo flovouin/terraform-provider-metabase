@@ -36,6 +36,7 @@ func makeMetabaseClient(ctx context.Context, config metabaseConfig) (*metabase.C
 func setUpDatabases(ctx context.Context, config databasesConfig, ic importer.ImportContext) error {
 	definitions := make([]importer.ExistingDatabaseDefinition, 0, len(config.Mapping))
 	for _, d := range config.Mapping {
+		d := d
 		var id *int
 		var name *string
 
@@ -65,6 +66,7 @@ func setUpDatabases(ctx context.Context, config databasesConfig, ic importer.Imp
 func setUpCollections(ctx context.Context, config collectionsConfig, ic importer.ImportContext) error {
 	definitions := make([]importer.ExistingCollectionDefinition, 0, len(config.Mapping))
 	for _, d := range config.Mapping {
+		d := d
 		var id *string
 		var name *string
 
