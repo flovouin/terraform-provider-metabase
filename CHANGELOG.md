@@ -4,6 +4,10 @@ NEW FEATURES:
 
 - First version of the `mbtf` utility to import dashboard and cards from Metabase to Terraform.
 
+ENHANCEMENTS:
+
+- The `metabase_database` resource now supports any engine type through the `custom_details` attribute.
+
 ## 0.1.0 (2022-12-22)
 
 NEW FEATURES:
