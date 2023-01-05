@@ -1019,12 +1019,17 @@ components:
         engine:
           $ref: "#/components/schemas/DatabaseEngine"
         details:
-          $ref: "#/components/schemas/DatabaseDetailsBigQuery"
+          $ref: "#/components/schemas/DatabaseDetails"
       required:
         - id
         - name
         - engine
         - details
+    DatabaseDetails:
+      description: Engine-specific details used to configure the connection to the database.
+      oneOf:
+        - $ref: "#/components/schemas/DatabaseDetailsBigQuery"
+        - $ref: "#/components/schemas/DatabaseDetailsCustom"
     DatabaseDetailsBigQuery:
       type: object
       description: The content of the `details` map for a database when connecting to BigQuery.
@@ -1047,6 +1052,10 @@ components:
           description: The pattern used by the `dataset-filters-type`.
       required:
         - service-account-json
+    DatabaseDetailsCustom:
+      type: object
+      description: A JSON object containing database details for unsupported engines.
+      additionalProperties: true
     CreateDatabaseBody:
       type: object
       description: The payload used to create a new database.
@@ -1057,7 +1066,7 @@ components:
         engine:
           $ref: "#/components/schemas/DatabaseEngine"
         details:
-          $ref: "#/components/schemas/DatabaseDetailsBigQuery"
+          $ref: "#/components/schemas/DatabaseDetails"
       required:
         - name
         - engine
@@ -1072,7 +1081,7 @@ components:
         engine:
           $ref: "#/components/schemas/DatabaseEngine"
         details:
-          $ref: "#/components/schemas/DatabaseDetailsBigQuery"
+          $ref: "#/components/schemas/DatabaseDetails"
     DatabaseEngine:
       type: string
       description: The type of database to connect to.

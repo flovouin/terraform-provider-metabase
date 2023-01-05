@@ -189,8 +189,8 @@ type CreateDashboardCardBody struct {
 
 // CreateDatabaseBody The payload used to create a new database.
 type CreateDatabaseBody struct {
-	// Details The content of the `details` map for a database when connecting to BigQuery.
-	Details DatabaseDetailsBigQuery `json:"details"`
+	// Details Engine-specific details used to configure the connection to the database.
+	Details DatabaseDetails `json:"details"`
 
 	// Engine The type of database to connect to.
 	Engine DatabaseEngine `json:"engine"`
@@ -335,8 +335,8 @@ type DashboardWithCards struct {
 
 // Database An external database that can be queried by cards and dashboards.
 type Database struct {
-	// Details The content of the `details` map for a database when connecting to BigQuery.
-	Details DatabaseDetailsBigQuery `json:"details"`
+	// Details Engine-specific details used to configure the connection to the database.
+	Details DatabaseDetails `json:"details"`
 
 	// Engine The type of database to connect to.
 	Engine DatabaseEngine `json:"engine"`
@@ -346,6 +346,11 @@ type Database struct {
 
 	// Name The user-displayable name for the database.
 	Name string `json:"name"`
+}
+
+// DatabaseDetails Engine-specific details used to configure the connection to the database.
+type DatabaseDetails struct {
+	union json.RawMessage
 }
 
 // DatabaseDetailsBigQuery The content of the `details` map for a database when connecting to BigQuery.
@@ -365,6 +370,9 @@ type DatabaseDetailsBigQuery struct {
 
 // DatabaseDetailsBigQueryDatasetFiltersType The behavior of how BigQuery datasets should be selected.
 type DatabaseDetailsBigQueryDatasetFiltersType string
+
+// DatabaseDetailsCustom A JSON object containing database details for unsupported engines.
+type DatabaseDetailsCustom map[string]interface{}
 
 // DatabaseEngine The type of database to connect to.
 type DatabaseEngine string
@@ -554,8 +562,8 @@ type UpdateDashboardCardsBody struct {
 
 // UpdateDatabaseBody The payload used to update an existing database.
 type UpdateDatabaseBody struct {
-	// Details The content of the `details` map for a database when connecting to BigQuery.
-	Details *DatabaseDetailsBigQuery `json:"details,omitempty"`
+	// Details Engine-specific details used to configure the connection to the database.
+	Details *DatabaseDetails `json:"details,omitempty"`
 
 	// Engine The type of database to connect to.
 	Engine *DatabaseEngine `json:"engine,omitempty"`
@@ -924,6 +932,68 @@ func (t DashboardParameter_Default) MarshalJSON() ([]byte, error) {
 }
 
 func (t *DashboardParameter_Default) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsDatabaseDetailsBigQuery returns the union data inside the DatabaseDetails as a DatabaseDetailsBigQuery
+func (t DatabaseDetails) AsDatabaseDetailsBigQuery() (DatabaseDetailsBigQuery, error) {
+	var body DatabaseDetailsBigQuery
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDatabaseDetailsBigQuery overwrites any union data inside the DatabaseDetails as the provided DatabaseDetailsBigQuery
+func (t *DatabaseDetails) FromDatabaseDetailsBigQuery(v DatabaseDetailsBigQuery) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDatabaseDetailsBigQuery performs a merge with any union data inside the DatabaseDetails, using the provided DatabaseDetailsBigQuery
+func (t *DatabaseDetails) MergeDatabaseDetailsBigQuery(v DatabaseDetailsBigQuery) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(b, t.union)
+	t.union = merged
+	return err
+}
+
+// AsDatabaseDetailsCustom returns the union data inside the DatabaseDetails as a DatabaseDetailsCustom
+func (t DatabaseDetails) AsDatabaseDetailsCustom() (DatabaseDetailsCustom, error) {
+	var body DatabaseDetailsCustom
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromDatabaseDetailsCustom overwrites any union data inside the DatabaseDetails as the provided DatabaseDetailsCustom
+func (t *DatabaseDetails) FromDatabaseDetailsCustom(v DatabaseDetailsCustom) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeDatabaseDetailsCustom performs a merge with any union data inside the DatabaseDetails, using the provided DatabaseDetailsCustom
+func (t *DatabaseDetails) MergeDatabaseDetailsCustom(v DatabaseDetailsCustom) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(b, t.union)
+	t.union = merged
+	return err
+}
+
+func (t DatabaseDetails) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *DatabaseDetails) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
