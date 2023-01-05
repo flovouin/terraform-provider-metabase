@@ -103,7 +103,7 @@ func runImport() error {
 
 	client, err := makeMetabaseClient(ctx, config.Metabase)
 	if err != nil {
-		return nil
+		return err
 	}
 
 	ic := importer.NewImportContext(*client)
