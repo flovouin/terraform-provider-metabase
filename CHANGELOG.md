@@ -1,4 +1,4 @@
-## 0.2.0 (Unreleased)
+## 0.2.0 (2023-01-05)
 
 NEW FEATURES:
 
