@@ -66,8 +66,9 @@ type dashboardFilterConfig struct {
 
 // Defines how the Terraform configuration is written to files.
 type outputConfig struct {
-	Path  string `koanf:"path"`  // The path where the Terraform configuration will be written.
-	Clear bool   `koanf:"clear"` // Whether generated files with the right prefix should be removed from the output directory before writing.
+	Path              string `koanf:"path"`               // The path where the Terraform configuration will be written.
+	Clear             bool   `koanf:"clear"`              // Whether generated files with the right prefix should be removed from the output directory before writing.
+	DisableFormatting bool   `koanf:"disable_formatting"` // If `true`, does not attempt to run `terraform fmt` after writing the files.
 }
 
 // The entire configuration when importing dashboards from Metabase.
