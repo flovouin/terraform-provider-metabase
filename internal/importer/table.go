@@ -12,19 +12,22 @@ import (
 )
 
 // The template producing a `metabase_table` Terraform data source definition.
-const tableTemplate = `data "metabase_table" "{{.TerraformSlug}}" {
+const tableTemplate = `resource "metabase_table" "{{.TerraformSlug}}" {
   {{if .DbRef}}db_id = metabase_database.{{.DbRef}}.id{{end}}
   {{if .Schema}}schema = {{.Schema}}{{end}}
   name = {{.Name}}
+
+  forced_field_types = {{.ForcedFieldTypes}}
 }
 `
 
 // The data required to produce a `metabase_table` Terraform data source definition.
 type tableTemplateData struct {
-	TerraformSlug string  // The slug used as the name of the Terraform resource.
-	Name          string  // The name of the table.
-	Schema        *string // The schema the table is part of. If `nil`, this is not added as an attribute.
-	DbRef         *string // A (Terraform) reference to the database the table is part of. If `nil`, this is not added as an attribute.
+	TerraformSlug    string  // The slug used as the name of the Terraform resource.
+	Name             string  // The name of the table.
+	Schema           *string // The schema the table is part of. If `nil`, this is not added as an attribute.
+	DbRef            *string // A (Terraform) reference to the database the table is part of. If `nil`, this is not added as an attribute.
+	ForcedFieldTypes string  // A map of semantic types for fields in the table.
 }
 
 // Produces the Terraform definition for a `metabase_table` data source.
@@ -59,12 +62,22 @@ func (ic *ImportContext) makeTableHcl(table metabase.TableMetadata, slug string)
 		dbRef = &db.Slug
 	}
 
+	forcedFieldTypes := make(map[string]*string, len(table.Fields))
+	for _, f := range table.Fields {
+		forcedFieldTypes[f.Name] = f.SemanticType
+	}
+	forcedFieldTypesJson, err := json.MarshalIndent(forcedFieldTypes, "  ", "  ")
+	if err != nil {
+		return nil, err
+	}
+
 	buf := new(bytes.Buffer)
 	err = tpl.Execute(buf, tableTemplateData{
-		TerraformSlug: slug,
-		DbRef:         dbRef,
-		Schema:        schema,
-		Name:          string(name),
+		TerraformSlug:    slug,
+		DbRef:            dbRef,
+		Schema:           schema,
+		Name:             string(name),
+		ForcedFieldTypes: string(forcedFieldTypesJson),
 	})
 	if err != nil {
 		return nil, err
