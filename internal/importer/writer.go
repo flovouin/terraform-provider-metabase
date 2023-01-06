@@ -1,8 +1,10 @@
 package importer
 
 import (
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -15,6 +17,7 @@ type WriteOptions struct {
 	FileNamePrefix              string // The prefix for generated files.
 	DisableFileNameResourceType bool   // If `true`, each generated file name does not contain the type of resource defined in the file.
 	ClearOutput                 bool   // If `true`, all files at the output path with the right prefix will be removed before generation.
+	DisableFormatting           bool   // If `true`, does not attempt to run `terraform fmt` after writing the files.
 }
 
 // Returns either the prefix set in the options, or the default one.
@@ -56,6 +59,24 @@ func makeFilePath(path string, resourceType string, slug string, opts WriteOptio
 	return filepath.Join(path, fileName)
 }
 
+// Formats the Terraform file in the given folder. If the `terraform` command cannot be found, a message is logged to
+// stderr, but no error is returned.
+func formatTerraformFiles(path string) error {
+	cmd := exec.Command("terraform", "fmt")
+	cmd.Dir = path
+
+	_, err := cmd.Output()
+	if err != nil {
+		if errors.Is(err, exec.ErrNotFound) {
+			fmt.Fprint(os.Stderr, "files were not formatted as terraform could not be found in path")
+		} else {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Writes the tables, cards, and dashboards that have been imported to Terraform files.
 func (ic *ImportContext) Write(path string, opts WriteOptions) error {
 	if opts.ClearOutput {
@@ -87,6 +108,13 @@ func (ic *ImportContext) Write(path string, opts WriteOptions) error {
 		path := makeFilePath(path, "dashboard", d.Slug, opts)
 
 		err := os.WriteFile(path, []byte(d.Hcl), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	if !opts.DisableFormatting {
+		err := formatTerraformFiles(path)
 		if err != nil {
 			return err
 		}
