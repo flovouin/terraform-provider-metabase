@@ -132,84 +132,6 @@ func updateModelFromTableMetadata(t metabase.TableMetadata, data *TableDataSourc
 	return diags
 }
 
-// Finds a specific table in the given list based on a predicate.
-func findTable(tables []metabase.Table, p tablePredicate) (*metabase.Table, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	for _, t := range tables {
-		if p(t) {
-			return &t, diags
-		}
-	}
-
-	diags.AddError("Unable to find the table given its attributes.", "")
-	return nil, diags
-}
-
-// A predicate whether a table returned by the Metabase API matches some criteria.
-type tablePredicate func(metabase.Table) bool
-
-// Makes a `tablePredicate` that will match tables based on the Terraform model for the data source.
-// A predicate can either be an exact match based on the ID of the table, or a search based on one or several table
-// attributes.
-func makeSearchPredicateFromTableDataSourceModel(data TableDataSourceModel) (*tablePredicate, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	if !data.Id.IsNull() {
-		if !data.DbId.IsNull() ||
-			!data.Name.IsNull() ||
-			!data.EntityType.IsNull() ||
-			!data.Schema.IsNull() {
-			diags.AddError("No other attribute should be set when the table ID is defined.", "")
-			return nil, diags
-		}
-
-		id := int(data.Id.ValueInt64())
-		p := tablePredicate(func(t metabase.Table) bool {
-			return t.Id == id
-		})
-
-		return &p, diags
-	}
-
-	if data.DbId.IsNull() &&
-		data.Name.IsNull() &&
-		data.EntityType.IsNull() &&
-		data.Schema.IsNull() {
-		diags.AddError("At least one attribute is required to lookup the table.", "")
-		return nil, diags
-	}
-
-	p := tablePredicate(func(t metabase.Table) bool {
-		if !data.DbId.IsNull() && int(data.DbId.ValueInt64()) != t.DbId {
-			return false
-		}
-
-		if !data.Name.IsNull() && data.Name.ValueString() != t.Name {
-			return false
-		}
-
-		if !data.EntityType.IsNull() && data.EntityType.ValueString() != t.EntityType {
-			return false
-		}
-
-		// The schema attribute can be `null`. Users can pass an empty schema to explicitly search for a null schema.
-		if !data.Schema.IsNull() {
-			schema := data.Schema.ValueString()
-			schemaIsEmpty := len([]rune(schema)) == 0
-			tableSchemaIsEmptyOrNull := t.Schema == nil || len([]rune(*t.Schema)) == 0
-			if schemaIsEmpty != tableSchemaIsEmptyOrNull ||
-				(!schemaIsEmpty && !tableSchemaIsEmptyOrNull && schema != *t.Schema) {
-				return false
-			}
-		}
-
-		return true
-	})
-
-	return &p, diags
-}
-
 func (d *TableDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
 	var data TableDataSourceModel
 
@@ -218,7 +140,13 @@ func (d *TableDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	predicate, diags := makeSearchPredicateFromTableDataSourceModel(data)
+	predicate, diags := makeSearchPredicate(tableFilter{
+		Id:         data.Id,
+		DbId:       data.DbId,
+		Name:       data.Name,
+		EntityType: data.EntityType,
+		Schema:     data.Schema,
+	})
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
