@@ -7,6 +7,7 @@ NEW FEATURES:
 ENHANCEMENTS:
 
 - The `metabase_table` data source now supports the `description` attribute.
+- Use the `metabase_table` resource instead of data source in `mbtf`.
 
 ## 0.2.0 (2023-01-05)
 
