@@ -131,7 +131,8 @@ func runImport() error {
 	}
 
 	err = ic.Write(config.Output.Path, importer.WriteOptions{
-		ClearOutput: config.Output.Clear,
+		ClearOutput:       config.Output.Clear,
+		DisableFormatting: config.Output.DisableFormatting,
 	})
 	if err != nil {
 		return err
