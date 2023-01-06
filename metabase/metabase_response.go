@@ -126,3 +126,7 @@ func (r *GetTableMetadataResponse) BodyString() string {
 func (r *GetFieldResponse) BodyString() string {
 	return string(r.Body)
 }
+
+func (r *UpdateFieldResponse) BodyString() string {
+	return string(r.Body)
+}

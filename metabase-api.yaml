@@ -463,6 +463,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/Field"
 
+    put:
+      operationId: updateField
+      description: Updates a single field.
+      parameters:
+        - in: path
+          name: fieldId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the field.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFieldBody"
+      responses:
+        200:
+          description: The field was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Field"
+
   /permissions/graph:
     get:
       operationId: getPermissionsGraph
@@ -1114,13 +1138,43 @@ components:
         name:
           type: string
           description: The name of the field (column) in the table.
+        display_name:
+          type: string
+          description: The user-displayable name for the field.
         table_id:
           type: integer
           description: The ID of the parent table.
+        semantic_type:
+          type: string
+          description: The semantic type used by Metabase to improve the display and use of the field.
+          nullable: true
+        description:
+          type: string
+          description: The description of the field.
+          nullable: true
       required:
         - id
         - name
+        - display_name
         - table_id
+        - semantic_type
+        - description
+    UpdateFieldBody:
+      type: object
+      description: The payload used to update a table field.
+      additionalProperties: false
+      properties:
+        display_name:
+          type: string
+          description: The user-displayable name for the field.
+        semantic_type:
+          type: string
+          description: The semantic type used by Metabase to improve the display and use of the field.
+          nullable: true
+        description:
+          type: string
+          description: The description of the field.
+          nullable: true
     # Permissions group.
     PermissionsGroup:
       type: object
