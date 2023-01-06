@@ -92,6 +92,8 @@ output:
   path: ./metabase
   # Whether generated files matching `mb-gen-*.tf` should be removed from the output directory before writing.
   clear: true
+  # When `true`, `terraform fmt` is not called after writing the Terraform files.
+  disable_formatting: false
 ```
 
 ## 🧑‍💻 Development
