@@ -43,11 +43,14 @@ type tableFilter struct {
 func makeSearchPredicate(filter tableFilter) (*tablePredicate, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if !filter.Id.IsNull() {
-		if !filter.DbId.IsNull() ||
-			!filter.Name.IsNull() ||
-			!filter.EntityType.IsNull() ||
-			!filter.Schema.IsNull() {
+	idIsSet := !filter.Id.IsNull() && !filter.Id.IsUnknown()
+	dbIdIsSet := !filter.DbId.IsNull() && !filter.DbId.IsUnknown()
+	nameIsSet := !filter.Name.IsNull() && !filter.Name.IsUnknown()
+	entityTypeIsSet := !filter.EntityType.IsNull() && !filter.EntityType.IsUnknown()
+	schemaIsSet := !filter.Schema.IsNull() && !filter.Schema.IsUnknown()
+
+	if idIsSet {
+		if dbIdIsSet || nameIsSet || entityTypeIsSet || schemaIsSet {
 			diags.AddError("No other attribute should be set when the table ID is defined.", "")
 			return nil, diags
 		}
@@ -60,29 +63,26 @@ func makeSearchPredicate(filter tableFilter) (*tablePredicate, diag.Diagnostics)
 		return &p, diags
 	}
 
-	if filter.DbId.IsNull() &&
-		filter.Name.IsNull() &&
-		filter.EntityType.IsNull() &&
-		filter.Schema.IsNull() {
+	if !dbIdIsSet && !nameIsSet && !entityTypeIsSet && !schemaIsSet {
 		diags.AddError("At least one attribute is required to lookup the table.", "")
 		return nil, diags
 	}
 
 	p := tablePredicate(func(t metabase.Table) bool {
-		if !filter.DbId.IsNull() && int(filter.DbId.ValueInt64()) != t.DbId {
+		if dbIdIsSet && int(filter.DbId.ValueInt64()) != t.DbId {
 			return false
 		}
 
-		if !filter.Name.IsNull() && filter.Name.ValueString() != t.Name {
+		if nameIsSet && filter.Name.ValueString() != t.Name {
 			return false
 		}
 
-		if !filter.EntityType.IsNull() && filter.EntityType.ValueString() != t.EntityType {
+		if entityTypeIsSet && filter.EntityType.ValueString() != t.EntityType {
 			return false
 		}
 
 		// The schema attribute can be `null`. Users can pass an empty schema to explicitly search for a null schema.
-		if !filter.Schema.IsNull() {
+		if schemaIsSet {
 			schema := filter.Schema.ValueString()
 			schemaIsEmpty := len([]rune(schema)) == 0
 			tableSchemaIsEmptyOrNull := t.Schema == nil || len([]rune(*t.Schema)) == 0
