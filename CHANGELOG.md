@@ -1,3 +1,13 @@
+## 0.3.0 (Unreleased)
+
+NEW FEATURES:
+
+- Introduce the `metabase_table` resource.
+
+ENHANCEMENTS:
+
+- The `metabase_table` data source now supports the `description` attribute.
+
 ## 0.2.0 (2023-01-05)
 
 NEW FEATURES:

@@ -388,11 +388,20 @@ type DatabaseList struct {
 
 // Field A field in a database.
 type Field struct {
+	// Description The description of the field.
+	Description *string `json:"description"`
+
+	// DisplayName The user-displayable name for the field.
+	DisplayName string `json:"display_name"`
+
 	// Id The ID of the field.
 	Id int `json:"id"`
 
 	// Name The name of the field (column) in the table.
 	Name string `json:"name"`
+
+	// SemanticType The semantic type used by Metabase to improve the display and use of the field.
+	SemanticType *string `json:"semantic_type"`
 
 	// TableId The ID of the parent table.
 	TableId int `json:"table_id"`
@@ -462,8 +471,11 @@ type Table struct {
 	// DbId The ID of the parent database.
 	DbId int `json:"db_id"`
 
+	// Description A description for the table.
+	Description *string `json:"description"`
+
 	// DisplayName The name displayed in the interface for the table.
-	DisplayName *string `json:"display_name,omitempty"`
+	DisplayName string `json:"display_name"`
 
 	// EntityType The type of table.
 	EntityType string `json:"entity_type"`
@@ -484,8 +496,11 @@ type TableMetadata struct {
 	// DbId The ID of the parent database.
 	DbId int `json:"db_id"`
 
+	// Description A description for the table.
+	Description *string `json:"description"`
+
 	// DisplayName The name displayed in the interface for the table.
-	DisplayName *string `json:"display_name,omitempty"`
+	DisplayName string `json:"display_name"`
 
 	// EntityType The type of table.
 	EntityType string `json:"entity_type"`
@@ -572,10 +587,34 @@ type UpdateDatabaseBody struct {
 	Name *string `json:"name,omitempty"`
 }
 
+// UpdateFieldBody The payload used to update a table field.
+type UpdateFieldBody struct {
+	// Description The description of the field.
+	Description *string `json:"description"`
+
+	// DisplayName The user-displayable name for the field.
+	DisplayName *string `json:"display_name,omitempty"`
+
+	// SemanticType The semantic type used by Metabase to improve the display and use of the field.
+	SemanticType *string `json:"semantic_type"`
+}
+
 // UpdatePermissionsGroupBody The payload used to update an existing permissions group.
 type UpdatePermissionsGroupBody struct {
 	// Name A user-displayable name for the group.
 	Name string `json:"name"`
+}
+
+// UpdateTableBody The payload used to update a table.
+type UpdateTableBody struct {
+	// Description A description for the table.
+	Description *string `json:"description,omitempty"`
+
+	// DisplayName The name displayed in the interface for the table.
+	DisplayName *string `json:"display_name,omitempty"`
+
+	// EntityType The type of table.
+	EntityType *string `json:"entity_type,omitempty"`
 }
 
 // ListCollectionsParams defines parameters for ListCollections.
@@ -640,6 +679,9 @@ type CreateDatabaseJSONRequestBody = CreateDatabaseBody
 // UpdateDatabaseJSONRequestBody defines body for UpdateDatabase for application/json ContentType.
 type UpdateDatabaseJSONRequestBody = UpdateDatabaseBody
 
+// UpdateFieldJSONRequestBody defines body for UpdateField for application/json ContentType.
+type UpdateFieldJSONRequestBody = UpdateFieldBody
+
 // ReplacePermissionsGraphJSONRequestBody defines body for ReplacePermissionsGraph for application/json ContentType.
 type ReplacePermissionsGraphJSONRequestBody = PermissionsGraph
 
@@ -651,6 +693,9 @@ type UpdatePermissionsGroupJSONRequestBody = UpdatePermissionsGroupBody
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = CreateSessionBody
+
+// UpdateTableJSONRequestBody defines body for UpdateTable for application/json ContentType.
+type UpdateTableJSONRequestBody = UpdateTableBody
 
 // Getter for additional properties for Card. Returns the specified
 // element and whether it was found
@@ -1162,6 +1207,11 @@ type ClientInterface interface {
 	// GetField request
 	GetField(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// UpdateField request with any body
+	UpdateFieldWithBody(ctx context.Context, fieldId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateField(ctx context.Context, fieldId int, body UpdateFieldJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetPermissionsGraph request
 	GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1193,6 +1243,11 @@ type ClientInterface interface {
 
 	// ListTables request
 	ListTables(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateTable request with any body
+	UpdateTableWithBody(ctx context.Context, tableId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateTable(ctx context.Context, tableId int, body UpdateTableJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetTableMetadata request
 	GetTableMetadata(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1606,6 +1661,30 @@ func (c *Client) GetField(ctx context.Context, fieldId int, reqEditors ...Reques
 	return c.Client.Do(req)
 }
 
+func (c *Client) UpdateFieldWithBody(ctx context.Context, fieldId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateFieldRequestWithBody(c.Server, fieldId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateField(ctx context.Context, fieldId int, body UpdateFieldJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateFieldRequest(c.Server, fieldId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetPermissionsGraph(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetPermissionsGraphRequest(c.Server)
 	if err != nil {
@@ -1740,6 +1819,30 @@ func (c *Client) CreateSession(ctx context.Context, body CreateSessionJSONReques
 
 func (c *Client) ListTables(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListTablesRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTableWithBody(ctx context.Context, tableId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTableRequestWithBody(c.Server, tableId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateTable(ctx context.Context, tableId int, body UpdateTableJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateTableRequest(c.Server, tableId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2696,6 +2799,53 @@ func NewGetFieldRequest(server string, fieldId int) (*http.Request, error) {
 	return req, nil
 }
 
+// NewUpdateFieldRequest calls the generic UpdateField builder with application/json body
+func NewUpdateFieldRequest(server string, fieldId int, body UpdateFieldJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateFieldRequestWithBody(server, fieldId, "application/json", bodyReader)
+}
+
+// NewUpdateFieldRequestWithBody generates requests for UpdateField with any type of body
+func NewUpdateFieldRequestWithBody(server string, fieldId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "fieldId", runtime.ParamLocationPath, fieldId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/field/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetPermissionsGraphRequest generates requests for GetPermissionsGraph
 func NewGetPermissionsGraphRequest(server string) (*http.Request, error) {
 	var err error
@@ -2985,6 +3135,53 @@ func NewListTablesRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewUpdateTableRequest calls the generic UpdateTable builder with application/json body
+func NewUpdateTableRequest(server string, tableId int, body UpdateTableJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateTableRequestWithBody(server, tableId, "application/json", bodyReader)
+}
+
+// NewUpdateTableRequestWithBody generates requests for UpdateTable with any type of body
+func NewUpdateTableRequestWithBody(server string, tableId int, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "tableId", runtime.ParamLocationPath, tableId)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/table/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetTableMetadataRequest generates requests for GetTableMetadata
 func NewGetTableMetadataRequest(server string, tableId int, params *GetTableMetadataParams) (*http.Request, error) {
 	var err error
@@ -3173,6 +3370,11 @@ type ClientWithResponsesInterface interface {
 	// GetField request
 	GetFieldWithResponse(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*GetFieldResponse, error)
 
+	// UpdateField request with any body
+	UpdateFieldWithBodyWithResponse(ctx context.Context, fieldId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateFieldResponse, error)
+
+	UpdateFieldWithResponse(ctx context.Context, fieldId int, body UpdateFieldJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateFieldResponse, error)
+
 	// GetPermissionsGraph request
 	GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error)
 
@@ -3204,6 +3406,11 @@ type ClientWithResponsesInterface interface {
 
 	// ListTables request
 	ListTablesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTablesResponse, error)
+
+	// UpdateTable request with any body
+	UpdateTableWithBodyWithResponse(ctx context.Context, tableId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTableResponse, error)
+
+	UpdateTableWithResponse(ctx context.Context, tableId int, body UpdateTableJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTableResponse, error)
 
 	// GetTableMetadata request
 	GetTableMetadataWithResponse(ctx context.Context, tableId int, params *GetTableMetadataParams, reqEditors ...RequestEditorFn) (*GetTableMetadataResponse, error)
@@ -3715,6 +3922,28 @@ func (r GetFieldResponse) StatusCode() int {
 	return 0
 }
 
+type UpdateFieldResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Field
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateFieldResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateFieldResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetPermissionsGraphResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -3884,6 +4113,28 @@ func (r ListTablesResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListTablesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateTableResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Table
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateTableResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateTableResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4207,6 +4458,23 @@ func (c *ClientWithResponses) GetFieldWithResponse(ctx context.Context, fieldId 
 	return ParseGetFieldResponse(rsp)
 }
 
+// UpdateFieldWithBodyWithResponse request with arbitrary body returning *UpdateFieldResponse
+func (c *ClientWithResponses) UpdateFieldWithBodyWithResponse(ctx context.Context, fieldId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateFieldResponse, error) {
+	rsp, err := c.UpdateFieldWithBody(ctx, fieldId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateFieldResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateFieldWithResponse(ctx context.Context, fieldId int, body UpdateFieldJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateFieldResponse, error) {
+	rsp, err := c.UpdateField(ctx, fieldId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateFieldResponse(rsp)
+}
+
 // GetPermissionsGraphWithResponse request returning *GetPermissionsGraphResponse
 func (c *ClientWithResponses) GetPermissionsGraphWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetPermissionsGraphResponse, error) {
 	rsp, err := c.GetPermissionsGraph(ctx, reqEditors...)
@@ -4309,6 +4577,23 @@ func (c *ClientWithResponses) ListTablesWithResponse(ctx context.Context, reqEdi
 		return nil, err
 	}
 	return ParseListTablesResponse(rsp)
+}
+
+// UpdateTableWithBodyWithResponse request with arbitrary body returning *UpdateTableResponse
+func (c *ClientWithResponses) UpdateTableWithBodyWithResponse(ctx context.Context, tableId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateTableResponse, error) {
+	rsp, err := c.UpdateTableWithBody(ctx, tableId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTableResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateTableWithResponse(ctx context.Context, tableId int, body UpdateTableJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateTableResponse, error) {
+	rsp, err := c.UpdateTable(ctx, tableId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateTableResponse(rsp)
 }
 
 // GetTableMetadataWithResponse request returning *GetTableMetadataResponse
@@ -4891,6 +5176,32 @@ func ParseGetFieldResponse(rsp *http.Response) (*GetFieldResponse, error) {
 	return response, nil
 }
 
+// ParseUpdateFieldResponse parses an HTTP response from a UpdateFieldWithResponse call
+func ParseUpdateFieldResponse(rsp *http.Response) (*UpdateFieldResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateFieldResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Field
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetPermissionsGraphResponse parses an HTTP response from a GetPermissionsGraphWithResponse call
 func ParseGetPermissionsGraphResponse(rsp *http.Response) (*GetPermissionsGraphResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -5079,6 +5390,32 @@ func ParseListTablesResponse(rsp *http.Response) (*ListTablesResponse, error) {
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest []Table
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateTableResponse parses an HTTP response from a UpdateTableWithResponse call
+func ParseUpdateTableResponse(rsp *http.Response) (*UpdateTableResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateTableResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Table
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
