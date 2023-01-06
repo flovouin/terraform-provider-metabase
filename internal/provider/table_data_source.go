@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -116,18 +115,12 @@ func updateModelFromTableMetadata(t metabase.TableMetadata, data *TableDataSourc
 	data.EntityType = types.StringValue(t.EntityType)
 	data.Schema = stringValueOrNull(t.Schema)
 
-	// The Metabase API returns a full definition of each field. Only the integer IDs are exposed, as this is what is
-	// needed to define dashboard filters for example.
-	fields := make(map[string]attr.Value, len(t.Fields))
-	for _, f := range t.Fields {
-		fields[f.Name] = types.Int64Value(int64(f.Id))
-	}
-	fieldsValue, fieldsDiags := types.MapValue(types.Int64Type, fields)
+	fieldsValue, fieldsDiags := makeTableFieldsValue(t)
 	diags.Append(fieldsDiags...)
 	if diags.HasError() {
 		return diags
 	}
-	data.Fields = fieldsValue
+	data.Fields = *fieldsValue
 
 	return diags
 }

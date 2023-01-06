@@ -2,8 +2,10 @@ package provider
 
 import (
 	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // A predicate whether a table returned by the Metabase API matches some criteria.
@@ -92,4 +94,22 @@ func makeSearchPredicate(filter tableFilter) (*tablePredicate, diag.Diagnostics)
 	})
 
 	return &p, diags
+}
+
+// Makes a Terraform map value where keys are field names and values are the corresponding IDs.
+func makeTableFieldsValue(t metabase.TableMetadata) (*basetypes.MapValue, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	fields := make(map[string]attr.Value, len(t.Fields))
+	for _, f := range t.Fields {
+		fields[f.Name] = types.Int64Value(int64(f.Id))
+	}
+
+	fieldsValue, fieldsDiags := types.MapValue(types.Int64Type, fields)
+	diags.Append(fieldsDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return &fieldsValue, diags
 }
