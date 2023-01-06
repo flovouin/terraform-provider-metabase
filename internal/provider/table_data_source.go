@@ -33,9 +33,10 @@ type TableDataSourceModel struct {
 	Id          types.Int64  `tfsdk:"id"`           // The ID of the table.
 	DbId        types.Int64  `tfsdk:"db_id"`        // The ID of the parent database.
 	Name        types.String `tfsdk:"name"`         // The name of the table.
-	DisplayName types.String `tfsdk:"display_name"` // The name displayed in the interface for the table.
 	EntityType  types.String `tfsdk:"entity_type"`  // The type of table.
 	Schema      types.String `tfsdk:"schema"`       // The database schema in which the table is located. For BigQuery, this is the dataset name.
+	DisplayName types.String `tfsdk:"display_name"` // The name displayed in the interface for the table.
+	Description types.String `tfsdk:"description"`  // A description for the table.
 	Fields      types.Map    `tfsdk:"fields"`       // A map where keys are field (column) names and values are the corresponding Metabase integer IDs.
 }
 
@@ -64,10 +65,6 @@ Metabase also assigns an ID to each field (column) in the table. Those are also 
 				MarkdownDescription: "The name of the table.",
 				Optional:            true,
 			},
-			"display_name": schema.StringAttribute{
-				MarkdownDescription: "The name displayed in the interface for the table.",
-				Computed:            true,
-			},
 			"entity_type": schema.StringAttribute{
 				MarkdownDescription: "The type of table.",
 				Optional:            true,
@@ -75,6 +72,14 @@ Metabase also assigns an ID to each field (column) in the table. Those are also 
 			"schema": schema.StringAttribute{
 				MarkdownDescription: "The database schema in which the table is located. For BigQuery, this is the dataset name.",
 				Optional:            true,
+			},
+			"display_name": schema.StringAttribute{
+				MarkdownDescription: "The name displayed in the interface for the table.",
+				Computed:            true,
+			},
+			"description": schema.StringAttribute{
+				MarkdownDescription: "A description for the table.",
+				Computed:            true,
 			},
 			"fields": schema.MapAttribute{
 				MarkdownDescription: "A map where keys are field (column) names and values are their Metabase ID.",
@@ -111,9 +116,10 @@ func updateModelFromTableMetadata(t metabase.TableMetadata, data *TableDataSourc
 	data.Id = types.Int64Value(int64(t.Id))
 	data.DbId = types.Int64Value(int64(t.DbId))
 	data.Name = types.StringValue(t.Name)
-	data.DisplayName = stringValueOrNull(t.DisplayName)
 	data.EntityType = types.StringValue(t.EntityType)
 	data.Schema = stringValueOrNull(t.Schema)
+	data.DisplayName = types.StringValue(t.DisplayName)
+	data.Description = stringValueOrNull(t.Description)
 
 	fieldsValue, fieldsDiags := makeTableFieldsValue(t)
 	diags.Append(fieldsDiags...)
