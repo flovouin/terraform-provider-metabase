@@ -14,17 +14,17 @@ var cardRegexp = regexp.MustCompile("\\\"!!(metabase_card\\.\\w+\\.id)!!\\\"")
 
 // The regexp matching the placeholder for `metabase_table` data sources, accessing their `fields` attribute.
 // The first group is the table and the second group is the name of the field (column).
-var fieldRegexp = regexp.MustCompile("\\\"!!(data\\.metabase_table\\.\\w+\\.fields)\\[(\\w+)\\]!!\\\"")
+var fieldRegexp = regexp.MustCompile("\\\"!!(metabase_table\\.\\w+\\.fields)\\[(\\w+)\\]!!\\\"")
 
 // The regexp matching the placeholder for `metabase_table` data sources, accessing their `fields` attribute.
 // The first group is the table and the second group is the name of the field (column).
 // This regexp matches the placeholder when it has been serialized twice, and that the surrounding double quotes have
 // been escaped.
-var fieldInStringRegexp = regexp.MustCompile("\\\\\\\"!!(data\\.metabase_table\\.\\w+\\.fields)\\[(\\w+)\\]!!\\\\\\\"")
+var fieldInStringRegexp = regexp.MustCompile("\\\\\\\"!!(metabase_table\\.\\w+\\.fields)\\[(\\w+)\\]!!\\\\\\\"")
 
 // The regexp matching the placeholder for `metabase_table` data sources.
 // The captured group can be used as is in an HCL file.
-var tableRegexp = regexp.MustCompile("\\\"!!(data\\.metabase_table\\.\\w+\\.id)!!\\\"")
+var tableRegexp = regexp.MustCompile("\\\"!!(metabase_table\\.\\w+\\.id)!!\\\"")
 
 // The regexp matching the placeholder for `metabase_database` resources.
 // The captured group can be used as is in an HCL file.
@@ -42,12 +42,12 @@ func (c *importedCard) MarshalJSON() ([]byte, error) {
 // Marshals an `importedField` as a placeholder which references the corresponding Terraform table data source, and
 // accesses the `field` attribute for this `metabase_table`.
 func (f *importedField) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"!!data.metabase_table.%s.fields[%s]!!\"", f.ParentTable.Slug, f.Field.Name)), nil
+	return []byte(fmt.Sprintf("\"!!metabase_table.%s.fields[%s]!!\"", f.ParentTable.Slug, f.Field.Name)), nil
 }
 
 // Marshals an `importedTable` as a placeholder which references the corresponding Terraform data source.
 func (t *importedTable) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"!!data.metabase_table.%s.id!!\"", t.Slug)), nil
+	return []byte(fmt.Sprintf("\"!!metabase_table.%s.id!!\"", t.Slug)), nil
 }
 
 // Marshals an `importedDatabase` as a placeholder which references the corresponding Terraform resource.
