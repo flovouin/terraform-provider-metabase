@@ -624,6 +624,31 @@ paths:
                 items:
                   $ref: "#/components/schemas/Table"
 
+  /table/{tableId}:
+    put:
+      operationId: updateTable
+      description: Updates a single table.
+      parameters:
+        - in: path
+          name: tableId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the table.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTableBody"
+      responses:
+        200:
+          description: The table was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Table"
+
   /table/{tableId}/query_metadata:
     get:
       operationId: getTableMetadata
@@ -1313,11 +1338,18 @@ components:
             The database schema in which the table is located.
             For BigQuery, this is the dataset name.
           nullable: true
+        description:
+          type: string
+          description: A description for the table.
+          nullable: true
       required:
         - id
         - db_id
         - name
+        - display_name
         - entity_type
+        - schema
+        - description
     TableMetadata:
       description: A table in a database, along with additional metadata, like the fields it contains.
       allOf:
@@ -1332,3 +1364,17 @@ components:
                 $ref: "#/components/schemas/Field"
           required:
             - fields
+    UpdateTableBody:
+      type: object
+      description: The payload used to update a table.
+      additionalProperties: false
+      properties:
+        display_name:
+          type: string
+          description: The name displayed in the interface for the table.
+        entity_type:
+          type: string
+          description: The type of table.
+        description:
+          type: string
+          description: A description for the table.
