@@ -1,6 +1,8 @@
 package provider
 
 import (
+	"context"
+
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -94,6 +96,46 @@ func makeSearchPredicate(filter tableFilter) (*tablePredicate, diag.Diagnostics)
 	})
 
 	return &p, diags
+}
+
+// Given a predicate, finds a table from the list returned by the Metabase API.
+func findTableInMetabase(ctx context.Context, client *metabase.ClientWithResponses, filter tableFilter) (*metabase.TableMetadata, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	predicate, predicateDiags := makeSearchPredicate(filter)
+	diags.Append(predicateDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	// Finding the table from the list of all tables in Metabase.
+	// The API is not paginated and returns all results in a single response.
+	// Also, it does not support query parameters to limit results to what we're searching for.
+	listResp, err := client.ListTablesWithResponse(ctx)
+
+	diags.Append(checkMetabaseResponse(listResp, err, []int{200}, "list tables")...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	table, diags := findTable(*listResp.JSON200, *predicate)
+	diags.Append(diags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	// Querying the found table specifically. The tables returned in the list do not contain information about fields.
+	includeHiddenFields := true
+	metadataResp, err := client.GetTableMetadataWithResponse(ctx, table.Id, &metabase.GetTableMetadataParams{
+		IncludeHiddenFields: &includeHiddenFields,
+	})
+
+	diags.Append(checkMetabaseResponse(metadataResp, err, []int{200}, "get table metadata")...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return metadataResp.JSON200, diags
 }
 
 // Makes a Terraform map value where keys are field names and values are the corresponding IDs.

@@ -139,7 +139,7 @@ func (d *TableDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	predicate, diags := makeSearchPredicate(tableFilter{
+	table, diags := findTableInMetabase(ctx, d.client, tableFilter{
 		Id:         data.Id,
 		DbId:       data.DbId,
 		Name:       data.Name,
@@ -151,32 +151,7 @@ func (d *TableDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	// Finding the table from the list of all tables in Metabase.
-	// The API is not paginated and returns all results in a single response.
-	// Also, it does not support query parameters to limit results to what we're searching for.
-	listResp, err := d.client.ListTablesWithResponse(ctx)
-
-	resp.Diagnostics.Append(checkMetabaseResponse(listResp, err, []int{200}, "list tables")...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	table, diags := findTable(*listResp.JSON200, *predicate)
-	resp.Diagnostics.Append(diags...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Querying the found table specifically. The tables returned in the list do not contain information about fields.
-	includeHiddenFields := true
-	metadataResp, err := d.client.GetTableMetadataWithResponse(ctx, table.Id, &metabase.GetTableMetadataParams{IncludeHiddenFields: &includeHiddenFields})
-
-	resp.Diagnostics.Append(checkMetabaseResponse(metadataResp, err, []int{200}, "get table metadata")...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	resp.Diagnostics.Append(updateModelFromTableMetadata(*metadataResp.JSON200, &data)...)
+	resp.Diagnostics.Append(updateModelFromTableMetadata(*table, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
