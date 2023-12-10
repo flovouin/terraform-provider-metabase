@@ -1,2 +1,4 @@
 *.tfvars
 *.tfstate*
+mbtf
+terraform-provider-metabase
