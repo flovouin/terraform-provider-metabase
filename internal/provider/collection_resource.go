@@ -37,7 +37,6 @@ type CollectionResource struct {
 type CollectionResourceModel struct {
 	Id          types.String `tfsdk:"id"`          // The ID of the collection.
 	Name        types.String `tfsdk:"name"`        // The name of the collection.
-	Color       types.String `tfsdk:"color"`       // A color for the collection.
 	Description types.String `tfsdk:"description"` // A description for the collection.
 	Slug        types.String `tfsdk:"slug"`        // The slug used in URLs.
 	EntityId    types.String `tfsdk:"entity_id"`   // A unique string identifier.
@@ -57,10 +56,6 @@ func (r *CollectionResource) Schema(ctx context.Context, req resource.SchemaRequ
 			},
 			"name": schema.StringAttribute{
 				MarkdownDescription: "The collection name.",
-				Required:            true,
-			},
-			"color": schema.StringAttribute{
-				MarkdownDescription: "A color associated with the collection.",
 				Required:            true,
 			},
 			"description": schema.StringAttribute{
@@ -112,7 +107,6 @@ func updateModelFromCollection(col metabase.Collection, data *CollectionResource
 	}
 
 	data.Name = types.StringValue(col.Name)
-	data.Color = stringValueOrNull(col.Color)
 	data.Description = stringValueOrNull(col.Description)
 	data.Slug = stringValueOrNull(col.Slug)
 	data.EntityId = stringValueOrNull(col.EntityId)
@@ -156,7 +150,6 @@ func (r *CollectionResource) Create(ctx context.Context, req resource.CreateRequ
 
 	createResp, err := r.client.CreateCollectionWithResponse(ctx, metabase.CreateCollectionBody{
 		Name:        data.Name.ValueString(),
-		Color:       data.Color.ValueString(),
 		Description: valueStringOrNull(data.Description),
 		ParentId:    valueInt64OrNull(data.ParentId),
 	})
@@ -213,10 +206,8 @@ func (r *CollectionResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	collectionName := data.Name.ValueString()
-	color := data.Color.ValueString()
 	updateResp, err := r.client.UpdateCollectionWithResponse(ctx, data.Id.ValueString(), metabase.UpdateCollectionBody{
 		Name:        &collectionName,
-		Color:       &color,
 		Description: valueStringOrNull(data.Description),
 		ParentId:    valueInt64OrNull(data.ParentId),
 	})
