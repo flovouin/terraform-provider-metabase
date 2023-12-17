@@ -39,23 +39,11 @@ func (r *UpdateCollectionResponse) BodyString() string {
 	return string(r.Body)
 }
 
-func (r *DeleteDashboardCardResponse) BodyString() string {
-	return string(r.Body)
-}
-
-func (r *CreateDashboardCardResponse) BodyString() string {
-	return string(r.Body)
-}
-
-func (r *UpdateDashboardCardsResponse) BodyString() string {
+func (r *ListCollectionItemsResponse) BodyString() string {
 	return string(r.Body)
 }
 
 func (r *CreateDashboardResponse) BodyString() string {
-	return string(r.Body)
-}
-
-func (r *ListDashboardsResponse) BodyString() string {
 	return string(r.Body)
 }
 
