@@ -50,8 +50,8 @@ resource "metabase_dashboard" "some_great_dashboard" {
       card_id                = metabase_card.some_great_insights.id
       col                    = 7
       row                    = 0
-      sizeX                  = 11
-      sizeY                  = 6
+      size_x                 = 11
+      size_y                 = 6
       series                 = []
       visualization_settings = {}
       parameter_mappings = [
@@ -69,8 +69,8 @@ resource "metabase_dashboard" "some_great_dashboard" {
       card_id = null
       col     = 0
       row     = 0
-      sizeX   = 7
-      sizeY   = 6
+      size_x  = 7
+      size_y  = 6
       series  = []
       visualization_settings = {
         virtual_card = {
