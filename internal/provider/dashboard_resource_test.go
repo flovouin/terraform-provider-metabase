@@ -30,23 +30,41 @@ resource "metabase_dashboard" "%s" {
   cards_json = jsonencode([
     {
       card_id = null
-      col     = 0
-      row     = 0
-      sizeX   = 7
-      sizeY   = 6
-      series  = []
+      col = 0
+      row = 0
+      size_x = 6
+      size_y = 3
+      series = []
       visualization_settings = {
         virtual_card = {
-          name                   = null
-          display                = "text"
+          name = null
+          display = "text"
           visualization_settings = {}
-          dataset_query          = {}
-          archived               = false
-        },
-        text                  = "# ❗️ Some catchy title\n\nIsn't this great?"
-        "dashcard.background" = false
+          dataset_query = {}
+          archived = false
+        }
+        text = "🎉"
       }
       parameter_mappings = []
+    },
+    {
+      card_id = null
+      col = 6
+      row = 0
+      size_x = 6
+      size_y = 3
+      series = []
+      parameter_mappings = []
+      visualization_settings = {
+        virtual_card = {
+          name = null
+          display = "text"
+          visualization_settings = {}
+          dataset_query = {}
+          archived = false
+        }
+        text = "🐶"
+      }
     }
   ])
 }
