@@ -3,22 +3,38 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 )
 
+// Returns the collection ID as a string, possibly converting it from an integer.
+func collectionIdAsString(id metabase.Collection_Id) (*string, error) {
+	idStr, err := id.AsCollectionId0()
+	if err == nil {
+		return &idStr, nil
+	}
+
+	idInt, err := id.AsCollectionId1()
+	if err != nil {
+		return nil, err
+	}
+
+	idStr = fmt.Sprintf("%d", idInt)
+	return &idStr, nil
+}
+
 // Returns whether the given collection matches any of the definitions.
-// Only collections with an integer ID are supported.
 func isCollectionInDefinitions(c metabase.Collection, definitions []collectionDefinition) (bool, error) {
-	collectionId, err := c.Id.AsCollectionId1()
+	collectionId, err := collectionIdAsString(c.Id)
 	if err != nil {
 		// An error is not returned because we assume that the conversion failed because the ID is a string.
 		return false, nil
 	}
 
 	for _, d := range definitions {
-		if d.Id > 0 && collectionId == d.Id {
+		if d.Id != "" && *collectionId == d.Id {
 			return true, nil
 		}
 
@@ -37,24 +53,21 @@ func isCollectionInDefinitions(c metabase.Collection, definitions []collectionDe
 	return false, nil
 }
 
-// Returns the list of collections for which dashboard should be imported.
-// The second argument indicates whether the root (`null`) collection should be imported as well.
-func listCollectionsToImport(ctx context.Context, config dashboardFilterConfig, client metabase.ClientWithResponses) (map[int]bool, bool, error) {
+// Returns the list of collections for which dashboards should be imported.
+func listCollectionsToImport(ctx context.Context, config dashboardFilterConfig, client metabase.ClientWithResponses) ([]string, error) {
 	listResp, err := client.ListCollectionsWithResponse(ctx, &metabase.ListCollectionsParams{})
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
 	if listResp.JSON200 == nil {
-		return nil, false, errors.New("received unexpected response when listing collections")
+		return nil, errors.New("received unexpected response when listing collections")
 	}
 
 	emptyIncludedCollectionsList := len(config.IncludedCollections) == 0
 
-	collectionIds := make(map[int]bool)
+	collectionIds := make([]string, 0, len(*listResp.JSON200))
 	for _, c := range *listResp.JSON200 {
-		// The only collection with a non-integer ID is the "root" collection, and there's no point in including it as it is
-		// never referenced in dashboards (`null` is used instead).
-		id, err := c.Id.AsCollectionId1()
+		id, err := collectionIdAsString(c.Id)
 		if err != nil {
 			continue
 		}
@@ -62,7 +75,7 @@ func listCollectionsToImport(ctx context.Context, config dashboardFilterConfig, 
 		// Excluded collections take precedence over inclusion.
 		isExcluded, err := isCollectionInDefinitions(c, config.ExcludedCollections)
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 		if isExcluded {
 			continue
@@ -72,16 +85,16 @@ func listCollectionsToImport(ctx context.Context, config dashboardFilterConfig, 
 		if !emptyIncludedCollectionsList {
 			isIncluded, err = isCollectionInDefinitions(c, config.IncludedCollections)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 		}
 
 		if isIncluded {
-			collectionIds[id] = true
+			collectionIds = append(collectionIds, *id)
 		}
 	}
 
-	return collectionIds, emptyIncludedCollectionsList, nil
+	return collectionIds, nil
 }
 
 // Fetches all dashboards from Metabase and returns the list of IDs of dashboards that should be imported.
@@ -90,7 +103,7 @@ func listDashboardsToImport(ctx context.Context, config dashboardFilterConfig, c
 		return config.DashboardIds, nil
 	}
 
-	collectionIds, includeNilCollection, err := listCollectionsToImport(ctx, config, client)
+	collectionIds, err := listCollectionsToImport(ctx, config, client)
 	if err != nil {
 		return nil, err
 	}
@@ -115,31 +128,34 @@ func listDashboardsToImport(ctx context.Context, config dashboardFilterConfig, c
 		descriptionRegexp = r
 	}
 
-	listResp, err := client.ListDashboardsWithResponse(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if listResp.JSON200 == nil {
-		return nil, errors.New("received unexpected response when listing dashboards")
-	}
-
 	dashboardIds := make([]int, 0)
-	for _, dashboard := range *listResp.JSON200 {
-		if (dashboard.CollectionId == nil && !includeNilCollection) ||
-			(dashboard.CollectionId != nil && !collectionIds[*dashboard.CollectionId]) {
-			continue
+
+	for _, collectionId := range collectionIds {
+		listResp, err := client.ListCollectionItemsWithResponse(ctx, collectionId, &metabase.ListCollectionItemsParams{
+			Models: &[]metabase.CollectionItemModel{metabase.CollectionItemModelDashboard},
+		})
+		if err != nil {
+			return nil, err
+		}
+		if listResp.JSON200 == nil {
+			return nil, errors.New("received unexpected response when listing dashboards")
+		}
+		if listResp.JSON200.Total != len(listResp.JSON200.Data) {
+			return nil, errors.New("received unexpected response when listing dashboards: pagination is not supported")
 		}
 
-		if nameRegexp != nil && !nameRegexp.MatchString(dashboard.Name) {
-			continue
-		}
+		for _, dashboard := range listResp.JSON200.Data {
+			if nameRegexp != nil && !nameRegexp.MatchString(dashboard.Name) {
+				continue
+			}
 
-		if descriptionRegexp != nil &&
-			(dashboard.Description == nil || !descriptionRegexp.MatchString(*dashboard.Description)) {
-			continue
-		}
+			if descriptionRegexp != nil &&
+				(dashboard.Description == nil || !descriptionRegexp.MatchString(*dashboard.Description)) {
+				continue
+			}
 
-		dashboardIds = append(dashboardIds, dashboard.Id)
+			dashboardIds = append(dashboardIds, dashboard.Id)
+		}
 	}
 
 	return dashboardIds, nil

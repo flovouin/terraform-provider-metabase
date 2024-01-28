@@ -51,7 +51,7 @@ type collectionsConfig struct {
 
 // Defines a reference to a collection in Metabase.
 type collectionDefinition struct {
-	Id   int    `koanf:"id"`   // The ID of the collection in the Metabase API. Can be omitted (0) if the name is provided.
+	Id   string `koanf:"id"`   // The ID of the collection in the Metabase API. Can be omitted ("") if the name is provided.
 	Name string `koanf:"name"` // The name of the collection in the Metabase API. Can be omitted ("") if the ID is provided.
 }
 
