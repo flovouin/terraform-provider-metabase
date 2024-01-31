@@ -157,7 +157,7 @@ func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []meta
 }
 
 // Produces the Terraform definition for a `metabase_dashboard` resource.
-func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabase.DashboardWithCards, slug string) (*string, error) {
+func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabase.Dashboard, slug string) (*string, error) {
 	tpl, err := template.New("dashboard").Parse(dashboardTemplate)
 	if err != nil {
 		return nil, err
@@ -170,7 +170,7 @@ func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabas
 		return nil, err
 	}
 
-	cardsHcl, err := ic.makeDashboardCardsHcl(ctx, dashboard.OrderedCards)
+	cardsHcl, err := ic.makeDashboardCardsHcl(ctx, dashboard.Dashcards)
 	if err != nil {
 		return nil, err
 	}

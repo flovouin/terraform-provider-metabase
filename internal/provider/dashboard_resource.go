@@ -6,11 +6,8 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/flovouin/terraform-provider-metabase/internal/planmodifiers"
 	"github.com/flovouin/terraform-provider-metabase/metabase"
-	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
-	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
@@ -46,7 +43,6 @@ type DashboardResourceModel struct {
 	Description        types.String `tfsdk:"description"`         // A description for the dashboard.
 	ParametersJson     types.String `tfsdk:"parameters_json"`     // A list of parameters for the dashboard, that the user can tweak, as a JSON string.
 	CardsJson          types.String `tfsdk:"cards_json"`          // The list of cards in the dashboard, as a JSON string.
-	CardsIds           types.List   `tfsdk:"cards_ids"`           // The list of IDs for the cards within the dashboard.
 }
 
 // The list of JSON attributes in a dashcard that should be persisted in the state.
@@ -55,8 +51,8 @@ var allowedDashcardAttributes = map[string]bool{
 	"card_id":                true,
 	"row":                    true,
 	"col":                    true,
-	"sizeX":                  true,
-	"sizeY":                  true,
+	"size_x":                 true,
+	"size_y":                 true,
 	"series":                 true,
 	"parameter_mappings":     true,
 	"visualization_settings": true,
@@ -101,15 +97,6 @@ Although a dashboard object is even more complex than a card (question), basic p
 			"cards_json": schema.StringAttribute{
 				MarkdownDescription: "The list of cards in the dashboard, as a JSON string.",
 				Required:            true,
-			},
-			"cards_ids": schema.ListAttribute{
-				MarkdownDescription: "The list of IDs for the cards within the dashboard.",
-				ElementType:         types.Int64Type,
-				Computed:            true,
-				PlanModifiers: []planmodifier.List{
-					// The cards IDs don't change if `cards_json` hasn't changed. Otherwise, cards are recreated.
-					planmodifiers.UseStateForUnknownIfAttributeUnchanged[types.String](path.Root("cards_json")),
-				},
 			},
 		},
 	}
@@ -156,8 +143,8 @@ func makeOpaqueParametersFromTyped(parameters []metabase.DashboardParameter) ([]
 }
 
 // Updates the given `DashboardResourceModel` from the `Dashboard` returned by the Metabase API.
-// This function updates all basic attributes, but does not handle the `cards_json` definition for cards.
-func updateModelFromDashboard(d metabase.Dashboard, data *DashboardResourceModel) diag.Diagnostics {
+// This includes the update of the `cards_json` attribute, which requires the raw response from the Metabase API.
+func updateModelFromDashboardAndRawBody(d metabase.Dashboard, body []byte, data *DashboardResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	data.Id = types.Int64Value(int64(d.Id))
@@ -187,12 +174,17 @@ func updateModelFromDashboard(d metabase.Dashboard, data *DashboardResourceModel
 		data.ParametersJson = types.StringValue(*marshalledNewParameters)
 	}
 
+	cardsDiag := updateCardsFromRawBody(body, data)
+	diags.Append(cardsDiag...)
+	if diags.HasError() {
+		return diags
+	}
+
 	return diags
 }
 
-// Updates the `cards_json` and `cards_ids` attributes in the `DashboardResourceModel` using the raw response from the
-// Metabase API.
-func updateCardsFromGetDashboardResponse(bytes []byte, data *DashboardResourceModel) diag.Diagnostics {
+// Updates the `cards_json` attribute in the `DashboardResourceModel` using the raw response from the Metabase API.
+func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	var jsonResponse map[string]interface{}
@@ -202,41 +194,26 @@ func updateCardsFromGetDashboardResponse(bytes []byte, data *DashboardResourceMo
 		return diags
 	}
 
-	orderedCardsAny, ok := jsonResponse["ordered_cards"]
+	dashcardsAny, ok := jsonResponse["dashcards"]
 	if !ok {
-		diags.AddError("Unable to retrieve ordered_cards from get dashboard response.", string(bytes))
+		diags.AddError("Unable to retrieve dashcards from get dashboard response.", string(bytes))
 		return diags
 	}
 
 	// Cards must be cast as a list of `interface{}` and not directly a list of maps.
-	orderedCards, ok := orderedCardsAny.([]interface{})
+	dashcards, ok := dashcardsAny.([]interface{})
 	if !ok {
 		diags.AddError("Unable to parse ordered_cards as a list from get dashboard response.", string(bytes))
 		return diags
 	}
 
-	// Parsing each card individually to retrieve their ID and remove unhandled attributes within them.
-	cardsIdsList := make([]attr.Value, 0, len(orderedCards))
-	for _, c := range orderedCards {
+	// Parsing each card individually to remove unhandled attributes within them.
+	for _, c := range dashcards {
 		card, ok := c.(map[string]interface{})
 		if !ok {
-			diags.AddError("Could not parse ordered card as object.", string(bytes))
+			diags.AddError("Could not parse dashcard as object.", string(bytes))
 			return diags
 		}
-
-		cardIdAny, ok := card["id"]
-		if !ok {
-			diags.AddError("Could not find id in ordered card.", string(bytes))
-			return diags
-		}
-
-		cardIdFloat, ok := cardIdAny.(float64)
-		if !ok {
-			diags.AddError("Unable to parse id as number in ordered card.", string(bytes))
-			return diags
-		}
-
-		cardsIdsList = append(cardsIdsList, types.Int64Value(int64(cardIdFloat)))
 
 		// Removing all unhandled attributes such that the cards returned by the Metabase API can be compared with the
 		// `cards_json` in the Terraform state.
@@ -246,14 +223,6 @@ func updateCardsFromGetDashboardResponse(bytes []byte, data *DashboardResourceMo
 			}
 		}
 	}
-
-	cardsIds, listDiags := types.ListValue(types.Int64Type, cardsIdsList)
-	diags.Append(listDiags...)
-	if diags.HasError() {
-		return diags
-	}
-
-	data.CardsIds = cardsIds
 
 	// Unmarshalling `cards_json` from the Terraform state/plan such that it can be compared to Metabase's response.
 	var existingCards []interface{}
@@ -269,8 +238,8 @@ func updateCardsFromGetDashboardResponse(bytes []byte, data *DashboardResourceMo
 	// state. There is a high chance this will cause an error in Terraform because `cards_json` should not be modified by
 	// create / update operations (as it is specified by the user). However this error will make it clear what has
 	// happened.
-	if !reflect.DeepEqual(orderedCards, existingCards) {
-		cardsJson, err := json.Marshal(orderedCards)
+	if !reflect.DeepEqual(dashcards, existingCards) {
+		cardsJson, err := json.Marshal(dashcards)
 		if err != nil {
 			diags.AddError("Error serializing new JSON value.", err.Error())
 			return diags
@@ -300,114 +269,27 @@ func makeParametersFromModel(ctx context.Context, model types.String) (*[]metaba
 	return &parameters, diags
 }
 
-// Deletes all existing dashcards in the dashboard, based on the cards IDs in the Terraform model.
-// This does not delete the referenced cards.
-func deleteDashboardCards(ctx context.Context, client metabase.ClientWithResponses, data DashboardResourceModel) diag.Diagnostics {
+// Constructs the list of dashboard cards as a type-less list of maps that can be serialized to JSON.
+// The IDs of the cards are set to negative values, which will cause the Metabase API to create new cards (and replace the existing ones).
+func makeCardsFromModel(model types.String) ([]map[string]interface{}, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	dashboardId := int(data.Id.ValueInt64())
-
-	cardsIds := make([]int64, 0, len(data.CardsIds.Elements()))
-	listDiags := data.CardsIds.ElementsAs(ctx, &cardsIds, false)
-	diags.Append(listDiags...)
-	if diags.HasError() {
-		return diags
-	}
-
-	for _, c := range cardsIds {
-		deleteResp, err := client.DeleteDashboardCardWithResponse(ctx, dashboardId, &metabase.DeleteDashboardCardParams{
-			DashcardId: int(c),
-		})
-
-		diags.Append(checkMetabaseResponse(deleteResp, err, []int{204}, "delete dashcard")...)
-		if diags.HasError() {
-			return diags
-		}
-	}
-
-	return diags
-}
-
-// Creates all the dashcards in the dashboard using the raw cards JSON string in the Terraform model.
-// This assumes that the dashboard does not currently contain any card.
-func createDashboardCards(ctx context.Context, client metabase.ClientWithResponses, data *DashboardResourceModel) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	dashboardId := int(data.Id.ValueInt64())
-	cardsJson := data.CardsJson.ValueString()
+	cardsJson := model.ValueString()
 
 	var cards []map[string]interface{}
 	err := json.Unmarshal([]byte(cardsJson), &cards)
 	if err != nil {
 		diags.AddError("Unable to parse cards JSON.", err.Error())
-		return diags
+		return nil, diags
 	}
 
-	// Creates the dashcard for each card in the raw JSON string.
-	// IDs returned by the Metabase API are saved such that they can be used when updating the dashboard configuration.
-	cardsIdsElements := make([]attr.Value, 0, len(cards))
-	for _, c := range cards {
-		cardIdAny, ok := c["card_id"]
-		if !ok {
-			diags.AddError("Failed to get card_id attribute from card.", cardsJson)
-			return diags
-		}
-
-		var cardId *int
-
-		// A card ID can be null (for example for a text dashcard). However it should always be defined.
-		if cardIdAny != nil {
-			cardIdFloat, ok := cardIdAny.(float64)
-			if !ok {
-				diags.AddError("Failed to convert card_id to number.", cardsJson)
-				return diags
-			}
-
-			cardIdInt := int(cardIdFloat)
-			cardId = &cardIdInt
-		}
-
-		createResp, err := client.CreateDashboardCardWithResponse(ctx, dashboardId, metabase.CreateDashboardCardBody{
-			CardId: cardId,
-		})
-		diags.Append(checkMetabaseResponse(createResp, err, []int{200}, "create dashcard")...)
-		if diags.HasError() {
-			return diags
-		}
-
-		cardsIdsElements = append(cardsIdsElements, types.Int64Value(int64(createResp.JSON200.Id)))
-		// The ID is added to the dashcard definition, which will be used in the next step to configure the dashboard.
-		c["id"] = createResp.JSON200.Id
+	// Existing IDs could be used to update existing cards.
+	// For simplicity, new (negative) IDs are used, which will simply replace the existing cards.
+	for id, c := range cards {
+		c["id"] = -id
 	}
 
-	cardsIds, listDiags := types.ListValue(types.Int64Type, cardsIdsElements)
-	diags.Append(listDiags...)
-	if diags.HasError() {
-		return diags
-	}
-
-	data.CardsIds = cardsIds
-
-	// The Metabase API is called with the dashcards definition from the raw JSON string, to which the IDs of the
-	// dashcards have been added.
-	updatePayload := map[string]interface{}{
-		"cards": cards,
-	}
-	updateBuffer, err := json.Marshal(updatePayload)
-	if err != nil {
-		diags.AddError("Error creating the payload for dashboard cards update.", err.Error())
-		return diags
-	}
-	updateReader := bytes.NewReader(updateBuffer)
-	updateResp, err := client.UpdateDashboardCardsWithBodyWithResponse(ctx, dashboardId, "application/json", updateReader)
-	diags.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update dashcards")...)
-	if diags.HasError() {
-		return diags
-	}
-
-	// The API does not return the dashcards definition, so there's nothing to process here.
-
-	return diags
+	return cards, diags
 }
 
 func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -437,17 +319,63 @@ func (r *DashboardResource) Create(ctx context.Context, req resource.CreateReque
 		return
 	}
 
-	resp.Diagnostics.Append(updateModelFromDashboard(*createResp.JSON200, data)...)
+	// The create dashboard endpoint does not support setting the dashcards. Those must be set by updating the dashboard
+	// afterwards.
+	updateResp, updateDiags := makeUpdateFromModel(ctx, r.client, createResp.JSON200.Id, *data, "update dashboard during creation")
+	resp.Diagnostics.Append(updateDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(createDashboardCards(ctx, *r.client, data)...)
+	// The entire model can then simply be populated from the update response.
+	resp.Diagnostics.Append(updateModelFromDashboardAndRawBody(*updateResp.JSON200, updateResp.Body, data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+}
+
+// Calls the Metabase API to update a dashboard from a Terraform model.
+// This constructs a "raw" payload to handle the serialization of dashcards with a unique ID.
+func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponsesInterface, dashboardId int, data DashboardResourceModel, operation string) (*metabase.UpdateDashboardResponse, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	parameters, parametersDiags := makeParametersFromModel(context.Background(), data.ParametersJson)
+	diags.Append(parametersDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	dashcards, cardsDiags := makeCardsFromModel(data.CardsJson)
+	diags.Append(cardsDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	updatePayload := map[string]interface{}{
+		"name":                valueStringOrNull(data.Name),
+		"description":         valueStringOrNull(data.Description),
+		"cache_ttl":           valueInt64OrNull(data.CacheTtl),
+		"collection_id":       valueInt64OrNull(data.CollectionId),
+		"collection_position": valueInt64OrNull(data.CollectionPosition),
+		"parameters":          parameters,
+		"dashcards":           dashcards,
+	}
+	updateBuffer, err := json.Marshal(updatePayload)
+	if err != nil {
+		diags.AddError("Error creating the payload for dashboard update.", err.Error())
+		return nil, diags
+	}
+
+	updateReader := bytes.NewReader(updateBuffer)
+	updateResp, err := client.UpdateDashboardWithBodyWithResponse(ctx, dashboardId, "application/json", updateReader)
+	diags.Append(checkMetabaseResponse(updateResp, err, []int{200}, operation)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return updateResp, diags
 }
 
 func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
@@ -469,23 +397,7 @@ func (r *DashboardResource) Read(ctx context.Context, req resource.ReadRequest, 
 		return
 	}
 
-	// The API's response contains the dashcards (used in the next operation). However the `updateModelFromDashboard`
-	// function receives a dashboard without cards, such that it is returned by other API operations on the dashboard.
-	resp.Diagnostics.Append(updateModelFromDashboard(metabase.Dashboard{
-		Id:                 getResp.JSON200.Id,
-		Name:               getResp.JSON200.Name,
-		Description:        getResp.JSON200.Description,
-		CollectionId:       getResp.JSON200.CollectionId,
-		CollectionPosition: getResp.JSON200.CollectionPosition,
-		CacheTtl:           getResp.JSON200.CacheTtl,
-		Parameters:         getResp.JSON200.Parameters,
-	}, data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// Cards require more low-level processing and are updated using the raw API response.
-	resp.Diagnostics.Append(updateCardsFromGetDashboardResponse(getResp.Body, data)...)
+	resp.Diagnostics.Append(updateModelFromDashboardAndRawBody(*getResp.JSON200, getResp.Body, data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -507,42 +419,15 @@ func (r *DashboardResource) Update(ctx context.Context, req resource.UpdateReque
 		return
 	}
 
-	parameters, diags := makeParametersFromModel(ctx, data.ParametersJson)
+	updateResp, diags := makeUpdateFromModel(ctx, r.client, int(data.Id.ValueInt64()), *data, "update dashboard")
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	updateResp, err := r.client.UpdateDashboardWithResponse(ctx, int(data.Id.ValueInt64()), metabase.UpdateDashboardBody{
-		Name:               valueStringOrNull(data.Name),
-		Description:        valueStringOrNull(data.Description),
-		CacheTtl:           valueInt64OrNull(data.CacheTtl),
-		CollectionId:       valueInt64OrNull(data.CollectionId),
-		CollectionPosition: valueInt64OrNull(data.CollectionPosition),
-		Parameters:         parameters,
-	})
-	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update dashboard")...)
+	resp.Diagnostics.Append(updateModelFromDashboardAndRawBody(*updateResp.JSON200, updateResp.Body, data)...)
 	if resp.Diagnostics.HasError() {
 		return
-	}
-
-	resp.Diagnostics.Append(updateModelFromDashboard(*updateResp.JSON200, data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
-
-	// As updating the dashcards requires several API calls (including deleting existing dashcards), it is only performed
-	// if necessary.
-	if !data.CardsJson.Equal(state.CardsJson) {
-		resp.Diagnostics.Append(deleteDashboardCards(ctx, *r.client, *state)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
-
-		resp.Diagnostics.Append(createDashboardCards(ctx, *r.client, data)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)

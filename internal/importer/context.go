@@ -20,9 +20,9 @@ type importedTable struct {
 
 // A dashboard imported from the Metabase API and converted to HCL.
 type importedDashboard struct {
-	Dashboard metabase.DashboardWithCards // The dashboard, as returned by the Metabase API.
-	Slug      string                      // A slug attributed to the dashboard, used as the name of the Terraform resource.
-	Hcl       string                      // The HCL definition for the dashboard.
+	Dashboard metabase.Dashboard // The dashboard, as returned by the Metabase API.
+	Slug      string             // A slug attributed to the dashboard, used as the name of the Terraform resource.
+	Hcl       string             // The HCL definition for the dashboard.
 }
 
 // A field imported from the Metabase API.

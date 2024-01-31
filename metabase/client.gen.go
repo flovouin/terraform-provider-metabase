@@ -20,6 +20,18 @@ const (
 	SessionScopes = "Session.Scopes"
 )
 
+// Defines values for CollectionItemModel.
+const (
+	CollectionItemModelCard       CollectionItemModel = "card"
+	CollectionItemModelCollection CollectionItemModel = "collection"
+	CollectionItemModelDashboard  CollectionItemModel = "dashboard"
+	CollectionItemModelDataset    CollectionItemModel = "dataset"
+	CollectionItemModelNoModels   CollectionItemModel = "no_models"
+	CollectionItemModelPulse      CollectionItemModel = "pulse"
+	CollectionItemModelSnippet    CollectionItemModel = "snippet"
+	CollectionItemModelTimeline   CollectionItemModel = "timeline"
+)
+
 // Defines values for CollectionPermissionLevel.
 const (
 	CollectionPermissionLevelNone  CollectionPermissionLevel = "none"
@@ -83,9 +95,6 @@ type Collection struct {
 	// When archived, a collection no longer appears in the list publicly.
 	Archived *bool `json:"archived,omitempty"`
 
-	// Color A color for the collection.
-	Color *string `json:"color,omitempty"`
-
 	// Description A description for the collection.
 	Description *string `json:"description"`
 
@@ -124,6 +133,45 @@ type Collection_Id struct {
 	union json.RawMessage
 }
 
+// CollectionItem An item (dashboard, dataset, timeline, etc) in a collection.
+type CollectionItem struct {
+	// Description A description for the item.
+	Description *string `json:"description"`
+
+	// EntityId A unique string identifier for the item.
+	EntityId string `json:"entity_id"`
+
+	// Id The ID of the item.
+	Id int `json:"id"`
+
+	// Model The type of an item in a collection.
+	Model CollectionItemModel `json:"model"`
+
+	// Name The name of the item.
+	Name string `json:"name"`
+}
+
+// CollectionItemList A paginated list of items in a collection.
+type CollectionItemList struct {
+	// Data The list of items.
+	Data []CollectionItem `json:"data"`
+
+	// Limit The maximum number of items in the page.
+	Limit *int `json:"limit"`
+
+	// Models The list of model types included in the result.
+	Models []CollectionItemModel `json:"models"`
+
+	// Offset The offset of the first item in the page.
+	Offset *int `json:"offset"`
+
+	// Total The total number of items.
+	Total int `json:"total"`
+}
+
+// CollectionItemModel The type of an item in a collection.
+type CollectionItemModel string
+
 // CollectionPermissionLevel The level of permission allowed when accessing the collection.
 type CollectionPermissionLevel string
 
@@ -144,9 +192,6 @@ type CreateCardBody map[string]interface{}
 
 // CreateCollectionBody The payload used to create a new collection.
 type CreateCollectionBody struct {
-	// Color A color for the collection.
-	Color string `json:"color"`
-
 	// Description A description for the collection.
 	Description *string `json:"description"`
 
@@ -176,15 +221,6 @@ type CreateDashboardBody struct {
 
 	// Parameters A list of parameters for the dashboard, that the user can tweak.
 	Parameters *[]DashboardParameter `json:"parameters"`
-}
-
-// CreateDashboardCardBody The payload when creating a new card within a dashboard.
-type CreateDashboardCardBody struct {
-	// CardId The ID of the card to add to the dashboard.
-	CardId *int `json:"cardId"`
-
-	// ParameterMappings A list of parameter mappings for the card.
-	ParameterMappings *[]interface{} `json:"parameter_mappings,omitempty"`
 }
 
 // CreateDatabaseBody The payload used to create a new database.
@@ -228,6 +264,9 @@ type Dashboard struct {
 	// CollectionPosition The position of the dashboard in the collection.
 	CollectionPosition *int `json:"collection_position"`
 
+	// Dashcards The list of cards in the dashboard.
+	Dashcards []DashboardCard `json:"dashcards"`
+
 	// Description A description for the dashboard.
 	Description *string `json:"description"`
 
@@ -262,10 +301,10 @@ type DashboardCard struct {
 	Series []interface{} `json:"series"`
 
 	// SizeX The horizontal size of the card in the dashboard.
-	SizeX int `json:"sizeX"`
+	SizeX int `json:"size_x"`
 
 	// SizeY The vertical size of the card in the dashboard.
-	SizeY int `json:"sizeY"`
+	SizeY int `json:"size_y"`
 
 	// VisualizationSettings The visualization settings for the card.
 	VisualizationSettings map[string]interface{} `json:"visualization_settings"`
@@ -301,36 +340,6 @@ type DashboardParameterDefault1 = []interface{}
 // DashboardParameter_Default The default value for the parameter.
 type DashboardParameter_Default struct {
 	union json.RawMessage
-}
-
-// DashboardWithCards defines model for DashboardWithCards.
-type DashboardWithCards struct {
-	// Archived Whether the dashboard has been archived.
-	Archived bool `json:"archived"`
-
-	// CacheTtl The cache TTL.
-	CacheTtl *int `json:"cache_ttl"`
-
-	// CollectionId The ID of the collection in which the dashboard is placed.
-	CollectionId *int `json:"collection_id"`
-
-	// CollectionPosition The position of the dashboard in the collection.
-	CollectionPosition *int `json:"collection_position"`
-
-	// Description A description for the dashboard.
-	Description *string `json:"description"`
-
-	// Id The ID of the dashboard.
-	Id int `json:"id"`
-
-	// Name The name of the dashboard.
-	Name string `json:"name"`
-
-	// OrderedCards The list of cards in the dashboard.
-	OrderedCards []DashboardCard `json:"ordered_cards"`
-
-	// Parameters A list of parameters for the dashboard, that the user can tweak.
-	Parameters []DashboardParameter `json:"parameters"`
 }
 
 // Database An external database that can be queried by cards and dashboards.
@@ -532,9 +541,6 @@ type UpdateCollectionBody struct {
 	// When archived, a collection no longer appears in the list publicly.
 	Archived *bool `json:"archived,omitempty"`
 
-	// Color A color for the collection.
-	Color *string `json:"color,omitempty"`
-
 	// Description A description for the collection.
 	Description *string `json:"description"`
 
@@ -559,6 +565,9 @@ type UpdateDashboardBody struct {
 	// CollectionPosition The position of the dashboard in the collection.
 	CollectionPosition *int `json:"collection_position"`
 
+	// Dashcards The list of cards in the dashboard.
+	Dashcards *[]DashboardCard `json:"dashcards,omitempty"`
+
 	// Description A description for the dashboard.
 	Description *string `json:"description"`
 
@@ -567,12 +576,6 @@ type UpdateDashboardBody struct {
 
 	// Parameters A list of parameters for the dashboard, that the user can tweak.
 	Parameters *[]DashboardParameter `json:"parameters,omitempty"`
-}
-
-// UpdateDashboardCardsBody The payload when updating all cards in a dashboard.
-type UpdateDashboardCardsBody struct {
-	// Cards The list of cards in the dashboard.
-	Cards []DashboardCard `json:"cards"`
 }
 
 // UpdateDatabaseBody The payload used to update an existing database.
@@ -623,9 +626,19 @@ type ListCollectionsParams struct {
 	Archived *bool `form:"archived,omitempty" json:"archived,omitempty"`
 }
 
-// DeleteDashboardCardParams defines parameters for DeleteDashboardCard.
-type DeleteDashboardCardParams struct {
-	DashcardId int `form:"dashcardId" json:"dashcardId"`
+// ListCollectionItemsParams defines parameters for ListCollectionItems.
+type ListCollectionItemsParams struct {
+	// Models The list of item types to return.
+	Models *[]CollectionItemModel `form:"models,omitempty" json:"models,omitempty"`
+
+	// Archived Whether archived items should be returned instead of active ones.
+	Archived *bool `form:"archived,omitempty" json:"archived,omitempty"`
+
+	// Limit The maximum number of items to return.
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Offset The offset of the first item to return.
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // ListDatabasesParams defines parameters for ListDatabases.
@@ -666,12 +679,6 @@ type CreateDashboardJSONRequestBody = CreateDashboardBody
 
 // UpdateDashboardJSONRequestBody defines body for UpdateDashboard for application/json ContentType.
 type UpdateDashboardJSONRequestBody = UpdateDashboardBody
-
-// CreateDashboardCardJSONRequestBody defines body for CreateDashboardCard for application/json ContentType.
-type CreateDashboardCardJSONRequestBody = CreateDashboardCardBody
-
-// UpdateDashboardCardsJSONRequestBody defines body for UpdateDashboardCards for application/json ContentType.
-type UpdateDashboardCardsJSONRequestBody = UpdateDashboardCardsBody
 
 // CreateDatabaseJSONRequestBody defines body for CreateDatabase for application/json ContentType.
 type CreateDatabaseJSONRequestBody = CreateDatabaseBody
@@ -1153,8 +1160,8 @@ type ClientInterface interface {
 
 	UpdateCollection(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListDashboards request
-	ListDashboards(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// ListCollectionItems request
+	ListCollectionItems(ctx context.Context, collectionId string, params *ListCollectionItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreateDashboardWithBody request with any body
 	CreateDashboardWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1171,19 +1178,6 @@ type ClientInterface interface {
 	UpdateDashboardWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	UpdateDashboard(ctx context.Context, dashboardId int, body UpdateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteDashboardCard request
-	DeleteDashboardCard(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// CreateDashboardCardWithBody request with any body
-	CreateDashboardCardWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	CreateDashboardCard(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// UpdateDashboardCardsWithBody request with any body
-	UpdateDashboardCardsWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	UpdateDashboardCards(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListDatabases request
 	ListDatabases(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -1421,8 +1415,8 @@ func (c *Client) UpdateCollection(ctx context.Context, collectionId string, body
 	return c.Client.Do(req)
 }
 
-func (c *Client) ListDashboards(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewListDashboardsRequest(c.Server)
+func (c *Client) ListCollectionItems(ctx context.Context, collectionId string, params *ListCollectionItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListCollectionItemsRequest(c.Server, collectionId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -1495,66 +1489,6 @@ func (c *Client) UpdateDashboardWithBody(ctx context.Context, dashboardId int, c
 
 func (c *Client) UpdateDashboard(ctx context.Context, dashboardId int, body UpdateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateDashboardRequest(c.Server, dashboardId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteDashboardCard(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteDashboardCardRequest(c.Server, dashboardId, params)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateDashboardCardWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDashboardCardRequestWithBody(c.Server, dashboardId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) CreateDashboardCard(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewCreateDashboardCardRequest(c.Server, dashboardId, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateDashboardCardsWithBody(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateDashboardCardsRequestWithBody(c.Server, dashboardId, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) UpdateDashboardCards(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateDashboardCardsRequest(c.Server, dashboardId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2223,16 +2157,23 @@ func NewUpdateCollectionRequestWithBody(server string, collectionId string, cont
 	return req, nil
 }
 
-// NewListDashboardsRequest generates requests for ListDashboards
-func NewListDashboardsRequest(server string) (*http.Request, error) {
+// NewListCollectionItemsRequest generates requests for ListCollectionItems
+func NewListCollectionItemsRequest(server string, collectionId string, params *ListCollectionItemsParams) (*http.Request, error) {
 	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "collectionId", runtime.ParamLocationPath, collectionId)
+	if err != nil {
+		return nil, err
+	}
 
 	serverURL, err := url.Parse(server)
 	if err != nil {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/dashboard")
+	operationPath := fmt.Sprintf("/collection/%s/items", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -2240,6 +2181,76 @@ func NewListDashboardsRequest(server string) (*http.Request, error) {
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Models != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "models", runtime.ParamLocationQuery, *params.Models); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Archived != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "archived", runtime.ParamLocationQuery, *params.Archived); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "limit", runtime.ParamLocationQuery, *params.Limit); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "offset", runtime.ParamLocationQuery, *params.Offset); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -2386,152 +2397,6 @@ func NewUpdateDashboardRequestWithBody(server string, dashboardId int, contentTy
 	}
 
 	operationPath := fmt.Sprintf("/dashboard/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PUT", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewDeleteDashboardCardRequest generates requests for DeleteDashboardCard
-func NewDeleteDashboardCardRequest(server string, dashboardId int, params *DeleteDashboardCardParams) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/dashboard/%s/cards", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	if params != nil {
-		queryValues := queryURL.Query()
-
-		if queryFrag, err := runtime.StyleParamWithLocation("form", true, "dashcardId", runtime.ParamLocationQuery, params.DashcardId); err != nil {
-			return nil, err
-		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
-			return nil, err
-		} else {
-			for k, v := range parsed {
-				for _, v2 := range v {
-					queryValues.Add(k, v2)
-				}
-			}
-		}
-
-		queryURL.RawQuery = queryValues.Encode()
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewCreateDashboardCardRequest calls the generic CreateDashboardCard builder with application/json body
-func NewCreateDashboardCardRequest(server string, dashboardId int, body CreateDashboardCardJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewCreateDashboardCardRequestWithBody(server, dashboardId, "application/json", bodyReader)
-}
-
-// NewCreateDashboardCardRequestWithBody generates requests for CreateDashboardCard with any type of body
-func NewCreateDashboardCardRequestWithBody(server string, dashboardId int, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/dashboard/%s/cards", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewUpdateDashboardCardsRequest calls the generic UpdateDashboardCards builder with application/json body
-func NewUpdateDashboardCardsRequest(server string, dashboardId int, body UpdateDashboardCardsJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewUpdateDashboardCardsRequestWithBody(server, dashboardId, "application/json", bodyReader)
-}
-
-// NewUpdateDashboardCardsRequestWithBody generates requests for UpdateDashboardCards with any type of body
-func NewUpdateDashboardCardsRequestWithBody(server string, dashboardId int, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "dashboardId", runtime.ParamLocationPath, dashboardId)
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/dashboard/%s/cards", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -3324,8 +3189,8 @@ type ClientWithResponsesInterface interface {
 
 	UpdateCollectionWithResponse(ctx context.Context, collectionId string, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
 
-	// ListDashboardsWithResponse request
-	ListDashboardsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDashboardsResponse, error)
+	// ListCollectionItemsWithResponse request
+	ListCollectionItemsWithResponse(ctx context.Context, collectionId string, params *ListCollectionItemsParams, reqEditors ...RequestEditorFn) (*ListCollectionItemsResponse, error)
 
 	// CreateDashboardWithBodyWithResponse request with any body
 	CreateDashboardWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardResponse, error)
@@ -3342,19 +3207,6 @@ type ClientWithResponsesInterface interface {
 	UpdateDashboardWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDashboardResponse, error)
 
 	UpdateDashboardWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardResponse, error)
-
-	// DeleteDashboardCardWithResponse request
-	DeleteDashboardCardWithResponse(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*DeleteDashboardCardResponse, error)
-
-	// CreateDashboardCardWithBodyWithResponse request with any body
-	CreateDashboardCardWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error)
-
-	CreateDashboardCardWithResponse(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error)
-
-	// UpdateDashboardCardsWithBodyWithResponse request with any body
-	UpdateDashboardCardsWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error)
-
-	UpdateDashboardCardsWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error)
 
 	// ListDatabasesWithResponse request
 	ListDatabasesWithResponse(ctx context.Context, params *ListDatabasesParams, reqEditors ...RequestEditorFn) (*ListDatabasesResponse, error)
@@ -3622,14 +3474,14 @@ func (r UpdateCollectionResponse) StatusCode() int {
 	return 0
 }
 
-type ListDashboardsResponse struct {
+type ListCollectionItemsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *[]Dashboard
+	JSON200      *CollectionItemList
 }
 
 // Status returns HTTPResponse.Status
-func (r ListDashboardsResponse) Status() string {
+func (r ListCollectionItemsResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -3637,7 +3489,7 @@ func (r ListDashboardsResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ListDashboardsResponse) StatusCode() int {
+func (r ListCollectionItemsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -3690,7 +3542,7 @@ func (r DeleteDashboardResponse) StatusCode() int {
 type GetDashboardResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *DashboardWithCards
+	JSON200      *Dashboard
 }
 
 // Status returns HTTPResponse.Status
@@ -3725,74 +3577,6 @@ func (r UpdateDashboardResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateDashboardResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteDashboardCardResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r DeleteDashboardCardResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r DeleteDashboardCardResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type CreateDashboardCardResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *DashboardCard
-}
-
-// Status returns HTTPResponse.Status
-func (r CreateDashboardCardResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r CreateDashboardCardResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type UpdateDashboardCardsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *struct {
-		// Status The return status of the operation.
-		Status string `json:"status"`
-	}
-}
-
-// Status returns HTTPResponse.Status
-func (r UpdateDashboardCardsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r UpdateDashboardCardsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4292,13 +4076,13 @@ func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, 
 	return ParseUpdateCollectionResponse(rsp)
 }
 
-// ListDashboardsWithResponse request returning *ListDashboardsResponse
-func (c *ClientWithResponses) ListDashboardsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListDashboardsResponse, error) {
-	rsp, err := c.ListDashboards(ctx, reqEditors...)
+// ListCollectionItemsWithResponse request returning *ListCollectionItemsResponse
+func (c *ClientWithResponses) ListCollectionItemsWithResponse(ctx context.Context, collectionId string, params *ListCollectionItemsParams, reqEditors ...RequestEditorFn) (*ListCollectionItemsResponse, error) {
+	rsp, err := c.ListCollectionItems(ctx, collectionId, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseListDashboardsResponse(rsp)
+	return ParseListCollectionItemsResponse(rsp)
 }
 
 // CreateDashboardWithBodyWithResponse request with arbitrary body returning *CreateDashboardResponse
@@ -4351,49 +4135,6 @@ func (c *ClientWithResponses) UpdateDashboardWithResponse(ctx context.Context, d
 		return nil, err
 	}
 	return ParseUpdateDashboardResponse(rsp)
-}
-
-// DeleteDashboardCardWithResponse request returning *DeleteDashboardCardResponse
-func (c *ClientWithResponses) DeleteDashboardCardWithResponse(ctx context.Context, dashboardId int, params *DeleteDashboardCardParams, reqEditors ...RequestEditorFn) (*DeleteDashboardCardResponse, error) {
-	rsp, err := c.DeleteDashboardCard(ctx, dashboardId, params, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteDashboardCardResponse(rsp)
-}
-
-// CreateDashboardCardWithBodyWithResponse request with arbitrary body returning *CreateDashboardCardResponse
-func (c *ClientWithResponses) CreateDashboardCardWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error) {
-	rsp, err := c.CreateDashboardCardWithBody(ctx, dashboardId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateDashboardCardResponse(rsp)
-}
-
-func (c *ClientWithResponses) CreateDashboardCardWithResponse(ctx context.Context, dashboardId int, body CreateDashboardCardJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateDashboardCardResponse, error) {
-	rsp, err := c.CreateDashboardCard(ctx, dashboardId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseCreateDashboardCardResponse(rsp)
-}
-
-// UpdateDashboardCardsWithBodyWithResponse request with arbitrary body returning *UpdateDashboardCardsResponse
-func (c *ClientWithResponses) UpdateDashboardCardsWithBodyWithResponse(ctx context.Context, dashboardId int, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error) {
-	rsp, err := c.UpdateDashboardCardsWithBody(ctx, dashboardId, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateDashboardCardsResponse(rsp)
-}
-
-func (c *ClientWithResponses) UpdateDashboardCardsWithResponse(ctx context.Context, dashboardId int, body UpdateDashboardCardsJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDashboardCardsResponse, error) {
-	rsp, err := c.UpdateDashboardCards(ctx, dashboardId, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseUpdateDashboardCardsResponse(rsp)
 }
 
 // ListDatabasesWithResponse request returning *ListDatabasesResponse
@@ -4847,22 +4588,22 @@ func ParseUpdateCollectionResponse(rsp *http.Response) (*UpdateCollectionRespons
 	return response, nil
 }
 
-// ParseListDashboardsResponse parses an HTTP response from a ListDashboardsWithResponse call
-func ParseListDashboardsResponse(rsp *http.Response) (*ListDashboardsResponse, error) {
+// ParseListCollectionItemsResponse parses an HTTP response from a ListCollectionItemsWithResponse call
+func ParseListCollectionItemsResponse(rsp *http.Response) (*ListCollectionItemsResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ListDashboardsResponse{
+	response := &ListCollectionItemsResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest []Dashboard
+		var dest CollectionItemList
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4930,7 +4671,7 @@ func ParseGetDashboardResponse(rsp *http.Response) (*GetDashboardResponse, error
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DashboardWithCards
+		var dest Dashboard
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -4957,77 +4698,6 @@ func ParseUpdateDashboardResponse(rsp *http.Response) (*UpdateDashboardResponse,
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Dashboard
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteDashboardCardResponse parses an HTTP response from a DeleteDashboardCardWithResponse call
-func ParseDeleteDashboardCardResponse(rsp *http.Response) (*DeleteDashboardCardResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteDashboardCardResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	return response, nil
-}
-
-// ParseCreateDashboardCardResponse parses an HTTP response from a CreateDashboardCardWithResponse call
-func ParseCreateDashboardCardResponse(rsp *http.Response) (*CreateDashboardCardResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &CreateDashboardCardResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest DashboardCard
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseUpdateDashboardCardsResponse parses an HTTP response from a UpdateDashboardCardsWithResponse call
-func ParseUpdateDashboardCardsResponse(rsp *http.Response) (*UpdateDashboardCardsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &UpdateDashboardCardsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			// Status The return status of the operation.
-			Status string `json:"status"`
-		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

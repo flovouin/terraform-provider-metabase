@@ -9,18 +9,18 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-func testAccCollectionResource(name string, collectionName string, color string, description string) string {
+func testAccCollectionResource(name string, collectionName string, description string, parentId string) string {
 	return fmt.Sprintf(`
 resource "metabase_collection" "%s" {
   name        = "%s"
-	color       = "%s"
 	description = "%s"
+	parent_id   = %s
 }
 `,
 		name,
 		collectionName,
-		color,
 		description,
+		parentId,
 	)
 }
 
@@ -41,10 +41,6 @@ func testAccCheckCollectionExists(resourceName string) resource.TestCheckFunc {
 
 		if rs.Primary.Attributes["name"] != response.JSON200.Name {
 			return fmt.Errorf("Terraform resource and API response do not match for collection name.")
-		}
-
-		if rs.Primary.Attributes["color"] != *response.JSON200.Color {
-			return fmt.Errorf("Terraform resource and API response do not match for collection color.")
 		}
 
 		if rs.Primary.Attributes["description"] != *response.JSON200.Description {
@@ -84,12 +80,11 @@ func TestAccCollectionResource(t *testing.T) {
 		CheckDestroy:             testAccCheckCollectionDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: providerConfig + testAccCollectionResource("test", "📚 Collection", "#000000", "💡 Description"),
+				Config: providerConfig + testAccCollectionResource("test", "📚 Collection", "💡 Description", "null"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckCollectionExists("metabase_collection.test"),
 					resource.TestCheckResourceAttrSet("metabase_collection.test", "id"),
 					resource.TestCheckResourceAttr("metabase_collection.test", "name", "📚 Collection"),
-					resource.TestCheckResourceAttr("metabase_collection.test", "color", "#000000"),
 					resource.TestCheckResourceAttr("metabase_collection.test", "description", "💡 Description"),
 				),
 			},
@@ -98,12 +93,22 @@ func TestAccCollectionResource(t *testing.T) {
 				ImportState:  true,
 			},
 			{
-				Config: providerConfig + testAccCollectionResource("test", "🎁 Updated", "#ffffff", "❓ Other"),
+				Config: providerConfig + testAccCollectionResource("test", "🎁 Updated", "❓ Other", "null"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("metabase_collection.test", "id"),
 					resource.TestCheckResourceAttr("metabase_collection.test", "name", "🎁 Updated"),
-					resource.TestCheckResourceAttr("metabase_collection.test", "color", "#ffffff"),
 					resource.TestCheckResourceAttr("metabase_collection.test", "description", "❓ Other"),
+				),
+			},
+			{
+				Config: providerConfig +
+					testAccCollectionResource("test", "🎁 Updated", "❓ Other", "null") +
+					testAccCollectionResource("child", "🧒 Child", "🌴 Nested", "metabase_collection.test.id"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("metabase_collection.child", "id"),
+					resource.TestCheckResourceAttr("metabase_collection.child", "name", "🧒 Child"),
+					resource.TestCheckResourceAttr("metabase_collection.child", "description", "🌴 Nested"),
+					resource.TestCheckResourceAttrSet("metabase_collection.child", "parent_id"),
 				),
 			},
 		},

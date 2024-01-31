@@ -32,7 +32,6 @@ resource "metabase_collection" "marketing_reports" {
 
 ### Required
 
-- `color` (String) A color associated with the collection.
 - `name` (String) The collection name.
 
 ### Optional
