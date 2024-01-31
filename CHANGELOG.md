@@ -1,3 +1,5 @@
+## 0.4.0 (2024-01-31)
+
 BREAKING CHANGES:
 
 - Support Metabase v\*.48, and drop support for earlier versions. Make sure dashboard definitions follow the new schema (e.g. cards' `size{X|Y}` become `size_{x|y}`).
