@@ -4,6 +4,16 @@ This repository contains the source code for the [Metabase](https://www.metabase
 
 For how to use the provider in a Terraform project, please refer to the [Terraform registry documentation](https://registry.terraform.io/providers/flovouin/metabase/latest/docs).
 
+## Metabase version compatibility
+
+Unfortunately, this provider relies on the Metabase API which is [subject to breaking changes and not versioned](https://www.metabase.com/docs/latest/api-documentation#about-the-metabase-api). This makes it hard for this provider to keep up with Metabase versions, apologies for that. Here is a table that summarizes supported Metabase versions:
+
+| Provider version \ Metabase version | .44 | .45 | .46 | .47 | .48 |
+| ----------------------------------- | --- | --- | --- | --- | --- |
+| 0.1                                 | ✅  | ❌  | ❌  | ❌  | ❌  |
+| 0.2                                 | ✅  | ❌  | ❌  | ❌  | ❌  |
+| 0.3                                 | ✅  | ❌  | ❌  | ❌  | ❌  |
+
 ## 🔨 `mbtf` importer tool
 
 The `mbtf` command line allows importing Metabase dashboards and cards from a Metabase instance (API).
@@ -59,7 +69,7 @@ databases:
 collections:
   mapping:
     # The collection with ID `193` in the Metabase API will be referenced as `metabase_collection.my_collection` in the
-    # imported cards and dashboards.
+    # imported cards and dashboards. The `id` can also be `root` for the default collection.
     - id: 193
       resource_name: my_collection
     # A collection can also be referenced by its name in Metabase.
@@ -71,7 +81,7 @@ dashboard_filter:
   # The list of collections for which dashboards should be imported.
   # All collections are imported by default if this is not specified.
   included_collections:
-    - id: 53
+    - id: 53 # Just like for collections mapping, this can be `root` to include the default collection.
   # The list of collections to exclude from the import. This takes precedence over `included_collections`. However,
   # there is no point to define both included and excluded collections.
   excluded_collections:
