@@ -1,14 +1,28 @@
 .EXPORT_ALL_VARIABLES:
 .PHONY: set-up-docker tear-down-docker testacc testacc-with-setup clean-testacc provider clean generate
 
-METABASE_USERNAME?=terraform-provider@tests.com
-METABASE_PASSWORD?=$(shell uuidgen)
-METABASE_URL?=http://localhost:3000/api
+ifndef METABASE_USERNAME
+METABASE_USERNAME:=terraform-provider@tests.com
+endif
+ifndef METABASE_PASSWORD
+METABASE_PASSWORD:=$(shell uuidgen)
+endif
+ifndef METABASE_URL
+METABASE_URL:=http://localhost:3000/api
+endif
 
-PG_HOST?=terraform-metabase-pg
-PG_USER?=metabase
-PG_PASSWORD?=$(shell uuidgen)
-PG_DATABASE?=metabase
+ifndef PG_HOST
+PG_HOST:=terraform-metabase-pg
+endif
+ifndef PG_USER
+PG_USER:=metabase
+endif
+ifndef PG_PASSWORD
+PG_PASSWORD:=$(shell uuidgen)
+endif
+ifndef PG_DATABASE
+PG_DATABASE:=metabase
+endif
 
 MBTF_FOLDER:=cmd/mbtf
 
