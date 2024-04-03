@@ -1,3 +1,7 @@
+NEW FEATURES:
+
+- Support authentication using an [API key](https://www.metabase.com/docs/master/people-and-groups/api-keys).
+
 ## 0.4.0 (2024-01-31)
 
 BREAKING CHANGES:
