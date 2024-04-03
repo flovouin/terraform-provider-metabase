@@ -18,8 +18,13 @@ While most Terraform resources fully define the Metabase objects using attribute
 ```terraform
 provider "metabase" {
   endpoint = "http://metabase-endpoint.com/api"
+
+  # Authentication can be done using a username and password...
   username = "email@address.com"
   password = "password"
+
+  # ...or using an API key.
+  # api_key = "API key"
 }
 ```
 
@@ -29,5 +34,9 @@ provider "metabase" {
 ### Required
 
 - `endpoint` (String) The URL to the Metabase API.
+
+### Optional
+
+- `api_key` (String, Sensitive) The API key to use to authenticate. This can be used instead of a user name and password.
 - `password` (String, Sensitive) The password to use to authenticate.
 - `username` (String) The user name (or email address) to use to authenticate.
