@@ -7,6 +7,7 @@ info:
 
 security:
   - Session: []
+  - ApiKey: []
 
 paths:
   /card:
@@ -639,6 +640,10 @@ components:
       type: apiKey
       in: header
       name: X-Metabase-Session
+    ApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
 
   schemas:
     # Cards.

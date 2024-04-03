@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	ApiKeyScopes  = "ApiKey.Scopes"
 	SessionScopes = "Session.Scopes"
 )
 
