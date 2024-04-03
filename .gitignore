@@ -1,4 +1,5 @@
 *.tfvars
 *.tfstate*
+.test-api-key
 mbtf
 terraform-provider-metabase
