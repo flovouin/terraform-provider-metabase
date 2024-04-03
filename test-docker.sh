@@ -21,6 +21,8 @@ PG_DATABASE=${PG_DATABASE:=metabase}
 
 SETUP_TOKEN_MAX_ATTEMPTS=10
 
+TEST_API_KEY_FILE=.test-api-key
+
 # Sets up a non-default Docker network, such that the containers can communicate using hostnames.
 set_up_network () {
   echo "🌐 Creating Docker network..." 1>&2
@@ -141,12 +143,69 @@ ${API_RESPONSE}" 1>&2
   fi
 }
 
+set_api_key () {
+  echo "🔑 Creating API key..." 1>&2
+
+  METABASE_SESSION_RESPONSE=$(
+    curl -X POST ${METABASE_URL}/api/session \
+      --silent \
+      --fail-with-body \
+      --header 'Content-Type: application/json' \
+      --data-binary @- << EOF
+{
+  "username": "${METABASE_USERNAME}",
+  "password": "${METABASE_PASSWORD}"
+}
+EOF
+  )
+
+  if [ $? -ne 0 ]; then
+    echo "❌ Failed to create Metabase session:
+${API_RESPONSE}" 1>&2
+    exit 1
+  fi
+
+  METABASE_SESSION=$(
+    echo "${METABASE_SESSION_RESPONSE}" | \
+    jq -r '.id'
+  )
+
+  METABASE_API_KEY_RESPONSE=$(
+    curl -X POST ${METABASE_URL}/api/api-key/ \
+      --silent \
+      --fail-with-body \
+      --header "X-Metabase-Session: ${METABASE_SESSION}" \
+      --header "Content-Type: application/json" \
+      --data-binary @- << EOF
+{
+  "group_id": 2,
+  "name": "Terraform tests"
+}
+EOF
+  )
+
+  if [ $? -ne 0 ]; then
+    echo "❌ Failed to create API key:
+${METABASE_API_KEY_RESPONSE}" 1>&2
+    exit 1
+  fi
+
+  METABASE_API_KEY=$(
+    echo "${METABASE_API_KEY_RESPONSE}" | \
+    jq -r '.unmasked_key'
+  )
+
+  echo "${METABASE_API_KEY}" > ${TEST_API_KEY_FILE}
+  echo "${METABASE_API_KEY}"
+}
+
 # Entry point.
 set_up () {
   set_up_network
   set_up_pg
   set_up_metabase
   set_metabase_credentials
+  METABASE_API_KEY=$(set_api_key)
 
   echo "✅ Setup complete.
 
@@ -159,7 +218,8 @@ set_up () {
 📈 Metabase:
   🔗 URL: ${METABASE_URL}
   👤 Email: ${METABASE_USERNAME}
-  🔒 Password: ${METABASE_PASSWORD}" 1>&2
+  🔒 Password: ${METABASE_PASSWORD}
+  🔑 API key: ${METABASE_API_KEY}" 1>&2
 }
 
 tear_down () {
