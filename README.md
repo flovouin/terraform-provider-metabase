@@ -14,6 +14,7 @@ Unfortunately, this provider relies on the Metabase API which is [subject to bre
 |                                 0.2 | ✅  | ❌  | ❌  | ❌  | ❌  | ❌  |
 |                                 0.3 | ✅  | ❌  | ❌  | ❌  | ❌  | ❌  |
 |                                 0.4 | ❌  | ❌  | ❌  | ❌  | ✅  | ✅  |
+|                                 0.5 | ❌  | ❌  | ❌  | ❌  | ✅  | ✅  |
 
 ## 🔨 `mbtf` importer tool
 
