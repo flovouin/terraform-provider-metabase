@@ -39,3 +39,18 @@ func MakeAuthenticatedClientWithUsernameAndPassword(ctx context.Context, endpoin
 
 	return authenticatedClient, nil
 }
+
+// Returns an API client configured with the given API key.
+func MakeAuthenticatedClientWithApiKey(ctx context.Context, endpoint string, apiKey string) (*ClientWithResponses, error) {
+	apiKeyProvider, err := securityprovider.NewSecurityProviderApiKey("header", "X-Api-Key", apiKey)
+	if err != nil {
+		return nil, err
+	}
+
+	authenticatedClient, err := NewClientWithResponses(endpoint, WithRequestEditorFn(apiKeyProvider.Intercept))
+	if err != nil {
+		return nil, err
+	}
+
+	return authenticatedClient, nil
+}
