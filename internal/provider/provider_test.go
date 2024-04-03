@@ -26,7 +26,7 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 	"metabase": providerserver.NewProtocol6WithError(New("test")()),
 }
 
-var testAccMetabaseClient, _ = metabase.MakeAuthenticatedClient(
+var testAccMetabaseClient, _ = metabase.MakeAuthenticatedClientWithUsernameAndPassword(
 	context.Background(),
 	os.Getenv("METABASE_URL"),
 	os.Getenv("METABASE_USERNAME"),

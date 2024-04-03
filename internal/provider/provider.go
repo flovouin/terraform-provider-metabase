@@ -67,7 +67,7 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	authenticatedClient, err := metabase.MakeAuthenticatedClient(ctx, data.Endpoint.ValueString(), data.Username.ValueString(), data.Password.ValueString())
+	authenticatedClient, err := metabase.MakeAuthenticatedClientWithUsernameAndPassword(ctx, data.Endpoint.ValueString(), data.Username.ValueString(), data.Password.ValueString())
 	if err != nil {
 		resp.Diagnostics.AddError("Failed to create the Metabase client.", err.Error())
 		return

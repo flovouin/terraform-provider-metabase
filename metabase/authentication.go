@@ -9,7 +9,7 @@ import (
 
 // Authenticates to the Metabase API using the given username and password, and returns an API client configured with
 // the session obtained during authentication.
-func MakeAuthenticatedClient(ctx context.Context, endpoint string, username string, password string) (*ClientWithResponses, error) {
+func MakeAuthenticatedClientWithUsernameAndPassword(ctx context.Context, endpoint string, username string, password string) (*ClientWithResponses, error) {
 	client, err := NewClientWithResponses(endpoint)
 	if err != nil {
 		return nil, err

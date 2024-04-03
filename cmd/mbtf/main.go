@@ -24,7 +24,7 @@ func makeMetabaseClient(ctx context.Context, config metabaseConfig) (*metabase.C
 		return nil, errors.New("the Metabase password should be set and non-empty")
 	}
 
-	client, err := metabase.MakeAuthenticatedClient(ctx, config.Endpoint, config.Username, config.Password)
+	client, err := metabase.MakeAuthenticatedClientWithUsernameAndPassword(ctx, config.Endpoint, config.Username, config.Password)
 	if err != nil {
 		return nil, err
 	}
