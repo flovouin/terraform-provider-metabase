@@ -33,6 +33,7 @@ MBTF_FILES:=$(shell find $(MBTF_FOLDER) -type f -name '*.go')
 
 PROVIDER_BINARY:=terraform-provider-metabase
 MBTF_BINARY:=mbtf
+TEST_API_KEY_FILE=.test-api-key
 
 set-up-docker:
 	./test-docker.sh
@@ -41,7 +42,9 @@ tear-down-docker:
 	./test-docker.sh tear-down
 
 testacc:
-	TF_ACC=1 go test ./... -v
+	METABASE_API_KEY=$$(cat $(TEST_API_KEY_FILE)) \
+		TF_ACC=1 \
+		go test ./... -v
 
 testacc-with-setup: set-up-docker testacc tear-down-docker
 
@@ -63,6 +66,9 @@ $(MBTF_BINARY): $(METABASE_CLIENT_FILES) $(MBTF_FILES)
 	cd $(MBTF_FOLDER) && go build -o $(MBTF_BINARY)
 	mv $(MBTF_FOLDER)/$(MBTF_BINARY) .
 
+$(TEST_API_KEY_FILE): set-up-docker
+
 clean: tear-down-docker clean-testacc
 	rm -f $(PROVIDER_BINARY)
 	rm -f $(MBTF_BINARY)
+	rm -f $(TEST_API_KEY_FILE)

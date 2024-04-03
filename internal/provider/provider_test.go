@@ -22,11 +22,21 @@ provider "metabase" {
 	os.Getenv("METABASE_PASSWORD"),
 )
 
+var providerApiKeyConfig = fmt.Sprintf(`
+provider "metabase" {
+	endpoint = "%s"
+	api_key = "%s"
+}
+`,
+	os.Getenv("METABASE_URL"),
+	os.Getenv("METABASE_API_KEY"),
+)
+
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"metabase": providerserver.NewProtocol6WithError(New("test")()),
 }
 
-var testAccMetabaseClient, _ = metabase.MakeAuthenticatedClient(
+var testAccMetabaseClient, _ = metabase.MakeAuthenticatedClientWithUsernameAndPassword(
 	context.Background(),
 	os.Getenv("METABASE_URL"),
 	os.Getenv("METABASE_USERNAME"),
