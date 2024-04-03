@@ -27,6 +27,7 @@ type MetabaseProviderModel struct {
 	Endpoint types.String `tfsdk:"endpoint"` // The URL to the Metabase API.
 	Username types.String `tfsdk:"username"` // The user name (or email address) to use to authenticate.
 	Password types.String `tfsdk:"password"` // The password to use to authenticate.
+	ApiKey   types.String `tfsdk:"api_key"`  // The API key to use to authenticate. This can be used instead of a user name and password.
 }
 
 func (p *MetabaseProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -47,11 +48,16 @@ While most Terraform resources fully define the Metabase objects using attribute
 			},
 			"username": schema.StringAttribute{
 				MarkdownDescription: "The user name (or email address) to use to authenticate.",
-				Required:            true,
+				Optional:            true,
 			},
 			"password": schema.StringAttribute{
 				MarkdownDescription: "The password to use to authenticate.",
-				Required:            true,
+				Optional:            true,
+				Sensitive:           true,
+			},
+			"api_key": schema.StringAttribute{
+				MarkdownDescription: "The API key to use to authenticate. This can be used instead of a user name and password.",
+				Optional:            true,
 				Sensitive:           true,
 			},
 		},
@@ -67,9 +73,42 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
-	authenticatedClient, err := metabase.MakeAuthenticatedClientWithUsernameAndPassword(ctx, data.Endpoint.ValueString(), data.Username.ValueString(), data.Password.ValueString())
-	if err != nil {
-		resp.Diagnostics.AddError("Failed to create the Metabase client.", err.Error())
+	var err error
+	var authenticatedClient *metabase.ClientWithResponses
+
+	if !data.Username.IsNull() && !data.Password.IsNull() {
+		if !data.ApiKey.IsNull() {
+			resp.Diagnostics.AddError("Only one of username / password or API key can be provided.", "")
+			return
+		}
+
+		authenticatedClient, err = metabase.MakeAuthenticatedClientWithUsernameAndPassword(
+			ctx,
+			data.Endpoint.ValueString(),
+			data.Username.ValueString(),
+			data.Password.ValueString(),
+		)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to create the Metabase client from username and password.", err.Error())
+			return
+		}
+	} else if !data.ApiKey.IsNull() {
+		if !data.Username.IsNull() || !data.Password.IsNull() {
+			resp.Diagnostics.AddError("Only one of username / password or API key can be provided.", "")
+			return
+		}
+
+		authenticatedClient, err = metabase.MakeAuthenticatedClientWithApiKey(
+			ctx,
+			data.Endpoint.ValueString(),
+			data.ApiKey.ValueString(),
+		)
+		if err != nil {
+			resp.Diagnostics.AddError("Failed to create the Metabase client from the API key.", err.Error())
+			return
+		}
+	} else {
+		resp.Diagnostics.AddError("Either username / password or API key must be provided.", "")
 		return
 	}
 

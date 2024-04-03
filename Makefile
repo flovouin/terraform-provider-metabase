@@ -42,7 +42,9 @@ tear-down-docker:
 	./test-docker.sh tear-down
 
 testacc:
-	TF_ACC=1 go test ./... -v
+	METABASE_API_KEY=$$(cat $(TEST_API_KEY_FILE)) \
+		TF_ACC=1 \
+		go test ./... -v
 
 testacc-with-setup: set-up-docker testacc tear-down-docker
 

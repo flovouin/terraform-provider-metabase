@@ -132,7 +132,7 @@ func TestAccDashboardResource(t *testing.T) {
 		CheckDestroy:             testAccCheckDashboardDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: providerConfig + testAccDashboardResource("test", "📈 Dashboard", "📖 Description"),
+				Config: providerApiKeyConfig + testAccDashboardResource("test", "📈 Dashboard", "📖 Description"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckDashboardExists("metabase_dashboard.test"),
 					resource.TestCheckResourceAttrSet("metabase_dashboard.test", "id"),
@@ -145,7 +145,7 @@ func TestAccDashboardResource(t *testing.T) {
 				ImportState:  true,
 			},
 			{
-				Config: providerConfig + testAccDashboardResource("test", "📉 Updated", "📕 Updated"),
+				Config: providerApiKeyConfig + testAccDashboardResource("test", "📉 Updated", "📕 Updated"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("metabase_dashboard.test", "id"),
 					resource.TestCheckResourceAttr("metabase_dashboard.test", "name", "📉 Updated"),
