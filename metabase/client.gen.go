@@ -59,11 +59,11 @@ const (
 	PermissionsGraphDatabaseAccessNativeWrite PermissionsGraphDatabaseAccessNative = "write"
 )
 
-// Defines values for PermissionsGraphDatabaseAccessSchemas.
+// Defines values for PermissionsGraphDatabaseAccessSchemas0.
 const (
-	PermissionsGraphDatabaseAccessSchemasAll  PermissionsGraphDatabaseAccessSchemas = "all"
-	PermissionsGraphDatabaseAccessSchemasFull PermissionsGraphDatabaseAccessSchemas = "full"
-	PermissionsGraphDatabaseAccessSchemasNone PermissionsGraphDatabaseAccessSchemas = "none"
+	PermissionsGraphDatabaseAccessSchemas0All  PermissionsGraphDatabaseAccessSchemas0 = "all"
+	PermissionsGraphDatabaseAccessSchemas0Full PermissionsGraphDatabaseAccessSchemas0 = "full"
+	PermissionsGraphDatabaseAccessSchemas0None PermissionsGraphDatabaseAccessSchemas0 = "none"
 )
 
 // Defines values for PermissionsGraphDatabasePermissionsDetails.
@@ -429,17 +429,20 @@ type PermissionsGraph struct {
 // PermissionsGraphDatabaseAccess The permissions for a single access type.
 type PermissionsGraphDatabaseAccess struct {
 	// Native Whether "Native query editing" is allowed.
-	Native *PermissionsGraphDatabaseAccessNative `json:"native,omitempty"`
-
-	// Schemas Whether "Data access" is allowed.
-	Schemas *PermissionsGraphDatabaseAccessSchemas `json:"schemas,omitempty"`
+	Native  *PermissionsGraphDatabaseAccessNative   `json:"native,omitempty"`
+	Schemas *PermissionsGraphDatabaseAccess_Schemas `json:"schemas,omitempty"`
 }
 
 // PermissionsGraphDatabaseAccessNative Whether "Native query editing" is allowed.
 type PermissionsGraphDatabaseAccessNative string
 
-// PermissionsGraphDatabaseAccessSchemas Whether "Data access" is allowed.
-type PermissionsGraphDatabaseAccessSchemas string
+// PermissionsGraphDatabaseAccessSchemas0 Whether "Data access" is allowed.
+type PermissionsGraphDatabaseAccessSchemas0 string
+
+// PermissionsGraphDatabaseAccess_Schemas defines model for PermissionsGraphDatabaseAccess.Schemas.
+type PermissionsGraphDatabaseAccess_Schemas struct {
+	union json.RawMessage
+}
 
 // PermissionsGraphDatabasePermissions The permissions related to a single database.
 type PermissionsGraphDatabasePermissions struct {
@@ -1047,6 +1050,42 @@ func (t DatabaseDetails) MarshalJSON() ([]byte, error) {
 }
 
 func (t *DatabaseDetails) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPermissionsGraphDatabaseAccessSchemas0 returns the union data inside the PermissionsGraphDatabaseAccess_Schemas as a PermissionsGraphDatabaseAccessSchemas0
+func (t PermissionsGraphDatabaseAccess_Schemas) AsPermissionsGraphDatabaseAccessSchemas0() (PermissionsGraphDatabaseAccessSchemas0, error) {
+	var body PermissionsGraphDatabaseAccessSchemas0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPermissionsGraphDatabaseAccessSchemas0 overwrites any union data inside the PermissionsGraphDatabaseAccess_Schemas as the provided PermissionsGraphDatabaseAccessSchemas0
+func (t *PermissionsGraphDatabaseAccess_Schemas) FromPermissionsGraphDatabaseAccessSchemas0(v PermissionsGraphDatabaseAccessSchemas0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePermissionsGraphDatabaseAccessSchemas0 performs a merge with any union data inside the PermissionsGraphDatabaseAccess_Schemas, using the provided PermissionsGraphDatabaseAccessSchemas0
+func (t *PermissionsGraphDatabaseAccess_Schemas) MergePermissionsGraphDatabaseAccessSchemas0(v PermissionsGraphDatabaseAccessSchemas0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PermissionsGraphDatabaseAccess_Schemas) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PermissionsGraphDatabaseAccess_Schemas) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

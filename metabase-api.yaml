@@ -1279,12 +1279,20 @@ components:
             - write
             - none
         schemas:
-          type: string
-          description: Whether "Data access" is allowed.
-          enum:
-            - full
-            - all
-            - none
+          # The `schemas` property can either be a string or an object. The API returns an object in two cases:
+          #   1. Permissions are set to "granular" and some tables have different permissions than others
+          #   2. Permissions are modified on the Metabase Analytics database (available in pro version)
+          #
+          # Proper support for these cases requires more research. For now, we only specify the string type. It's under
+          # `oneOf` so the generated client doesn't error when it receives a non-string response. Application code is
+          # expected to detect and handle these cases.
+          oneOf:
+            - type: string
+              description: Whether "Data access" is allowed.
+              enum:
+                - full
+                - all
+                - none
     # Sessions.
     Session:
       type: object
