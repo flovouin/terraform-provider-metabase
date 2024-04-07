@@ -3,6 +3,9 @@ package metabase
 // The default ID of the `Administrators` permissions group, created automatically by Terraform.
 const AdministratorsPermissionsGroupId = 2
 
+// The ID of the `Metabase Analytics` database, automatically created for pro plans.
+const MetabaseAnalyticsDatabaseId = "13371337"
+
 // The list of JSON attributes in a `Card` object that are needed to fully define the card, e.g. when creating it.
 var DefiningCardAttributes = map[string]bool{
 	"cache_ttl":              true,

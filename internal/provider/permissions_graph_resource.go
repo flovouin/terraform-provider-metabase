@@ -158,9 +158,16 @@ func makeAccessPermissionsFromDatabaseAccess(ctx context.Context, da *metabase.P
 		return &nullObject, diag.Diagnostics{}
 	}
 
+	var diags diag.Diagnostics
+	schemas, err := da.Schemas.AsPermissionsGraphDatabaseAccessSchemas0()
+	if err != nil {
+		diags.AddError("Unexpected permissions value. This could be caused by using granular permissions (unsupported). Remove granular permissions and try again", err.Error())
+		return nil, diags
+	}
+
 	obj, diags := types.ObjectValueFrom(ctx, accessPermissionsObjectType.AttrTypes, AccessPermissions{
 		Native:  stringValueOrNull(da.Native),
-		Schemas: stringValueOrNull(da.Schemas),
+		Schemas: stringValueOrNull(&schemas),
 	})
 	if diags.HasError() {
 		return nil, diags
@@ -239,6 +246,11 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 		}
 
 		for dbId, dbPermissions := range dbPermissionsMap {
+			// Ignore the Metabase Analytics database until we have proper support.
+			if dbId == metabase.MetabaseAnalyticsDatabaseId {
+				continue
+			}
+
 			permissionsObject, objDiags := makePermissionsObjectFromDatabasePermissions(ctx, groupId, dbId, dbPermissions)
 			diags.Append(objDiags...)
 			if diags.HasError() {
@@ -274,7 +286,13 @@ func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNu
 
 	// Default values ("none") forbid any access.
 	var native *metabase.PermissionsGraphDatabaseAccessNative
-	schemas := metabase.PermissionsGraphDatabaseAccessSchemasNone
+
+	var schemas metabase.PermissionsGraphDatabaseAccess_Schemas
+	err := schemas.FromPermissionsGraphDatabaseAccessSchemas0(metabase.PermissionsGraphDatabaseAccessSchemas0None)
+	if err != nil {
+		diags.AddError("Unexpected error setting schemas to none value", err.Error())
+		return nil, diags
+	}
 	if setNative {
 		none := metabase.PermissionsGraphDatabaseAccessNativeNone
 		native = &none
@@ -294,7 +312,11 @@ func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNu
 		}
 
 		if !ap.Schemas.IsNull() {
-			schemas = metabase.PermissionsGraphDatabaseAccessSchemas(ap.Schemas.ValueString())
+			err := schemas.FromPermissionsGraphDatabaseAccessSchemas0(metabase.PermissionsGraphDatabaseAccessSchemas0(ap.Schemas.ValueString()))
+			if err != nil {
+				diags.AddError("Unexpected error setting permissions value", err.Error())
+				return nil, diags
+			}
 		}
 	}
 
@@ -417,7 +439,13 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 			// If the permission does not exist in the plan but exists in the state, it should be explicitly deleted by
 			// creating the permission with "none" values.
 			nativeNone := metabase.PermissionsGraphDatabaseAccessNativeNone
-			schemasNone := metabase.PermissionsGraphDatabaseAccessSchemasNone
+
+			var schemasNone metabase.PermissionsGraphDatabaseAccess_Schemas
+			err := schemasNone.FromPermissionsGraphDatabaseAccessSchemas0(metabase.PermissionsGraphDatabaseAccessSchemas0None)
+			if err != nil {
+				diags.AddError("Unexpected error setting schema none value", err.Error())
+				return nil, diags
+			}
 			deletedPermissions := metabase.PermissionsGraphDatabasePermissions{
 				Data: &metabase.PermissionsGraphDatabaseAccess{
 					Native:  &nativeNone,
