@@ -1,3 +1,10 @@
+## 0.5.1 (2024-04-07)
+
+BUG FIXES:
+
+- Ignore unsupported granular permissions rather than crashing because of an unexpected Metabase API response. (#49, thanks @ellingtonjp!)
+- Ignore permissions for the Metabase Analytics database (Pro feature), for which granular permissions are always set.
+
 ## 0.5.0 (2024-04-03)
 
 NEW FEATURES:
