@@ -1003,6 +1003,14 @@ components:
             - type: string
             - type: array
           description: The default value for the parameter.
+        required:
+          type: boolean
+          description: Whether the parameter is required.
+        filteringParameters:
+          type: array
+          description: A list of IDs of parameters used to limit the values of this parameter.
+          items:
+            type: string
       required:
         - id
         - name
