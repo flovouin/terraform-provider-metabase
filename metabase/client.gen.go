@@ -316,11 +316,17 @@ type DashboardParameter struct {
 	// Default The default value for the parameter.
 	Default *DashboardParameter_Default `json:"default,omitempty"`
 
+	// FilteringParameters A list of IDs of parameters used to limit the values of this parameter.
+	FilteringParameters *[]string `json:"filteringParameters,omitempty"`
+
 	// Id The ID of the parameter.
 	Id string `json:"id"`
 
 	// Name The displayed name for the parameter.
 	Name string `json:"name"`
+
+	// Required Whether the parameter is required.
+	Required *bool `json:"required,omitempty"`
 
 	// SectionId The ID of the section.
 	SectionId string `json:"sectionId"`

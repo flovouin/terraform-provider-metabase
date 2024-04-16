@@ -1,3 +1,7 @@
+NEW FEATURES:
+
+- Support [linking filters](https://www.metabase.com/learn/dashboards/linking-filters) (aka filtering parameters in the API).
+
 ## 0.5.1 (2024-04-07)
 
 BUG FIXES:
