@@ -18,13 +18,24 @@ resource "metabase_dashboard" "%s" {
 
   parameters_json = jsonencode([
     {
-      id        = "83e68ca2"
-      name      = "Date range"
-      slug      = "date_filter"
-      type      = "date/all-options"
-      sectionId = "date"
-      default   = "past30days"
+      "name": "Month and Year",
+      "slug": "month_and_year",
+      "id": "fb55bed",
+      "type": "date/month-year",
+      "sectionId": "date",
+      "required": true,
+      "default": "2024-02"
     },
+    {
+      "name": "Text",
+      "slug": "text",
+      "id": "dac08e9",
+      "type": "string/=",
+      "sectionId": "string",
+      "filteringParameters": [
+        "fb55bed"
+      ]
+    }
   ])
 
   cards_json = jsonencode([
