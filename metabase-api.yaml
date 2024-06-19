@@ -6,8 +6,8 @@ info:
   description: API for Metabase.
 
 security:
-  - Session: []
-  - ApiKey: []
+  - Session: [ ]
+  - ApiKey: [ ]
 
 paths:
   /card:
@@ -555,7 +555,7 @@ paths:
     post:
       operationId: createSession
       description: Logs in using a user name (or email address) and a password.
-      security: []
+      security: [ ]
       requestBody:
         required: true
         content:
@@ -982,6 +982,7 @@ components:
     DashboardParameter:
       type: object
       description: A parameter for a dashboard, that the user can tweak.
+      additionalProperties: true
       properties:
         id:
           type: string

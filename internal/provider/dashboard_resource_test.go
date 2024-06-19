@@ -34,7 +34,19 @@ resource "metabase_dashboard" "%s" {
       "sectionId": "string",
       "filteringParameters": [
         "fb55bed"
-      ]
+      ],
+    },
+    {
+      "name": "Text",
+      "slug": "text",
+      "id": "cba622a",
+      "type": "string/=",
+      "sectionId": "string",
+      "values_query_type": "list",
+      "values_source_config": {
+        "values": ["foo", "bar"]
+      },
+      "values_source_type": "static-list"
     }
   ])
 
