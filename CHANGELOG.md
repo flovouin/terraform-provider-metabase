@@ -1,3 +1,9 @@
+## 0.7.0 (2024-06-27)
+
+NEW FEATURES:
+
+- Support any parameters in `metabase_dashboard`'s `parameters_json`. (#60, thanks @michal-billtech!)
+
 ## 0.6.0 (2024-04-16)
 
 NEW FEATURES:
