@@ -335,7 +335,8 @@ type DashboardParameter struct {
 	Slug string `json:"slug"`
 
 	// Type The type of parameter.
-	Type string `json:"type"`
+	Type                 string                 `json:"type"`
+	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
 // DashboardParameterDefault0 defines model for .
@@ -795,6 +796,169 @@ func (a Card) MarshalJSON() ([]byte, error) {
 	object["name"], err = json.Marshal(a.Name)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for DashboardParameter. Returns the specified
+// element and whether it was found
+func (a DashboardParameter) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for DashboardParameter
+func (a *DashboardParameter) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for DashboardParameter to handle AdditionalProperties
+func (a *DashboardParameter) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["default"]; found {
+		err = json.Unmarshal(raw, &a.Default)
+		if err != nil {
+			return fmt.Errorf("error reading 'default': %w", err)
+		}
+		delete(object, "default")
+	}
+
+	if raw, found := object["filteringParameters"]; found {
+		err = json.Unmarshal(raw, &a.FilteringParameters)
+		if err != nil {
+			return fmt.Errorf("error reading 'filteringParameters': %w", err)
+		}
+		delete(object, "filteringParameters")
+	}
+
+	if raw, found := object["id"]; found {
+		err = json.Unmarshal(raw, &a.Id)
+		if err != nil {
+			return fmt.Errorf("error reading 'id': %w", err)
+		}
+		delete(object, "id")
+	}
+
+	if raw, found := object["name"]; found {
+		err = json.Unmarshal(raw, &a.Name)
+		if err != nil {
+			return fmt.Errorf("error reading 'name': %w", err)
+		}
+		delete(object, "name")
+	}
+
+	if raw, found := object["required"]; found {
+		err = json.Unmarshal(raw, &a.Required)
+		if err != nil {
+			return fmt.Errorf("error reading 'required': %w", err)
+		}
+		delete(object, "required")
+	}
+
+	if raw, found := object["sectionId"]; found {
+		err = json.Unmarshal(raw, &a.SectionId)
+		if err != nil {
+			return fmt.Errorf("error reading 'sectionId': %w", err)
+		}
+		delete(object, "sectionId")
+	}
+
+	if raw, found := object["slug"]; found {
+		err = json.Unmarshal(raw, &a.Slug)
+		if err != nil {
+			return fmt.Errorf("error reading 'slug': %w", err)
+		}
+		delete(object, "slug")
+	}
+
+	if raw, found := object["type"]; found {
+		err = json.Unmarshal(raw, &a.Type)
+		if err != nil {
+			return fmt.Errorf("error reading 'type': %w", err)
+		}
+		delete(object, "type")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for DashboardParameter to handle AdditionalProperties
+func (a DashboardParameter) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Default != nil {
+		object["default"], err = json.Marshal(a.Default)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'default': %w", err)
+		}
+	}
+
+	if a.FilteringParameters != nil {
+		object["filteringParameters"], err = json.Marshal(a.FilteringParameters)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'filteringParameters': %w", err)
+		}
+	}
+
+	object["id"], err = json.Marshal(a.Id)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'id': %w", err)
+	}
+
+	object["name"], err = json.Marshal(a.Name)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	}
+
+	if a.Required != nil {
+		object["required"], err = json.Marshal(a.Required)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'required': %w", err)
+		}
+	}
+
+	object["sectionId"], err = json.Marshal(a.SectionId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'sectionId': %w", err)
+	}
+
+	object["slug"], err = json.Marshal(a.Slug)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'slug': %w", err)
+	}
+
+	object["type"], err = json.Marshal(a.Type)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'type': %w", err)
 	}
 
 	for fieldName, field := range a.AdditionalProperties {

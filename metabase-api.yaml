@@ -982,6 +982,7 @@ components:
     DashboardParameter:
       type: object
       description: A parameter for a dashboard, that the user can tweak.
+      additionalProperties: true
       properties:
         id:
           type: string
