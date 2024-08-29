@@ -29,6 +29,9 @@ var allowedCardAttributes = map[string]bool{
 	"parameters":             true,
 	"query_type":             true,
 	"visualization_settings": true,
+	"pivot_rows":             true,
+	"pivot_cols":          	  true,
+
 }
 
 // Ensures provider defined types fully satisfy framework interfaces.

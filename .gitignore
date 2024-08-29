@@ -3,3 +3,4 @@
 .test-api-key
 mbtf
 terraform-provider-metabase
+.direnv
