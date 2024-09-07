@@ -1264,8 +1264,22 @@ components:
       type: object
       description: The permissions related to a single database.
       properties:
-        data:
-          $ref: "#/components/schemas/PermissionsGraphDatabaseAccess"
+        view-data:
+          type: string
+          description: The permission definition for viewing data.
+          enum:
+            - unrestricted
+            - "no"
+            - legacy-no-self-service
+            - blocked
+            - impersonated
+        create-queries:
+          type: string
+          description: The permission definition for creating queries.
+          enum:
+            - "no"
+            - query-builder-and-native
+            - query-builder
         download:
           $ref: "#/components/schemas/PermissionsGraphDatabaseAccess"
         data-model:
@@ -1276,17 +1290,14 @@ components:
           enum:
             - "yes"
             - "no"
+      required:
+        # The falsy "no" value does not seem to be handled by the API. It is hard to know whether this property is
+        # actually required, or if it can disappear when it's "no".
+        - view-data
     PermissionsGraphDatabaseAccess:
       type: object
       description: The permissions for a single access type.
       properties:
-        native:
-          type: string
-          description: Whether "Native query editing" is allowed.
-          enum:
-            - full
-            - write
-            - none
         schemas:
           # The `schemas` property can either be a string or an object. The API returns an object in two cases:
           #   1. Permissions are set to "granular" and some tables have different permissions than others
