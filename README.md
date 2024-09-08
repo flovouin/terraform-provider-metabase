@@ -11,7 +11,8 @@ Unfortunately, this provider relies on the Metabase API which is [subject to bre
 | Provider version \ Metabase version | .44 | .45 | .46 | .47 | .48 | .49 | .50 |
 | ----------------------------------: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 |                              <= 0.3 | ✅  | ❌  | ❌  | ❌  | ❌  | ❌  | ❌  |
-|                              >= 0.4 | ❌  | ❌  | ❌  | ❌  | ✅  | ✅  | ❌  |
+|                       >= 0.4, < 0.8 | ❌  | ❌  | ❌  | ❌  | ✅  | ✅  | ❌  |
+|                              >= 0.8 | ❌  | ❌  | ❌  | ❌  | ❌  | ❌  | ✅  |
 
 ## 🔨 `mbtf` importer tool
 
