@@ -1,3 +1,8 @@
+BREAKING CHANGES:
+
+- Support Metabase v\*.50, and drop support for earlier versions.
+- `metabase_permissions_graph`'s permissions support two new fields: `view_data` and `create_queries`. The `native` field is no longer supported.
+
 ## 0.7.0 (2024-06-27)
 
 NEW FEATURES:

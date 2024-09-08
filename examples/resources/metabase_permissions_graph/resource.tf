@@ -22,23 +22,17 @@ resource "metabase_permissions_graph" "graph" {
 
   permissions = [
     {
-      group    = metabase_permissions_group.data_analysts.id
-      database = metabase_database.bigquery.id
-      data = {
-        # Native: Yes
-        native = "write"
-        # Data access: Unrestricted
-        schemas = "all"
-      }
+      group          = metabase_permissions_group.data_analysts.id
+      database       = metabase_database.bigquery.id
+      view_data      = "unrestricted"
+      create_queries = "query-builder-and-native"
     },
     {
       group    = metabase_permissions_group.business_stakeholders.id
       database = metabase_database.bigquery.id
-      data = {
-        # Native: No (by omitting the `native` attribute or setting it to "none")
-        # Data access: Unrestricted
-        schemas = "all"
-      }
+      # This looks like no other value can be set, at least in the free version of Metabase.
+      view_data      = "unrestricted"
+      create_queries = "query-builder"
     },
     # Permissions for the "All Users" group. Those cannot be removed entirely, but they can be limited.
     # The example below gives the minimum set of permissions for the free version of Metabase:
@@ -47,12 +41,11 @@ resource "metabase_permissions_graph" "graph" {
       database = metabase_database.bigquery.id
       # Cannot be removed but has no impact when using the free version of Metabase.
       download = {
-        native  = "full"
         schemas = "full"
       }
-      # Omitting the `data` attribute entirely results in the lowest level of permissions:
-      # Data access: No self-service
-      # Native: No
+      view_data = "unrestricted"
+      # This gives the least access possible.
+      create_queries = "no"
     },
   ]
 }

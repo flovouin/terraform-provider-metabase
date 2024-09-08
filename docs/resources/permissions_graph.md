@@ -46,23 +46,17 @@ resource "metabase_permissions_graph" "graph" {
 
   permissions = [
     {
-      group    = metabase_permissions_group.data_analysts.id
-      database = metabase_database.bigquery.id
-      data = {
-        # Native: Yes
-        native = "write"
-        # Data access: Unrestricted
-        schemas = "all"
-      }
+      group          = metabase_permissions_group.data_analysts.id
+      database       = metabase_database.bigquery.id
+      view_data      = "unrestricted"
+      create_queries = "query-builder-and-native"
     },
     {
       group    = metabase_permissions_group.business_stakeholders.id
       database = metabase_database.bigquery.id
-      data = {
-        # Native: No (by omitting the `native` attribute or setting it to "none")
-        # Data access: Unrestricted
-        schemas = "all"
-      }
+      # This looks like no other value can be set, at least in the free version of Metabase.
+      view_data      = "unrestricted"
+      create_queries = "query-builder"
     },
     # Permissions for the "All Users" group. Those cannot be removed entirely, but they can be limited.
     # The example below gives the minimum set of permissions for the free version of Metabase:
@@ -71,12 +65,11 @@ resource "metabase_permissions_graph" "graph" {
       database = metabase_database.bigquery.id
       # Cannot be removed but has no impact when using the free version of Metabase.
       download = {
-        native  = "full"
         schemas = "full"
       }
-      # Omitting the `data` attribute entirely results in the lowest level of permissions:
-      # Data access: No self-service
-      # Native: No
+      view_data = "unrestricted"
+      # This gives the least access possible.
+      create_queries = "no"
     },
   ]
 }
@@ -103,31 +96,22 @@ resource "metabase_permissions_graph" "graph" {
 
 Required:
 
+- `create_queries` (String) The permission definition for creating queries.
 - `database` (Number) The ID of the database to which the permission applies.
 - `group` (Number) The ID of the group to which the permission applies.
+- `view_data` (String) The permission definition for data access.
 
 Optional:
 
-- `data` (Attributes) The permission definition for data access. (see [below for nested schema](#nestedatt--permissions--data))
 - `data_model` (Attributes) The permission definition for accessing the data model. (see [below for nested schema](#nestedatt--permissions--data_model))
 - `details` (String) The permission definition for accessing details.
 - `download` (Attributes) The permission definition for downloading data. (see [below for nested schema](#nestedatt--permissions--download))
-
-<a id="nestedatt--permissions--data"></a>
-### Nested Schema for `permissions.data`
-
-Optional:
-
-- `native` (String) The permission for native SQL querying
-- `schemas` (String) The permission to access data through the Metabase interface
-
 
 <a id="nestedatt--permissions--data_model"></a>
 ### Nested Schema for `permissions.data_model`
 
 Optional:
 
-- `native` (String) The permission for native SQL querying
 - `schemas` (String) The permission to access data through the Metabase interface
 
 
@@ -136,7 +120,6 @@ Optional:
 
 Optional:
 
-- `native` (String) The permission for native SQL querying
 - `schemas` (String) The permission to access data through the Metabase interface
 
 ## Import
