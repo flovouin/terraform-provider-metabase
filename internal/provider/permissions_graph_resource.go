@@ -41,38 +41,35 @@ type PermissionsGraphResourceModel struct {
 
 // The model for a single edge in the permissions graph.
 type DatabasePermissions struct {
-	Group     types.Int64  `tfsdk:"group"`      // The ID of the permissions group to which the permission applies.
-	Database  types.Int64  `tfsdk:"database"`   // The ID of the database to which the permission applies.
-	Data      types.Object `tfsdk:"data"`       // Data-related permission.
-	Download  types.Object `tfsdk:"download"`   // Download-related permission (only available with advanced permissions).
-	DataModel types.Object `tfsdk:"data_model"` // Data-model-related permission (only available with advanced permissions).
-	Details   types.String `tfsdk:"details"`    // Details permission (only available with advanced permissions).
+	Group         types.Int64  `tfsdk:"group"`          // The ID of the permissions group to which the permission applies.
+	Database      types.Int64  `tfsdk:"database"`       // The ID of the database to which the permission applies.
+	ViewData      types.String `tfsdk:"view_data"`      // View data access permission.
+	CreateQueries types.String `tfsdk:"create_queries"` // Create queries access permission.
+	Download      types.Object `tfsdk:"download"`       // Download-related permission (only available with advanced permissions).
+	DataModel     types.Object `tfsdk:"data_model"`     // Data-model-related permission (only available with advanced permissions).
+	Details       types.String `tfsdk:"details"`        // Details permission (only available with advanced permissions).
 }
 
 // The object type definition for the `DatabasePermissions` model.
 var databasePermissionsObjectType = types.ObjectType{
 	AttrTypes: map[string]attr.Type{
-		"group":      types.Int64Type,
-		"database":   types.Int64Type,
-		"data":       accessPermissionsObjectType,
-		"download":   accessPermissionsObjectType,
-		"data_model": accessPermissionsObjectType,
-		"details":    types.StringType,
+		"group":          types.Int64Type,
+		"database":       types.Int64Type,
+		"view_data":      types.StringType,
+		"create_queries": types.StringType,
+		"download":       accessPermissionsObjectType,
+		"data_model":     accessPermissionsObjectType,
+		"details":        types.StringType,
 	},
 }
 
 // The model for a single permission setting in an edge of the graph.
 type AccessPermissions struct {
-	Native  types.String `tfsdk:"native"`  // Native-access (SQL) permissions.
 	Schemas types.String `tfsdk:"schemas"` // Schemas permissions.
 }
 
 // The schema for the `AccessPermissions` model.
 var accessPermissionAttributes = map[string]schema.Attribute{
-	"native": schema.StringAttribute{
-		MarkdownDescription: "The permission for native SQL querying",
-		Optional:            true,
-	},
 	"schemas": schema.StringAttribute{
 		MarkdownDescription: "The permission to access data through the Metabase interface",
 		Optional:            true,
@@ -82,7 +79,6 @@ var accessPermissionAttributes = map[string]schema.Attribute{
 // The object type definition for the `AccessPermissions` model.
 var accessPermissionsObjectType = types.ObjectType{
 	AttrTypes: map[string]attr.Type{
-		"native":  types.StringType,
 		"schemas": types.StringType,
 	},
 }
@@ -124,10 +120,13 @@ Permissions for the Administrators group cannot be changed. To avoid issues duri
 							MarkdownDescription: "The ID of the database to which the permission applies.",
 							Required:            true,
 						},
-						"data": schema.SingleNestedAttribute{
+						"view_data": schema.StringAttribute{
 							MarkdownDescription: "The permission definition for data access.",
-							Optional:            true,
-							Attributes:          accessPermissionAttributes,
+							Required:            true,
+						},
+						"create_queries": schema.StringAttribute{
+							MarkdownDescription: "The permission definition for creating queries.",
+							Required:            true,
 						},
 						"download": schema.SingleNestedAttribute{
 							MarkdownDescription: "The permission definition for downloading data.",
@@ -166,7 +165,6 @@ func makeAccessPermissionsFromDatabaseAccess(ctx context.Context, da *metabase.P
 	}
 
 	obj, diags := types.ObjectValueFrom(ctx, accessPermissionsObjectType.AttrTypes, AccessPermissions{
-		Native:  stringValueOrNull(da.Native),
 		Schemas: stringValueOrNull(&schemas),
 	})
 	if diags.HasError() {
@@ -192,10 +190,9 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId s
 		return nil, diags
 	}
 
-	dataAccess, accessDiags := makeAccessPermissionsFromDatabaseAccess(ctx, p.Data)
-	diags.Append(accessDiags...)
-	if diags.HasError() {
-		return nil, diags
+	createQueries := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
+	if p.CreateQueries != nil {
+		createQueries = *p.CreateQueries
 	}
 
 	downloadAccess, accessDiags := makeAccessPermissionsFromDatabaseAccess(ctx, p.Download)
@@ -211,12 +208,13 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId s
 	}
 
 	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, DatabasePermissions{
-		Group:     types.Int64Value(int64(groupIdInt)),
-		Database:  types.Int64Value(int64(dbIdInt)),
-		Data:      *dataAccess,
-		Download:  *downloadAccess,
-		DataModel: *dataModelAccess,
-		Details:   stringValueOrNull(p.Details),
+		Group:         types.Int64Value(int64(groupIdInt)),
+		Database:      types.Int64Value(int64(dbIdInt)),
+		ViewData:      types.StringValue(string(p.ViewData)),
+		CreateQueries: types.StringValue(string(createQueries)),
+		Download:      *downloadAccess,
+		DataModel:     *dataModelAccess,
+		Details:       stringValueOrNull(p.Details),
 	})
 	diags.Append(objectDiags...)
 	if diags.HasError() {
@@ -275,27 +273,18 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 // Makes a Metabase API `PermissionsGraphDatabaseAccess` struct from a Terraform model object.
 // `setIfNull` can be used to set the default values (forbidding any access) to permissions.
 // This is useful when removing permissions for example.
-// `setNative` determines whether the `native` attribute should be set in the access object.
-// This is useful because the "data model" permission does not support it.
-func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNull bool, setNative bool) (*metabase.PermissionsGraphDatabaseAccess, diag.Diagnostics) {
+func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNull bool) (*metabase.PermissionsGraphDatabaseAccess, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if !setIfNull && apObj.IsNull() {
 		return nil, diags
 	}
 
-	// Default values ("none") forbid any access.
-	var native *metabase.PermissionsGraphDatabaseAccessNative
-
 	var schemas metabase.PermissionsGraphDatabaseAccess_Schemas
 	err := schemas.FromPermissionsGraphDatabaseAccessSchemas0(metabase.PermissionsGraphDatabaseAccessSchemas0None)
 	if err != nil {
 		diags.AddError("Unexpected error setting schemas to none value", err.Error())
 		return nil, diags
-	}
-	if setNative {
-		none := metabase.PermissionsGraphDatabaseAccessNativeNone
-		native = &none
 	}
 
 	if !apObj.IsNull() {
@@ -304,11 +293,6 @@ func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNu
 		diags.Append(asDiags...)
 		if diags.HasError() {
 			return nil, diags
-		}
-
-		if setNative && !ap.Native.IsNull() {
-			nativeValue := metabase.PermissionsGraphDatabaseAccessNative(ap.Native.ValueString())
-			native = &nativeValue
 		}
 
 		if !ap.Schemas.IsNull() {
@@ -321,7 +305,6 @@ func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNu
 	}
 
 	return &metabase.PermissionsGraphDatabaseAccess{
-		Native:  native,
 		Schemas: &schemas,
 	}, diags
 }
@@ -367,19 +350,21 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 			return nil, diags
 		}
 
-		data, accessDiags := makeDatasetAccessFromModel(ctx, p.Data, true, true)
+		viewData := metabase.PermissionsGraphDatabasePermissionsViewData(p.ViewData.ValueString())
+
+		createQueries := valueApproximateStringOrNull[metabase.PermissionsGraphDatabasePermissionsCreateQueries](p.CreateQueries)
+		if createQueries == nil {
+			no := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
+			createQueries = &no
+		}
+
+		download, accessDiags := makeDatasetAccessFromModel(ctx, p.Download, advancedPermissions)
 		diags.Append(accessDiags...)
 		if diags.HasError() {
 			return nil, diags
 		}
 
-		download, accessDiags := makeDatasetAccessFromModel(ctx, p.Download, advancedPermissions, true)
-		diags.Append(accessDiags...)
-		if diags.HasError() {
-			return nil, diags
-		}
-
-		dataModel, accessDiags := makeDatasetAccessFromModel(ctx, p.DataModel, advancedPermissions, false)
+		dataModel, accessDiags := makeDatasetAccessFromModel(ctx, p.DataModel, advancedPermissions)
 		diags.Append(accessDiags...)
 		if diags.HasError() {
 			return nil, diags
@@ -387,15 +372,16 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 
 		details := valueApproximateStringOrNull[metabase.PermissionsGraphDatabasePermissionsDetails](p.Details)
 		if details == nil && advancedPermissions {
-			no := metabase.No
+			no := metabase.PermissionsGraphDatabasePermissionsDetailsNo
 			details = &no
 		}
 
 		dbPermMap[databaseId] = metabase.PermissionsGraphDatabasePermissions{
-			Data:      data,
-			Download:  download,
-			DataModel: dataModel,
-			Details:   details,
+			ViewData:      viewData,
+			CreateQueries: createQueries,
+			Download:      download,
+			DataModel:     dataModel,
+			Details:       details,
 		}
 	}
 
@@ -436,31 +422,24 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 				continue
 			}
 
-			// If the permission does not exist in the plan but exists in the state, it should be explicitly deleted by
-			// creating the permission with "none" values.
-			nativeNone := metabase.PermissionsGraphDatabaseAccessNativeNone
-
 			var schemasNone metabase.PermissionsGraphDatabaseAccess_Schemas
 			err := schemasNone.FromPermissionsGraphDatabaseAccessSchemas0(metabase.PermissionsGraphDatabaseAccessSchemas0None)
 			if err != nil {
 				diags.AddError("Unexpected error setting schema none value", err.Error())
 				return nil, diags
 			}
+			no := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
 			deletedPermissions := metabase.PermissionsGraphDatabasePermissions{
-				Data: &metabase.PermissionsGraphDatabaseAccess{
-					Native:  &nativeNone,
-					Schemas: &schemasNone,
-				},
+				CreateQueries: &no,
 			}
 			if advancedPermissions {
 				deletedPermissions.Download = &metabase.PermissionsGraphDatabaseAccess{
-					Native:  &nativeNone,
 					Schemas: &schemasNone,
 				}
 				deletedPermissions.DataModel = &metabase.PermissionsGraphDatabaseAccess{
 					Schemas: &schemasNone,
 				}
-				no := metabase.No
+				no := metabase.PermissionsGraphDatabasePermissionsDetailsNo
 				deletedPermissions.Details = &no
 			}
 			dbPermMap[databaseId] = deletedPermissions
