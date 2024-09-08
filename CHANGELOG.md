@@ -1,3 +1,5 @@
+## 0.8.0 (2024-09-08)
+
 BREAKING CHANGES:
 
 - Support Metabase v\*.50, and drop support for earlier versions.
