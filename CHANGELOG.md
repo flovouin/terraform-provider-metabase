@@ -1,3 +1,5 @@
+## 0.8.1 (2024-09-22)
+
 BUG FIXES:
 
 - Catch and return an error when the API returns a response that could not be parsed.
