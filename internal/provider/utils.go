@@ -72,6 +72,15 @@ func checkMetabaseResponse(r metabase.MetabaseResponse, err error, statusCodes [
 		}
 	}
 
+	if r.HasExpectedStatusWithoutExpectedBody() {
+		return diag.Diagnostics{
+			diag.NewErrorDiagnostic(
+				fmt.Sprintf("Unexpected response while calling the Metabase API for operation '%s'.", operation),
+				fmt.Sprintf("Status code: %d, failed to parse body: %s", r.StatusCode(), r.BodyString()),
+			),
+		}
+	}
+
 	for _, s := range statusCodes {
 		if r.StatusCode() == s {
 			return diag.Diagnostics{}
