@@ -141,7 +141,7 @@ func testAccCheckDashboardDestroy(s *terraform.State) error {
 		if err != nil {
 			return err
 		}
-		if response.StatusCode() != 404 {
+		if response.StatusCode() != 404 && !response.JSON200.Archived {
 			return fmt.Errorf("Dashboard %s still exists.", rs.Primary.ID)
 		}
 	}
