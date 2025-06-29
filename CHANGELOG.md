@@ -1,3 +1,5 @@
+## 0.9.0 (2025-06-29)
+
 NEW FEATURES:
 
 - Handle `metabase_permissions_graph` `view_data` as either a simple string or a serialized JSON object.
