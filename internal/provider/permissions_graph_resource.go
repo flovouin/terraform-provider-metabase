@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -175,20 +176,8 @@ func makeAccessPermissionsFromDatabaseAccess(ctx context.Context, da *metabase.P
 }
 
 // Makes a single `DatabasePermissions` Terraform object from a Metabase API's response.
-func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId string, dbId string, p metabase.PermissionsGraphDatabasePermissions) (*types.Object, diag.Diagnostics) {
+func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId int, dbId int, p metabase.PermissionsGraphDatabasePermissions, existing *DatabasePermissions) (*types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
-
-	groupIdInt, err := strconv.Atoi(groupId)
-	if err != nil {
-		diags.AddError("Could not convert the group ID to an integer.", err.Error())
-		return nil, diags
-	}
-
-	dbIdInt, err := strconv.Atoi(dbId)
-	if err != nil {
-		diags.AddError("Could not convert the database ID to an integer.", err.Error())
-		return nil, diags
-	}
 
 	createQueries := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
 	if p.CreateQueries != nil {
@@ -207,10 +196,52 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId s
 		return nil, diags
 	}
 
+	var existingViewData *string
+	var existingViewDataIsJson bool
+	if existing != nil {
+		existingViewData = existing.ViewData.ValueStringPointer()
+
+		if existingViewData != nil {
+			var viewDataObject map[string]interface{}
+			err := json.Unmarshal([]byte(*existingViewData), &viewDataObject)
+			existingViewDataIsJson = err == nil
+		}
+	}
+
+	var viewData string
+	if viewDataString, err := p.ViewData.AsPermissionsGraphDatabasePermissionsViewData0(); err == nil {
+		if existingViewData != nil && existingViewDataIsJson {
+			// If the types between the existing model and the API response differ, assuming they have the same meaning.
+			// For example, in some cases, sending { "public": "unrestricted" } will be returned as "unrestricted" by the API.
+			viewData = *existingViewData
+		} else {
+			viewData = string(viewDataString)
+		}
+	} else {
+		viewDataObject, err := p.ViewData.AsPermissionsGraphDatabasePermissionsViewData1()
+		if err != nil {
+			diags.AddError("Unexpected permissions value.", err.Error())
+			return nil, diags
+		}
+
+		viewDataBytes, err := json.Marshal(viewDataObject)
+		if err != nil {
+			diags.AddError("Unexpected error marshaling view data permissions to JSON.", err.Error())
+			return nil, diags
+		}
+
+		// Same reasoning as for the string case above.
+		if existingViewData == nil || existingViewDataIsJson {
+			viewData = string(viewDataBytes)
+		} else {
+			viewData = *existingViewData
+		}
+	}
+
 	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, DatabasePermissions{
-		Group:         types.Int64Value(int64(groupIdInt)),
-		Database:      types.Int64Value(int64(dbIdInt)),
-		ViewData:      types.StringValue(string(p.ViewData)),
+		Group:         types.Int64Value(int64(groupId)),
+		Database:      types.Int64Value(int64(dbId)),
+		ViewData:      types.StringValue(viewData),
 		CreateQueries: types.StringValue(string(createQueries)),
 		Download:      *downloadAccess,
 		DataModel:     *dataModelAccess,
@@ -236,11 +267,24 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 		return diags
 	}
 
+	// Getting the permissions of the current model, to handle weird cases in the Metabase API response.
+	existingModelPermissions := make([]DatabasePermissions, 0, len(data.Permissions.Elements()))
+	diags.Append(data.Permissions.ElementsAs(ctx, &existingModelPermissions, false)...)
+	if diags.HasError() {
+		return diags
+	}
+
 	permissionsList := make([]attr.Value, 0, len(data.Permissions.Elements()))
 	for groupId, dbPermissionsMap := range g.Groups {
 		// Permissions for ignored groups are not stored in the state for clarity.
 		if ignoredGroups[groupId] {
 			continue
+		}
+
+		groupIdInt, err := strconv.Atoi(groupId)
+		if err != nil {
+			diags.AddError("Could not convert the group ID to an integer.", err.Error())
+			return diags
 		}
 
 		for dbId, dbPermissions := range dbPermissionsMap {
@@ -249,7 +293,22 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 				continue
 			}
 
-			permissionsObject, objDiags := makePermissionsObjectFromDatabasePermissions(ctx, groupId, dbId, dbPermissions)
+			dbIdInt, err := strconv.Atoi(dbId)
+			if err != nil {
+				diags.AddError("Could not convert the database ID to an integer.", err.Error())
+				return diags
+			}
+
+			// Get the existing permission in the model.
+			var existingPermission *DatabasePermissions
+			for _, existingPerm := range existingModelPermissions {
+				if existingPerm.Group.Equal(types.Int64Value(int64(groupIdInt))) && existingPerm.Database.Equal(types.Int64Value(int64(dbIdInt))) {
+					existingPermission = &existingPerm
+					break
+				}
+			}
+
+			permissionsObject, objDiags := makePermissionsObjectFromDatabasePermissions(ctx, groupIdInt, dbIdInt, dbPermissions, existingPermission)
 			diags.Append(objDiags...)
 			if diags.HasError() {
 				return diags
@@ -350,7 +409,19 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 			return nil, diags
 		}
 
-		viewData := metabase.PermissionsGraphDatabasePermissionsViewData(p.ViewData.ValueString())
+		viewDataString := p.ViewData.ValueString()
+		var viewData metabase.PermissionsGraphDatabasePermissions_ViewData
+		var viewDataObject map[string]interface{}
+		// Tries to parse the string as JSON.
+		if err := json.Unmarshal([]byte(viewDataString), &viewDataObject); err == nil {
+			viewData.FromPermissionsGraphDatabasePermissionsViewData1(
+				metabase.PermissionsGraphDatabasePermissionsViewData1(viewDataObject),
+			)
+		} else {
+			viewData.FromPermissionsGraphDatabasePermissionsViewData0(
+				metabase.PermissionsGraphDatabasePermissionsViewData0(viewDataString),
+			)
+		}
 
 		createQueries := valueApproximateStringOrNull[metabase.PermissionsGraphDatabasePermissionsCreateQueries](p.CreateQueries)
 		if createQueries == nil {

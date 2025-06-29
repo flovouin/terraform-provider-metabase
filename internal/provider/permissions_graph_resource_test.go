@@ -8,7 +8,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 )
 
-func testAccPermissionsGraphResource(createQueries string) string {
+func testAccPermissionsGraphResource(createQueries, viewData string) string {
 	return fmt.Sprintf(`
 import {
   to = metabase_permissions_graph.graph
@@ -25,12 +25,13 @@ resource "metabase_permissions_graph" "graph" {
       download = {
         schemas = "full"
       }
-      view_data = "unrestricted"
+      view_data = %s
       create_queries = "%s"
     },
   ]
 }
 	`,
+		viewData,
 		createQueries,
 	)
 }
@@ -40,14 +41,30 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		Steps: []resource.TestStep{
 			{
-				Config: providerApiKeyConfig + testAccPermissionsGraphResource(string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesQueryBuilderAndNative)),
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesQueryBuilderAndNative),
+					"\"unrestricted\"",
+				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("metabase_permissions_graph.graph", "advanced_permissions", "false"),
 					resource.TestCheckResourceAttrSet("metabase_permissions_graph.graph", "revision"),
 				),
 			},
 			{
-				Config: providerApiKeyConfig + testAccPermissionsGraphResource(string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo)),
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo),
+					"\"unrestricted\"",
+				),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("metabase_permissions_graph.graph", "advanced_permissions", "false"),
+					resource.TestCheckResourceAttrSet("metabase_permissions_graph.graph", "revision"),
+				),
+			},
+			{
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo),
+					"jsonencode({ public = \"unrestricted\" })",
+				),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("metabase_permissions_graph.graph", "advanced_permissions", "false"),
 					resource.TestCheckResourceAttrSet("metabase_permissions_graph.graph", "revision"),

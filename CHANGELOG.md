@@ -1,3 +1,7 @@
+NEW FEATURES:
+
+- Handle `metabase_permissions_graph` `view_data` as either a simple string or a serialized JSON object.
+
 ## 0.8.1 (2024-09-22)
 
 BUG FIXES:

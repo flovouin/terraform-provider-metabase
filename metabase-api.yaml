@@ -1265,14 +1265,20 @@ components:
       description: The permissions related to a single database.
       properties:
         view-data:
-          type: string
-          description: The permission definition for viewing data.
-          enum:
-            - unrestricted
-            - "no"
-            - legacy-no-self-service
-            - blocked
-            - impersonated
+          oneOf:
+            - type: string
+              title: ViewDataPermission
+              description: The permission definition for viewing data.
+              enum:
+                - unrestricted
+                - "no"
+                - legacy-no-self-service
+                - blocked
+                - impersonated
+            - type: object
+              title: ViewDataObject
+              additionalProperties: true
+              description: An object containing granular permissions.
         create-queries:
           type: string
           description: The permission definition for creating queries.
