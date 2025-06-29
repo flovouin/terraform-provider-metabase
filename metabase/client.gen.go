@@ -72,13 +72,13 @@ const (
 	PermissionsGraphDatabasePermissionsDetailsYes PermissionsGraphDatabasePermissionsDetails = "yes"
 )
 
-// Defines values for PermissionsGraphDatabasePermissionsViewData.
+// Defines values for PermissionsGraphDatabasePermissionsViewData0.
 const (
-	Blocked             PermissionsGraphDatabasePermissionsViewData = "blocked"
-	Impersonated        PermissionsGraphDatabasePermissionsViewData = "impersonated"
-	LegacyNoSelfService PermissionsGraphDatabasePermissionsViewData = "legacy-no-self-service"
-	No                  PermissionsGraphDatabasePermissionsViewData = "no"
-	Unrestricted        PermissionsGraphDatabasePermissionsViewData = "unrestricted"
+	Blocked             PermissionsGraphDatabasePermissionsViewData0 = "blocked"
+	Impersonated        PermissionsGraphDatabasePermissionsViewData0 = "impersonated"
+	LegacyNoSelfService PermissionsGraphDatabasePermissionsViewData0 = "legacy-no-self-service"
+	No                  PermissionsGraphDatabasePermissionsViewData0 = "no"
+	Unrestricted        PermissionsGraphDatabasePermissionsViewData0 = "unrestricted"
 )
 
 // Defines values for ListDatabasesParamsInclude.
@@ -467,10 +467,8 @@ type PermissionsGraphDatabasePermissions struct {
 	Details *PermissionsGraphDatabasePermissionsDetails `json:"details,omitempty"`
 
 	// Download The permissions for a single access type.
-	Download *PermissionsGraphDatabaseAccess `json:"download,omitempty"`
-
-	// ViewData The permission definition for viewing data.
-	ViewData PermissionsGraphDatabasePermissionsViewData `json:"view-data"`
+	Download *PermissionsGraphDatabaseAccess              `json:"download,omitempty"`
+	ViewData PermissionsGraphDatabasePermissions_ViewData `json:"view-data"`
 }
 
 // PermissionsGraphDatabasePermissionsCreateQueries The permission definition for creating queries.
@@ -479,8 +477,16 @@ type PermissionsGraphDatabasePermissionsCreateQueries string
 // PermissionsGraphDatabasePermissionsDetails The permission definition for accessing details.
 type PermissionsGraphDatabasePermissionsDetails string
 
-// PermissionsGraphDatabasePermissionsViewData The permission definition for viewing data.
-type PermissionsGraphDatabasePermissionsViewData string
+// PermissionsGraphDatabasePermissionsViewData0 The permission definition for viewing data.
+type PermissionsGraphDatabasePermissionsViewData0 string
+
+// PermissionsGraphDatabasePermissionsViewData1 An object containing granular permissions.
+type PermissionsGraphDatabasePermissionsViewData1 map[string]interface{}
+
+// PermissionsGraphDatabasePermissions_ViewData defines model for PermissionsGraphDatabasePermissions.ViewData.
+type PermissionsGraphDatabasePermissions_ViewData struct {
+	union json.RawMessage
+}
 
 // PermissionsGraphDatabasePermissionsMap A map where keys are database IDs and values are permissions related to the database.
 type PermissionsGraphDatabasePermissionsMap map[string]PermissionsGraphDatabasePermissions
@@ -1269,6 +1275,68 @@ func (t PermissionsGraphDatabaseAccess_Schemas) MarshalJSON() ([]byte, error) {
 }
 
 func (t *PermissionsGraphDatabaseAccess_Schemas) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPermissionsGraphDatabasePermissionsViewData0 returns the union data inside the PermissionsGraphDatabasePermissions_ViewData as a PermissionsGraphDatabasePermissionsViewData0
+func (t PermissionsGraphDatabasePermissions_ViewData) AsPermissionsGraphDatabasePermissionsViewData0() (PermissionsGraphDatabasePermissionsViewData0, error) {
+	var body PermissionsGraphDatabasePermissionsViewData0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPermissionsGraphDatabasePermissionsViewData0 overwrites any union data inside the PermissionsGraphDatabasePermissions_ViewData as the provided PermissionsGraphDatabasePermissionsViewData0
+func (t *PermissionsGraphDatabasePermissions_ViewData) FromPermissionsGraphDatabasePermissionsViewData0(v PermissionsGraphDatabasePermissionsViewData0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePermissionsGraphDatabasePermissionsViewData0 performs a merge with any union data inside the PermissionsGraphDatabasePermissions_ViewData, using the provided PermissionsGraphDatabasePermissionsViewData0
+func (t *PermissionsGraphDatabasePermissions_ViewData) MergePermissionsGraphDatabasePermissionsViewData0(v PermissionsGraphDatabasePermissionsViewData0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPermissionsGraphDatabasePermissionsViewData1 returns the union data inside the PermissionsGraphDatabasePermissions_ViewData as a PermissionsGraphDatabasePermissionsViewData1
+func (t PermissionsGraphDatabasePermissions_ViewData) AsPermissionsGraphDatabasePermissionsViewData1() (PermissionsGraphDatabasePermissionsViewData1, error) {
+	var body PermissionsGraphDatabasePermissionsViewData1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPermissionsGraphDatabasePermissionsViewData1 overwrites any union data inside the PermissionsGraphDatabasePermissions_ViewData as the provided PermissionsGraphDatabasePermissionsViewData1
+func (t *PermissionsGraphDatabasePermissions_ViewData) FromPermissionsGraphDatabasePermissionsViewData1(v PermissionsGraphDatabasePermissionsViewData1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePermissionsGraphDatabasePermissionsViewData1 performs a merge with any union data inside the PermissionsGraphDatabasePermissions_ViewData, using the provided PermissionsGraphDatabasePermissionsViewData1
+func (t *PermissionsGraphDatabasePermissions_ViewData) MergePermissionsGraphDatabasePermissionsViewData1(v PermissionsGraphDatabasePermissionsViewData1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JsonMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PermissionsGraphDatabasePermissions_ViewData) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PermissionsGraphDatabasePermissions_ViewData) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
