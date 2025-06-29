@@ -36,29 +36,29 @@ var collectionRegexp = regexp.MustCompile("\\\"!!(tonumber\\(metabase_collection
 
 // Marshals an `importedCard` as a placeholder which references the corresponding Terraform resource.
 func (c *importedCard) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"!!metabase_card.%s.id!!\"", c.Slug)), nil
+	return fmt.Appendf(nil, "\"!!metabase_card.%s.id!!\"", c.Slug), nil
 }
 
 // Marshals an `importedField` as a placeholder which references the corresponding Terraform table data source, and
 // accesses the `field` attribute for this `metabase_table`.
 func (f *importedField) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"!!metabase_table.%s.fields[%s]!!\"", f.ParentTable.Slug, f.Field.Name)), nil
+	return fmt.Appendf(nil, "\"!!metabase_table.%s.fields[%s]!!\"", f.ParentTable.Slug, f.Field.Name), nil
 }
 
 // Marshals an `importedTable` as a placeholder which references the corresponding Terraform data source.
 func (t *importedTable) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"!!metabase_table.%s.id!!\"", t.Slug)), nil
+	return fmt.Appendf(nil, "\"!!metabase_table.%s.id!!\"", t.Slug), nil
 }
 
 // Marshals an `importedDatabase` as a placeholder which references the corresponding Terraform resource.
 func (d *importedDatabase) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"!!metabase_database.%s.id!!\"", d.Slug)), nil
+	return fmt.Appendf(nil, "\"!!metabase_database.%s.id!!\"", d.Slug), nil
 }
 
 // Marshals an `importedCollection` as a placeholder which references the corresponding Terraform resource.
 // Only collections with an integer ID are supported.
 func (c *importedCollection) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"!!tonumber(metabase_collection.%s.id)!!\"", c.Slug)), nil
+	return fmt.Appendf(nil, "\"!!tonumber(metabase_collection.%s.id)!!\"", c.Slug), nil
 }
 
 // Replaces all placeholders introduced by marshalling `imported*` structures to JSON.

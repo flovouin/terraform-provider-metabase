@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
@@ -81,10 +82,8 @@ func checkMetabaseResponse(r metabase.MetabaseResponse, err error, statusCodes [
 		}
 	}
 
-	for _, s := range statusCodes {
-		if r.StatusCode() == s {
-			return diag.Diagnostics{}
-		}
+	if slices.Contains(statusCodes, r.StatusCode()) {
+		return diag.Diagnostics{}
 	}
 
 	return diag.Diagnostics{

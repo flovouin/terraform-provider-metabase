@@ -202,7 +202,7 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 		existingViewData = existing.ViewData.ValueStringPointer()
 
 		if existingViewData != nil {
-			var viewDataObject map[string]interface{}
+			var viewDataObject map[string]any
 			err := json.Unmarshal([]byte(*existingViewData), &viewDataObject)
 			existingViewDataIsJson = err == nil
 		}
@@ -411,7 +411,7 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 
 		viewDataString := p.ViewData.ValueString()
 		var viewData metabase.PermissionsGraphDatabasePermissions_ViewData
-		var viewDataObject map[string]interface{}
+		var viewDataObject map[string]any
 		// Tries to parse the string as JSON.
 		if err := json.Unmarshal([]byte(viewDataString), &viewDataObject); err == nil {
 			viewData.FromPermissionsGraphDatabasePermissionsViewData1(

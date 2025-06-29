@@ -76,7 +76,7 @@ Because the content of a card is complex and can vary a lot between cards, the f
 }
 
 // Parses the (integer) ID of the card from a raw Card JSON object returned by the Metabase API.
-func getIdFromRawCard(card map[string]interface{}, strResp string) (types.Int64, diag.Diagnostics) {
+func getIdFromRawCard(card map[string]any, strResp string) (types.Int64, diag.Diagnostics) {
 	idAny, ok := card["id"]
 	if !ok {
 		return types.Int64Unknown(), diag.Diagnostics{
@@ -98,12 +98,32 @@ func getIdFromRawCard(card map[string]interface{}, strResp string) (types.Int64,
 	return types.Int64Value(int64(idFloat)), diag.Diagnostics{}
 }
 
+// Removes the `dataset_query.query.aggregation-idents` and `dataset_query.query.breakout-idents` attributes from the
+// card if they are not present in the existing card.
+func cleanCardQuery(card map[string]any, existingCard map[string]any) {
+	if existingCard == nil {
+		return
+	}
+
+	if _, ok := existingCard["dataset_query"].(map[string]any)["query"].(map[string]any)["aggregation-idents"]; !ok {
+		if query, ok := card["dataset_query"].(map[string]any)["query"].(map[string]any); ok {
+			delete(query, "aggregation-idents")
+		}
+	}
+
+	if _, ok := existingCard["dataset_query"].(map[string]any)["query"].(map[string]any)["breakout-idents"]; !ok {
+		if query, ok := card["dataset_query"].(map[string]any)["query"].(map[string]any); ok {
+			delete(query, "breakout-idents")
+		}
+	}
+}
+
 // Updates the given `CardResourceModel` from the `Card` returned by the Metabase API.
 func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	// Unmarshalling to a map such that we can perform low-level JSON manipulation on the card.
-	var card map[string]interface{}
+	var card map[string]any
 	err := json.Unmarshal(cardBytes, &card)
 	if err != nil {
 		diags.AddError("Could not deserialize card response from the Metabase API.", err.Error())
@@ -126,7 +146,7 @@ func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Di
 	}
 
 	// Unmarshals the card from the plan or state, i.e. the known and expected configuration for the card.
-	var existingCard map[string]interface{}
+	var existingCard map[string]any
 	if !data.Json.IsNull() {
 		err := json.Unmarshal([]byte(data.Json.ValueString()), &existingCard)
 		if err != nil {
@@ -134,6 +154,8 @@ func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Di
 			return diags
 		}
 	}
+
+	cleanCardQuery(card, existingCard)
 
 	// If the existing card is different from the response from the API, updates the JSON string by remarshalling the
 	// "cleaned" response to a string. This should only happen:

@@ -10,9 +10,9 @@ import (
 // Searches a JSON object or array recursively to find references to `Field` Metabase objects. The references are
 // replaced by an `importedField`, which is marshalled as a reference to the corresponding Terraform table data source
 // instead.
-func (ic *ImportContext) insertFieldReferencesRecursively(ctx context.Context, obj interface{}) error {
+func (ic *ImportContext) insertFieldReferencesRecursively(ctx context.Context, obj any) error {
 	switch typedObj := obj.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for _, v := range typedObj {
 			err := ic.insertFieldReferencesRecursively(ctx, v)
 			if err != nil {
@@ -21,7 +21,7 @@ func (ic *ImportContext) insertFieldReferencesRecursively(ctx context.Context, o
 		}
 
 		return nil
-	case []interface{}:
+	case []any:
 		// A reference to a field is an array with the form `["field", <fieldId>, ...]`.
 		// This first tries to find such a reference in the array. If it does not, the array is then searched recursively.
 		inserted, err := ic.tryInsertFieldReference(ctx, typedObj)
@@ -46,7 +46,7 @@ func (ic *ImportContext) insertFieldReferencesRecursively(ctx context.Context, o
 // Tries to replace the reference to a field ID by the corresponding `importedField`.
 // If the given array is not a reference to a field, this function returns `false`. If the array is a reference to a
 // field, but the field cannot be imported, the function will return an error.
-func (ic *ImportContext) tryInsertFieldReference(ctx context.Context, array []interface{}) (bool, error) {
+func (ic *ImportContext) tryInsertFieldReference(ctx context.Context, array []any) (bool, error) {
 	if len(array) < 2 {
 		return false, nil
 	}

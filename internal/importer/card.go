@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"text/template"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
@@ -27,9 +28,9 @@ type cardTemplateData struct {
 // A card may contain `source-table` attributes with a value which is a (integer) table ID.
 // For each of those attributes, the table is looked up, imported, and referenced by replacing the value with an
 // `importedTable`.
-func (ic *ImportContext) insertCardTableReferenceRecursively(ctx context.Context, obj interface{}) error {
+func (ic *ImportContext) insertCardTableReferenceRecursively(ctx context.Context, obj any) error {
 	switch typedObj := obj.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		for k, i := range typedObj {
 			if k == metabase.SourceTableAttribute {
 				tableIdFloat, ok := i.(float64)
@@ -53,7 +54,7 @@ func (ic *ImportContext) insertCardTableReferenceRecursively(ctx context.Context
 		}
 
 		return nil
-	case []interface{}:
+	case []any:
 		for _, item := range typedObj {
 			err := ic.insertCardTableReferenceRecursively(ctx, item)
 			if err != nil {
@@ -69,13 +70,13 @@ func (ic *ImportContext) insertCardTableReferenceRecursively(ctx context.Context
 
 // Replaces database integer IDs by references to Terraform `metabase_database` resources.
 // In a card, the database is usually referenced by the query in `dataset_query.database`.
-func (ic *ImportContext) insertCardDatabaseReference(ctx context.Context, card map[string]interface{}) error {
+func (ic *ImportContext) insertCardDatabaseReference(ctx context.Context, card map[string]any) error {
 	queryAny, ok := card[metabase.DatasetQueryAttribute]
 	if !ok {
 		return errors.New("unable to find database_query field in card")
 	}
 
-	queryMap, ok := queryAny.(map[string]interface{})
+	queryMap, ok := queryAny.(map[string]any)
 	if !ok {
 		return errors.New("unable to unmarshal database_query field as map")
 	}
@@ -103,13 +104,13 @@ func (ic *ImportContext) insertCardDatabaseReference(ctx context.Context, card m
 // Replaces the references to fields by `importedField`s in a card's column settings.
 // This is especially tricky because the referenced IDs have been marshalled twice and are actually part of more complex
 // JSON strings used as keys in the column settings.
-func (ic *ImportContext) insertFieldReferenceInCardColumnSettings(ctx context.Context, card map[string]interface{}) error {
+func (ic *ImportContext) insertFieldReferenceInCardColumnSettings(ctx context.Context, card map[string]any) error {
 	visualizationSettingsAny, ok := card[metabase.VisualizationSettingsAttribute]
 	if !ok {
 		return nil
 	}
 
-	visualizationSettings, ok := visualizationSettingsAny.(map[string]interface{})
+	visualizationSettings, ok := visualizationSettingsAny.(map[string]any)
 	if !ok {
 		return errors.New("unable to unmarshal visualization_settings to a JSON object")
 	}
@@ -119,18 +120,18 @@ func (ic *ImportContext) insertFieldReferenceInCardColumnSettings(ctx context.Co
 		return nil
 	}
 
-	columnSettings, ok := columnSettingsAny.(map[string]interface{})
+	columnSettings, ok := columnSettingsAny.(map[string]any)
 	if !ok {
 		return errors.New("unable to unmarshal column_settings to a JSON object")
 	}
 
 	// The references converted to `importedField`s will be added after iterating over the column settings, to avoid
 	// iterating over the new entries.
-	entriesToAdd := make(map[string]interface{}, 0)
+	entriesToAdd := make(map[string]any, 0)
 
 	for k, v := range columnSettings {
 		// The key is itself an array serialized as JSON.
-		var keyArray []interface{}
+		var keyArray []any
 		err := json.Unmarshal([]byte(k), &keyArray)
 		if err != nil || len(keyArray) < 2 {
 			continue
@@ -141,7 +142,7 @@ func (ic *ImportContext) insertFieldReferenceInCardColumnSettings(ctx context.Co
 			continue
 		}
 
-		fieldArrayElement, ok := keyArray[1].([]interface{})
+		fieldArrayElement, ok := keyArray[1].([]any)
 		if !ok {
 			continue
 		}
@@ -164,15 +165,13 @@ func (ic *ImportContext) insertFieldReferenceInCardColumnSettings(ctx context.Co
 		}
 	}
 
-	for k, v := range entriesToAdd {
-		columnSettings[k] = v
-	}
+	maps.Copy(columnSettings, entriesToAdd)
 
 	return nil
 }
 
 // Replaces the reference to the parent collection in a card.
-func (ic *ImportContext) insertCardCollectionReference(ctx context.Context, card map[string]interface{}) error {
+func (ic *ImportContext) insertCardCollectionReference(ctx context.Context, card map[string]any) error {
 	collectionIdAny, ok := card[metabase.CollectionIdAttribute]
 	if !ok {
 		return errors.New("unable to find collection_id field in card")
@@ -202,7 +201,7 @@ func (ic *ImportContext) insertCardCollectionReference(ctx context.Context, card
 // Converts a raw JSON card to its HCL representation, including references to other Terraform resources and data
 // sources. Only known attributes are kept.
 func (ic *ImportContext) makeCardJson(ctx context.Context, card []byte) (*string, error) {
-	var cardMap map[string]interface{}
+	var cardMap map[string]any
 	err := json.Unmarshal(card, &cardMap)
 	if err != nil {
 		return nil, err

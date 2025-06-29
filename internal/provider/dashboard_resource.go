@@ -104,14 +104,14 @@ Although a dashboard object is even more complex than a card (question), basic p
 
 // Returns a raw unmarshalled parameters list from its JSON representation stored in Terraform.
 // If the JSON string is null, an empty list is returned.
-func makeOpaqueParametersFromTerraform(parametersJson types.String) ([]interface{}, diag.Diagnostics) {
+func makeOpaqueParametersFromTerraform(parametersJson types.String) ([]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	if parametersJson.IsNull() {
-		return []interface{}{}, diags
+		return []any{}, diags
 	}
 
-	var parameters []interface{}
+	var parameters []any
 	err := json.Unmarshal([]byte(parametersJson.ValueString()), &parameters)
 	if err != nil {
 		diags.AddError("Failed to deserialize dashboard parameters list.", err.Error())
@@ -122,7 +122,7 @@ func makeOpaqueParametersFromTerraform(parametersJson types.String) ([]interface
 }
 
 // Returns a raw unmarshalled parameters list and the corresponding JSON string from a list of typed parameters.
-func makeOpaqueParametersFromTyped(parameters []metabase.DashboardParameter) ([]interface{}, *string, diag.Diagnostics) {
+func makeOpaqueParametersFromTyped(parameters []metabase.DashboardParameter) ([]any, *string, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	parametersBytes, err := json.Marshal(parameters)
@@ -131,7 +131,7 @@ func makeOpaqueParametersFromTyped(parameters []metabase.DashboardParameter) ([]
 		return nil, nil, diags
 	}
 
-	var opaqueParameters []interface{}
+	var opaqueParameters []any
 	err = json.Unmarshal(parametersBytes, &opaqueParameters)
 	if err != nil {
 		diags.AddError("Failed to deserialize dashboard parameters list.", err.Error())
@@ -187,7 +187,7 @@ func updateModelFromDashboardAndRawBody(d metabase.Dashboard, body []byte, data 
 func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	var jsonResponse map[string]interface{}
+	var jsonResponse map[string]any
 	err := json.Unmarshal(bytes, &jsonResponse)
 	if err != nil {
 		diags.AddError("Unable to parse get dashboard response.", err.Error())
@@ -201,7 +201,7 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Dia
 	}
 
 	// Cards must be cast as a list of `interface{}` and not directly a list of maps.
-	dashcards, ok := dashcardsAny.([]interface{})
+	dashcards, ok := dashcardsAny.([]any)
 	if !ok {
 		diags.AddError("Unable to parse ordered_cards as a list from get dashboard response.", string(bytes))
 		return diags
@@ -209,7 +209,7 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Dia
 
 	// Parsing each card individually to remove unhandled attributes within them.
 	for _, c := range dashcards {
-		card, ok := c.(map[string]interface{})
+		card, ok := c.(map[string]any)
 		if !ok {
 			diags.AddError("Could not parse dashcard as object.", string(bytes))
 			return diags
@@ -225,7 +225,7 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Dia
 	}
 
 	// Unmarshalling `cards_json` from the Terraform state/plan such that it can be compared to Metabase's response.
-	var existingCards []interface{}
+	var existingCards []any
 	if !data.CardsJson.IsNull() {
 		err = json.Unmarshal([]byte(data.CardsJson.ValueString()), &existingCards)
 		if err != nil {
@@ -271,12 +271,12 @@ func makeParametersFromModel(ctx context.Context, model types.String) (*[]metaba
 
 // Constructs the list of dashboard cards as a type-less list of maps that can be serialized to JSON.
 // The IDs of the cards are set to negative values, which will cause the Metabase API to create new cards (and replace the existing ones).
-func makeCardsFromModel(model types.String) ([]map[string]interface{}, diag.Diagnostics) {
+func makeCardsFromModel(model types.String) ([]map[string]any, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	cardsJson := model.ValueString()
 
-	var cards []map[string]interface{}
+	var cards []map[string]any
 	err := json.Unmarshal([]byte(cardsJson), &cards)
 	if err != nil {
 		diags.AddError("Unable to parse cards JSON.", err.Error())
@@ -353,7 +353,7 @@ func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponse
 		return nil, diags
 	}
 
-	updatePayload := map[string]interface{}{
+	updatePayload := map[string]any{
 		"name":                valueStringOrNull(data.Name),
 		"description":         valueStringOrNull(data.Description),
 		"cache_ttl":           valueInt64OrNull(data.CacheTtl),
