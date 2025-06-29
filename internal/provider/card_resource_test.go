@@ -10,7 +10,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-func testAccCardResource(name string, displayName string) string {
+func testAccCardResource(name string, displayName string, queryOptions string) string {
 	// This references the sample database, which should always have ID 1.
 	return fmt.Sprintf(`
 resource "metabase_card" "%s" {
@@ -22,6 +22,7 @@ resource "metabase_card" "%s" {
     cache_ttl           = null
     query_type          = "query"
     dataset_query = {
+      %s
       database = 1
       type     = "query"
       query = {
@@ -37,6 +38,7 @@ resource "metabase_card" "%s" {
 `,
 		name,
 		displayName,
+		queryOptions,
 	)
 }
 
@@ -93,7 +95,7 @@ func TestAccCardResource(t *testing.T) {
 		CheckDestroy:             testAccCheckCardDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: providerConfig + testAccCardResource("test", "🪪"),
+				Config: providerConfig + testAccCardResource("test", "🪪", ""),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckCardExists("metabase_card.test"),
 					resource.TestCheckResourceAttrSet("metabase_card.test", "id"),
@@ -105,7 +107,14 @@ func TestAccCardResource(t *testing.T) {
 				ImportState:  true,
 			},
 			{
-				Config: providerConfig + testAccCardResource("test", "💳"),
+				Config: providerConfig + testAccCardResource("test", "💳", ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttrSet("metabase_card.test", "id"),
+					resource.TestCheckResourceAttrSet("metabase_card.test", "json"),
+				),
+			},
+			{
+				Config: providerConfig + testAccCardResource("test", "💳", "breakout-idents = { 0 = \"ABCD\" }"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("metabase_card.test", "id"),
 					resource.TestCheckResourceAttrSet("metabase_card.test", "json"),
