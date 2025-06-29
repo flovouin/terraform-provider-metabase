@@ -190,7 +190,7 @@ func makeCustomDetailsFromResponseBody(ctx context.Context, db metabase.Database
 	}
 
 	var detailsJson string
-	var existingDetails map[string]interface{}
+	var existingDetails map[string]any
 	redactedAttributesValue := types.SetNull(types.StringType)
 	if !data.CustomDetails.IsNull() {
 		var cd CustomDetails
@@ -336,7 +336,7 @@ func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceMod
 
 		engine = metabase.DatabaseEngine(cd.Engine.ValueString())
 
-		var rawDetails map[string]interface{}
+		var rawDetails map[string]any
 		err := json.Unmarshal([]byte(cd.DetailsJson.ValueString()), &rawDetails)
 		if err != nil {
 			diags.AddError("Unable to deserialize details_json as an object.", err.Error())

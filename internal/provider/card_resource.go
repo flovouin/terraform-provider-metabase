@@ -76,7 +76,7 @@ Because the content of a card is complex and can vary a lot between cards, the f
 }
 
 // Parses the (integer) ID of the card from a raw Card JSON object returned by the Metabase API.
-func getIdFromRawCard(card map[string]interface{}, strResp string) (types.Int64, diag.Diagnostics) {
+func getIdFromRawCard(card map[string]any, strResp string) (types.Int64, diag.Diagnostics) {
 	idAny, ok := card["id"]
 	if !ok {
 		return types.Int64Unknown(), diag.Diagnostics{
@@ -123,7 +123,7 @@ func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Di
 	var diags diag.Diagnostics
 
 	// Unmarshalling to a map such that we can perform low-level JSON manipulation on the card.
-	var card map[string]interface{}
+	var card map[string]any
 	err := json.Unmarshal(cardBytes, &card)
 	if err != nil {
 		diags.AddError("Could not deserialize card response from the Metabase API.", err.Error())
@@ -146,7 +146,7 @@ func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Di
 	}
 
 	// Unmarshals the card from the plan or state, i.e. the known and expected configuration for the card.
-	var existingCard map[string]interface{}
+	var existingCard map[string]any
 	if !data.Json.IsNull() {
 		err := json.Unmarshal([]byte(data.Json.ValueString()), &existingCard)
 		if err != nil {

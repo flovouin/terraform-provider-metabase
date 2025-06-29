@@ -38,7 +38,7 @@ type dashboardTemplateData struct {
 }
 
 // Replaces the reference to a card in a single "dashcard" by an `importedCard`.
-func (ic *ImportContext) insertCardReference(ctx context.Context, obj map[string]interface{}) error {
+func (ic *ImportContext) insertCardReference(ctx context.Context, obj map[string]any) error {
 	cardIdAny, ok := obj[metabase.CardIdAttribute]
 	if !ok {
 		return errors.New("unable to find card_id in object")
@@ -66,7 +66,7 @@ func (ic *ImportContext) insertCardReference(ctx context.Context, obj map[string
 }
 
 // Replaces all references to cards and fields in a "dashcard" by their `imported*` counterpart.
-func (ic *ImportContext) insertReferencesInCard(ctx context.Context, card map[string]interface{}) error {
+func (ic *ImportContext) insertReferencesInCard(ctx context.Context, card map[string]any) error {
 	// The dashcard has a `card_id` at its root that should be replaced.
 	err := ic.insertCardReference(ctx, card)
 	if err != nil {
@@ -79,13 +79,13 @@ func (ic *ImportContext) insertReferencesInCard(ctx context.Context, card map[st
 		return nil
 	}
 
-	mappings, ok := mappingsAny.([]interface{})
+	mappings, ok := mappingsAny.([]any)
 	if !ok {
 		return errors.New("unable to convert parameter_mappings to array in dashboard card")
 	}
 
 	for _, m := range mappings {
-		mapping, ok := m.(map[string]interface{})
+		mapping, ok := m.(map[string]any)
 		if !ok {
 			return errors.New("unable to convert parameter mapping to object in dashboard card")
 		}
@@ -102,7 +102,7 @@ func (ic *ImportContext) insertReferencesInCard(ctx context.Context, card map[st
 			continue
 		}
 
-		target, ok := targetAny.([]interface{})
+		target, ok := targetAny.([]any)
 		if !ok {
 			// For all we know, `target` might have a different structure.
 			continue
@@ -126,14 +126,14 @@ func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []meta
 	}
 
 	// Using the base unmarshalling without typing actually makes it easier to replace card IDs with `importedCard`s.
-	var cardsUntyped []interface{}
+	var cardsUntyped []any
 	err = json.Unmarshal(cardsJson, &cardsUntyped)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, c := range cardsUntyped {
-		card, ok := c.(map[string]interface{})
+		card, ok := c.(map[string]any)
 		if !ok {
 			return nil, errors.New("unable to parse dashboard card")
 		}
