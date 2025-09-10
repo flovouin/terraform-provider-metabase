@@ -51,7 +51,6 @@ func (r *ContentTranslationResource) uploadContentTranslationDictionary(ctx cont
 	// Create multipart form data for file upload
 	body := &strings.Builder{}
 	writer := multipart.NewWriter(body)
-
 	// Create form file field
 	fileWriter, err := writer.CreateFormFile("file", "translations.csv")
 	if err != nil {
