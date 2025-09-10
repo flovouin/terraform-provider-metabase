@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -66,7 +67,31 @@ func testAccCheckContentTranslationDestroy(s *terraform.State) error {
 	return nil
 }
 
+// isEnterpriseEditionAvailable checks if the Metabase instance has Enterprise Edition features
+func isEnterpriseEditionAvailable() bool {
+	// Allow forcing tests with environment variable
+	if os.Getenv("TF_ACC_CONTENT_TRANSLATION") == "true" {
+		return true
+	}
+
+	// Try to access the content translation endpoint
+	response, err := testAccMetabaseClient.GetContentTranslationCsvWithResponse(context.Background())
+	if err != nil {
+		return false
+	}
+
+	// If we get a 403, it means the endpoint exists but we don't have Enterprise Edition
+	// If we get a 404, it means the endpoint doesn't exist (Community Edition)
+	// If we get 200, it means we have Enterprise Edition
+	return response.StatusCode() == 200 || response.StatusCode() == 403
+}
+
 func TestAccContentTranslationResource(t *testing.T) {
+	// Skip test if Enterprise Edition features are not available
+	if !isEnterpriseEditionAvailable() {
+		t.Skip("Skipping content translation test - Enterprise Edition required")
+	}
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckContentTranslationDestroy,
@@ -128,6 +153,11 @@ it,Card,Carta`),
 }
 
 func TestAccContentTranslationResource_EmptyDictionary(t *testing.T) {
+	// Skip test if Enterprise Edition features are not available
+	if !isEnterpriseEditionAvailable() {
+		t.Skip("Skipping content translation test - Enterprise Edition required")
+	}
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckContentTranslationDestroy,
