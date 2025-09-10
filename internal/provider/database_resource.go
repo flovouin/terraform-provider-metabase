@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"reflect"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.

@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     metabase = {
-      source = "registry.terraform.io/flovouin/metabase"
+      source = "registry.terraform.io/zerogachis/metabase"
     }
   }
 }

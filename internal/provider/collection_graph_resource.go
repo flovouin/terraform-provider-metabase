@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.

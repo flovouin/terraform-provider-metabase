@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // A resource that can be used as the base for any Metabase resource. It references a client to make requests to the

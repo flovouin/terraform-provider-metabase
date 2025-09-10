@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/flovouin/terraform-provider-metabase/internal/planmodifiers"
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -16,6 +14,8 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/zerogachis/terraform-provider-metabase/internal/planmodifiers"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.

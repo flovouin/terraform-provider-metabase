@@ -1,4 +1,4 @@
-module github.com/flovouin/terraform-provider-metabase
+module github.com/zerogachis/terraform-provider-metabase
 
 go 1.23.0
 

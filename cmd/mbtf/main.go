@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/flovouin/terraform-provider-metabase/internal/importer"
-	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/zerogachis/terraform-provider-metabase/internal/importer"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Initializes the Metabase API client using the configuration.

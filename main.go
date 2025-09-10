@@ -5,8 +5,8 @@ import (
 	"flag"
 	"log"
 
-	"github.com/flovouin/terraform-provider-metabase/internal/provider"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/zerogachis/terraform-provider-metabase/internal/provider"
 )
 
 //go:generate go run github.com/deepmap/oapi-codegen/cmd/oapi-codegen --config oapi-codegen.yaml metabase-api.yaml
@@ -24,7 +24,7 @@ func main() {
 	flag.Parse()
 
 	opts := providerserver.ServeOpts{
-		Address: "registry.terraform.io/flovouin/metabase",
+		Address: "registry.terraform.io/zerogachis/metabase",
 		Debug:   debug,
 	}
 

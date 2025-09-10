@@ -2,7 +2,7 @@
 
 This repository contains the source code for the [Metabase](https://www.metabase.com/) Terraform provider.
 
-For how to use the provider in a Terraform project, please refer to the [Terraform registry documentation](https://registry.terraform.io/providers/flovouin/metabase/latest/docs).
+For how to use the provider in a Terraform project, please refer to the [Terraform registry documentation](https://registry.terraform.io/providers/zerogachis/metabase/latest/docs).
 
 ## Metabase version compatibility
 

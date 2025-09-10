@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -14,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.

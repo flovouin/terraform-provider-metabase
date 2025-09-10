@@ -3,11 +3,11 @@ package provider
 import (
 	"context"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // A predicate whether a table returned by the Metabase API matches some criteria.

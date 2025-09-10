@@ -1,7 +1,7 @@
 package importer
 
 import (
-	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // A card imported from the Metabase API and converted to HCL.

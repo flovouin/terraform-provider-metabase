@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 func testAccPermissionsGraphResource(createQueries, viewData string) string {

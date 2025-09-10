@@ -6,13 +6,13 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // The list of JSON attributes in a Card object that should be persisted in the state. Those are also the attributes

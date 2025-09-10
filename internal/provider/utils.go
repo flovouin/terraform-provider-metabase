@@ -6,11 +6,11 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Converts a possibly `nil` string to a Terraform `String` type.

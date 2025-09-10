@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // A database that has already been defined in Terraform manually, and that can be referenced by resources that are

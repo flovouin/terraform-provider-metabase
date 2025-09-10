@@ -9,7 +9,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.

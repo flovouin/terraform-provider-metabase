@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Searches a JSON object or array recursively to find references to `Field` Metabase objects. The references are

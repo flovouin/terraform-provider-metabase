@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 var providerConfig = fmt.Sprintf(`

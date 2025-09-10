@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"text/template"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // The template producing a `metabase_table` Terraform data source definition.

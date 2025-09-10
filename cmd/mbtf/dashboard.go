@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/zerogachis/terraform-provider-metabase/metabase"
 )
 
 // Returns the collection ID as a string, possibly converting it from an integer.
