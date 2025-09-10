@@ -239,3 +239,27 @@ func (r *UpdateFieldResponse) BodyString() string {
 func (r *UpdateFieldResponse) HasExpectedStatusWithoutExpectedBody() bool {
 	return r.StatusCode() == 200 && r.JSON200 == nil
 }
+
+func (r *GetContentTranslationCsvResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetContentTranslationCsvResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && len(r.Body) == 0
+}
+
+func (r *GetContentTranslationDictionaryResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetContentTranslationDictionaryResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *UploadContentTranslationDictionaryResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UploadContentTranslationDictionaryResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}

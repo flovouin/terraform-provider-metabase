@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/oapi-codegen/runtime"
+	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
@@ -683,6 +684,12 @@ type ListDatabasesParams struct {
 // ListDatabasesParamsInclude defines parameters for ListDatabases.
 type ListDatabasesParamsInclude string
 
+// UploadContentTranslationDictionaryMultipartBody defines parameters for UploadContentTranslationDictionary.
+type UploadContentTranslationDictionaryMultipartBody struct {
+	// File CSV file containing translations
+	File openapi_types.File `json:"file"`
+}
+
 // GetTableMetadataParams defines parameters for GetTableMetadata.
 type GetTableMetadataParams struct {
 	// IncludeHiddenFields Whether the query should return hidden fields.
@@ -715,6 +722,9 @@ type CreateDatabaseJSONRequestBody = CreateDatabaseBody
 
 // UpdateDatabaseJSONRequestBody defines body for UpdateDatabase for application/json ContentType.
 type UpdateDatabaseJSONRequestBody = UpdateDatabaseBody
+
+// UploadContentTranslationDictionaryMultipartRequestBody defines body for UploadContentTranslationDictionary for multipart/form-data ContentType.
+type UploadContentTranslationDictionaryMultipartRequestBody UploadContentTranslationDictionaryMultipartBody
 
 // UpdateFieldJSONRequestBody defines body for UpdateField for application/json ContentType.
 type UpdateFieldJSONRequestBody = UpdateFieldBody
@@ -1489,6 +1499,15 @@ type ClientInterface interface {
 
 	UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetContentTranslationCsv request
+	GetContentTranslationCsv(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetContentTranslationDictionary request
+	GetContentTranslationDictionary(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UploadContentTranslationDictionaryWithBody request with any body
+	UploadContentTranslationDictionaryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetField request
 	GetField(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1864,6 +1883,42 @@ func (c *Client) UpdateDatabaseWithBody(ctx context.Context, databaseId int, con
 
 func (c *Client) UpdateDatabase(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateDatabaseRequest(c.Server, databaseId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetContentTranslationCsv(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetContentTranslationCsvRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetContentTranslationDictionary(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetContentTranslationDictionaryRequest(c.Server, token)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UploadContentTranslationDictionaryWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUploadContentTranslationDictionaryRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2927,6 +2982,96 @@ func NewUpdateDatabaseRequestWithBody(server string, databaseId int, contentType
 	return req, nil
 }
 
+// NewGetContentTranslationCsvRequest generates requests for GetContentTranslationCsv
+func NewGetContentTranslationCsvRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/ee/content-translation/csv")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetContentTranslationDictionaryRequest generates requests for GetContentTranslationDictionary
+func NewGetContentTranslationDictionaryRequest(server string, token string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "token", runtime.ParamLocationPath, token)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/ee/content-translation/dictionary/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUploadContentTranslationDictionaryRequestWithBody generates requests for UploadContentTranslationDictionary with any type of body
+func NewUploadContentTranslationDictionaryRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/ee/content-translation/upload-dictionary")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetFieldRequest generates requests for GetField
 func NewGetFieldRequest(server string, fieldId int) (*http.Request, error) {
 	var err error
@@ -3518,6 +3663,15 @@ type ClientWithResponsesInterface interface {
 
 	UpdateDatabaseWithResponse(ctx context.Context, databaseId int, body UpdateDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateDatabaseResponse, error)
 
+	// GetContentTranslationCsvWithResponse request
+	GetContentTranslationCsvWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetContentTranslationCsvResponse, error)
+
+	// GetContentTranslationDictionaryWithResponse request
+	GetContentTranslationDictionaryWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*GetContentTranslationDictionaryResponse, error)
+
+	// UploadContentTranslationDictionaryWithBodyWithResponse request with any body
+	UploadContentTranslationDictionaryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadContentTranslationDictionaryResponse, error)
+
 	// GetFieldWithResponse request
 	GetFieldWithResponse(ctx context.Context, fieldId int, reqEditors ...RequestEditorFn) (*GetFieldResponse, error)
 
@@ -3977,6 +4131,75 @@ func (r UpdateDatabaseResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateDatabaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetContentTranslationCsvResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+}
+
+// Status returns HTTPResponse.Status
+func (r GetContentTranslationCsvResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetContentTranslationCsvResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetContentTranslationDictionaryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *map[string]interface{}
+}
+
+// Status returns HTTPResponse.Status
+func (r GetContentTranslationDictionaryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetContentTranslationDictionaryResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UploadContentTranslationDictionaryResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Message           *string `json:"message,omitempty"`
+		Success           *bool   `json:"success,omitempty"`
+		TranslationsCount *int    `json:"translations_count,omitempty"`
+	}
+}
+
+// Status returns HTTPResponse.Status
+func (r UploadContentTranslationDictionaryResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UploadContentTranslationDictionaryResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -4487,6 +4710,33 @@ func (c *ClientWithResponses) UpdateDatabaseWithResponse(ctx context.Context, da
 		return nil, err
 	}
 	return ParseUpdateDatabaseResponse(rsp)
+}
+
+// GetContentTranslationCsvWithResponse request returning *GetContentTranslationCsvResponse
+func (c *ClientWithResponses) GetContentTranslationCsvWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetContentTranslationCsvResponse, error) {
+	rsp, err := c.GetContentTranslationCsv(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetContentTranslationCsvResponse(rsp)
+}
+
+// GetContentTranslationDictionaryWithResponse request returning *GetContentTranslationDictionaryResponse
+func (c *ClientWithResponses) GetContentTranslationDictionaryWithResponse(ctx context.Context, token string, reqEditors ...RequestEditorFn) (*GetContentTranslationDictionaryResponse, error) {
+	rsp, err := c.GetContentTranslationDictionary(ctx, token, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetContentTranslationDictionaryResponse(rsp)
+}
+
+// UploadContentTranslationDictionaryWithBodyWithResponse request with arbitrary body returning *UploadContentTranslationDictionaryResponse
+func (c *ClientWithResponses) UploadContentTranslationDictionaryWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UploadContentTranslationDictionaryResponse, error) {
+	rsp, err := c.UploadContentTranslationDictionaryWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUploadContentTranslationDictionaryResponse(rsp)
 }
 
 // GetFieldWithResponse request returning *GetFieldResponse
@@ -5109,6 +5359,78 @@ func ParseUpdateDatabaseResponse(rsp *http.Response) (*UpdateDatabaseResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Database
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetContentTranslationCsvResponse parses an HTTP response from a GetContentTranslationCsvWithResponse call
+func ParseGetContentTranslationCsvResponse(rsp *http.Response) (*GetContentTranslationCsvResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetContentTranslationCsvResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	return response, nil
+}
+
+// ParseGetContentTranslationDictionaryResponse parses an HTTP response from a GetContentTranslationDictionaryWithResponse call
+func ParseGetContentTranslationDictionaryResponse(rsp *http.Response) (*GetContentTranslationDictionaryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetContentTranslationDictionaryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest map[string]interface{}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUploadContentTranslationDictionaryResponse parses an HTTP response from a UploadContentTranslationDictionaryWithResponse call
+func ParseUploadContentTranslationDictionaryResponse(rsp *http.Response) (*UploadContentTranslationDictionaryResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UploadContentTranslationDictionaryResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Message           *string `json:"message,omitempty"`
+			Success           *bool   `json:"success,omitempty"`
+			TranslationsCount *int    `json:"translations_count,omitempty"`
+		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
