@@ -748,11 +748,10 @@ paths:
           description: The setting key to retrieve
       responses:
         200:
-          description: Successful response (may return 200 with null JSON body when setting is at default value)
+          description: Successful response - returns the setting value directly (string, boolean, number, etc.)
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Setting"
+              schema: {}
         204:
           description: No value found (setting is at default value)
         400:
@@ -784,11 +783,10 @@ paths:
               $ref: "#/components/schemas/UpdateSettingBody"
       responses:
         200:
-          description: Setting updated successfully
+          description: Setting updated successfully - returns the setting value directly (string, boolean, number, etc.)
           content:
             application/json:
-              schema:
-                $ref: "#/components/schemas/Setting"
+              schema: {}
         204:
           description: Setting updated successfully (no content returned when setting value matches default)
         400:
@@ -1605,7 +1603,6 @@ components:
       additionalProperties: false
       properties:
         value:
-          type: string
-          description: The new value for the setting.
+          description: The new value for the setting (can be string, number, boolean, or object).
       required:
         - value

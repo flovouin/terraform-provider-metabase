@@ -506,21 +506,6 @@ type Session struct {
 	Id string `json:"id"`
 }
 
-// Setting A Metabase instance setting.
-type Setting struct {
-	// DefaultValue The default value of the setting.
-	DefaultValue string `json:"default_value"`
-
-	// Description A description of what this setting does.
-	Description *string `json:"description"`
-
-	// Key The setting key.
-	Key string `json:"key"`
-
-	// Value The current value of the setting.
-	Value string `json:"value"`
-}
-
 // Table A table in a database.
 type Table struct {
 	// DbId The ID of the parent database.
@@ -656,8 +641,8 @@ type UpdatePermissionsGroupBody struct {
 
 // UpdateSettingBody The payload used to update a setting.
 type UpdateSettingBody struct {
-	// Value The new value for the setting.
-	Value string `json:"value"`
+	// Value The new value for the setting (can be string, number, boolean, or object).
+	Value interface{} `json:"value"`
 }
 
 // UpdateTableBody The payload used to update a table.
@@ -4563,7 +4548,7 @@ func (r CreateSessionResponse) StatusCode() int {
 type GetSettingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *Setting
+	JSON200      *interface{}
 }
 
 // Status returns HTTPResponse.Status
@@ -4585,7 +4570,7 @@ func (r GetSettingResponse) StatusCode() int {
 type UpdateSettingResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *Setting
+	JSON200      *interface{}
 }
 
 // Status returns HTTPResponse.Status
@@ -5907,7 +5892,7 @@ func ParseGetSettingResponse(rsp *http.Response) (*GetSettingResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Setting
+		var dest interface{}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -5933,7 +5918,7 @@ func ParseUpdateSettingResponse(rsp *http.Response) (*UpdateSettingResponse, err
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Setting
+		var dest interface{}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

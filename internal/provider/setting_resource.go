@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -77,78 +78,120 @@ When this resource is destroyed, the setting will be reset to its default value.
 	}
 }
 
-// Updates the given `SettingResourceModel` from the `Setting` returned by the Metabase API.
-func updateModelFromSetting(setting metabase.Setting, data *SettingResourceModel) diag.Diagnostics {
-	var diags diag.Diagnostics
+// Updates the model from a setting value returned by the API.
+func updateModelFromAPIResponse(value *interface{}, key string, data *SettingResourceModel) diag.Diagnostics {
+	data.Id = types.StringValue(key)
+	data.Key = types.StringValue(key)
 
-	data.Id = types.StringValue(setting.Key)
-	data.Key = types.StringValue(setting.Key)
-	data.Value = types.StringValue(setting.Value)
-	data.DefaultValue = types.StringValue(setting.DefaultValue)
-	data.Description = stringValueOrNull(setting.Description)
+	if value == nil {
+		// Setting is at default value
+		data.DefaultValue = data.Value
+		data.Description = types.StringNull()
+		return nil
+	}
 
-	return diags
+	// Convert any value type to string
+	// If it's a complex object (map, slice, etc.), serialize it as JSON
+	var valueStr string
+	if jsonBytes, err := json.Marshal(*value); err == nil {
+		// If it can be marshaled as JSON, use the JSON string
+		valueStr = string(jsonBytes)
+	} else {
+		// Otherwise, use the string representation
+		valueStr = fmt.Sprintf("%v", *value)
+	}
+
+	// Try to normalize the JSON if it's valid JSON
+	if normalized, err := normalizeJSON(valueStr); err == nil {
+		valueStr = normalized
+	}
+
+	data.Value = types.StringValue(valueStr)
+	data.DefaultValue = types.StringValue("")
+	data.Description = types.StringValue("Setting value (API returned direct value)")
+
+	return nil
 }
 
-// Sets the model to represent a setting at its default value (when API returns 204 or 200 with nil JSON).
-func setModelToDefaultValue(data *SettingResourceModel) {
-	data.Id = data.Key
-	data.DefaultValue = data.Value
-	data.Description = types.StringNull()
+// parseValueForAPI parses a string value and returns the appropriate type for the API
+// If the string is valid JSON, it returns the parsed JSON object
+// Otherwise, it returns the string as-is
+func parseValueForAPI(value string) interface{} {
+	// Try to parse as JSON
+	var jsonValue interface{}
+	if err := json.Unmarshal([]byte(value), &jsonValue); err == nil {
+		// If it's valid JSON, return the parsed object
+		return jsonValue
+	}
+	// If it's not valid JSON, return the string as-is
+	return value
+}
+
+// normalizeJSON normalizes a JSON string by parsing and re-marshaling it
+// This ensures consistent formatting and field ordering
+func normalizeJSON(jsonStr string) (string, error) {
+	var jsonValue interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &jsonValue); err != nil {
+		return "", err
+	}
+
+	// Re-marshal with consistent formatting
+	normalizedBytes, err := json.Marshal(jsonValue)
+	if err != nil {
+		return "", err
+	}
+
+	return string(normalizedBytes), nil
+}
+
+// Helper function to handle setting API responses
+func (r *SettingResource) handleSettingResponse(ctx context.Context, updateResp *metabase.UpdateSettingResponse, data *SettingResourceModel, operation string) error {
+	if updateResp.StatusCode() != 200 && updateResp.StatusCode() != 204 {
+		return fmt.Errorf("unexpected status %d for %s", updateResp.StatusCode(), operation)
+	}
+
+	if updateResp.StatusCode() == 200 && updateResp.JSON200 != nil {
+		// Direct response with value
+		updateModelFromAPIResponse(updateResp.JSON200, data.Key.ValueString(), data)
+		return nil
+	}
+
+	// Status 204 or 200 with nil JSON - fetch current state
+	getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
+	if err != nil {
+		return fmt.Errorf("failed to get setting after %s: %w", operation, err)
+	}
+
+	if getResp.StatusCode() == 200 {
+		updateModelFromAPIResponse(getResp.JSON200, data.Key.ValueString(), data)
+	} else if getResp.StatusCode() == 204 {
+		updateModelFromAPIResponse(nil, data.Key.ValueString(), data)
+	} else {
+		return fmt.Errorf("unexpected status %d when getting setting", getResp.StatusCode())
+	}
+
+	return nil
 }
 
 func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *SettingResourceModel
-
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Update the setting with the provided value
+	// Update the setting
 	updateResp, err := r.client.UpdateSettingWithResponse(ctx, data.Key.ValueString(), metabase.UpdateSettingBody{
-		Value: data.Value.ValueString(),
+		Value: parseValueForAPI(data.Value.ValueString()),
 	})
-
 	if err != nil {
-		resp.Diagnostics.AddError("Unexpected error while calling the Metabase API for operation 'create setting'.", err.Error())
+		resp.Diagnostics.AddError("Failed to create setting", err.Error())
 		return
 	}
 
-	if updateResp.StatusCode() != 200 && updateResp.StatusCode() != 204 {
-		resp.Diagnostics.AddError("Unexpected response while calling the Metabase API for operation 'create setting'.", fmt.Sprintf("Expected status 200 or 204, got %d", updateResp.StatusCode()))
-		return
-	}
-
-	// If we got 204 (No Content), we need to fetch the setting to get the current state
-	if updateResp.StatusCode() == 204 {
-		getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Unexpected error while calling the Metabase API for operation 'get setting after create'.", err.Error())
-			return
-		}
-		if getResp.StatusCode() == 200 {
-			if getResp.JSON200 != nil {
-				resp.Diagnostics.Append(updateModelFromSetting(*getResp.JSON200, data)...)
-			} else {
-				// If GET returns 200 but JSON200 is nil, the setting is at its default value
-				setModelToDefaultValue(data)
-			}
-		} else if getResp.StatusCode() == 204 {
-			// If GET also returns 204, the setting is at its default value
-			setModelToDefaultValue(data)
-		} else {
-			resp.Diagnostics.AddError("Unexpected response while calling the Metabase API for operation 'get setting after create'.", fmt.Sprintf("Expected status 200 or 204, got %d", getResp.StatusCode()))
-			return
-		}
-	} else {
-		if updateResp.JSON200 == nil {
-			resp.Diagnostics.AddError("Unexpected response while calling the Metabase API for operation 'create setting'.", "Received nil JSON response")
-			return
-		}
-		resp.Diagnostics.Append(updateModelFromSetting(*updateResp.JSON200, data)...)
-	}
-	if resp.Diagnostics.HasError() {
+	// Handle response and update model
+	if err := r.handleSettingResponse(ctx, updateResp, data, "create"); err != nil {
+		resp.Diagnostics.AddError("Failed to handle setting response", err.Error())
 		return
 	}
 
@@ -157,44 +200,28 @@ func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest
 
 func (r *SettingResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
 	var data *SettingResourceModel
-
 	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
-
 	if err != nil {
-		resp.Diagnostics.AddError("Unexpected error while calling the Metabase API for operation 'get setting'.", err.Error())
+		resp.Diagnostics.AddError("Failed to read setting", err.Error())
 		return
 	}
 
-	// If the setting doesn't exist (404), remove it from state
 	if getResp.StatusCode() == 404 {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
 	if getResp.StatusCode() == 200 {
-		if getResp.JSON200 != nil {
-			resp.Diagnostics.Append(updateModelFromSetting(*getResp.JSON200, data)...)
-		} else {
-			// If GET returns 200 but JSON200 is nil, the setting is at its default value
-			data.Id = data.Key
-			data.DefaultValue = data.Value
-			data.Description = types.StringNull()
-		}
+		updateModelFromAPIResponse(getResp.JSON200, data.Key.ValueString(), data)
 	} else if getResp.StatusCode() == 204 {
-		// If GET returns 204, the setting is at its default value
-		data.Id = data.Key
-		data.DefaultValue = data.Value
-		data.Description = types.StringNull()
+		updateModelFromAPIResponse(nil, data.Key.ValueString(), data)
 	} else {
-		resp.Diagnostics.AddError("Unexpected response while calling the Metabase API for operation 'get setting'.", fmt.Sprintf("Expected status 200 or 204, got %d", getResp.StatusCode()))
-		return
-	}
-	if resp.Diagnostics.HasError() {
+		resp.Diagnostics.AddError("Unexpected response", fmt.Sprintf("Expected status 200 or 204, got %d", getResp.StatusCode()))
 		return
 	}
 
@@ -203,56 +230,23 @@ func (r *SettingResource) Read(ctx context.Context, req resource.ReadRequest, re
 
 func (r *SettingResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *SettingResourceModel
-
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Update the setting with the new value
+	// Update the setting
 	updateResp, err := r.client.UpdateSettingWithResponse(ctx, data.Key.ValueString(), metabase.UpdateSettingBody{
-		Value: data.Value.ValueString(),
+		Value: parseValueForAPI(data.Value.ValueString()),
 	})
-
 	if err != nil {
-		resp.Diagnostics.AddError("Unexpected error while calling the Metabase API for operation 'update setting'.", err.Error())
+		resp.Diagnostics.AddError("Failed to update setting", err.Error())
 		return
 	}
 
-	if updateResp.StatusCode() != 200 && updateResp.StatusCode() != 204 {
-		resp.Diagnostics.AddError("Unexpected response while calling the Metabase API for operation 'update setting'.", fmt.Sprintf("Expected status 200 or 204, got %d", updateResp.StatusCode()))
-		return
-	}
-
-	// If we got 204 (No Content), we need to fetch the setting to get the current state
-	if updateResp.StatusCode() == 204 {
-		getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
-		if err != nil {
-			resp.Diagnostics.AddError("Unexpected error while calling the Metabase API for operation 'get setting after update'.", err.Error())
-			return
-		}
-		if getResp.StatusCode() == 200 {
-			if getResp.JSON200 != nil {
-				resp.Diagnostics.Append(updateModelFromSetting(*getResp.JSON200, data)...)
-			} else {
-				// If GET returns 200 but JSON200 is nil, the setting is at its default value
-				setModelToDefaultValue(data)
-			}
-		} else if getResp.StatusCode() == 204 {
-			// If GET also returns 204, the setting is at its default value
-			setModelToDefaultValue(data)
-		} else {
-			resp.Diagnostics.AddError("Unexpected response while calling the Metabase API for operation 'get setting after update'.", fmt.Sprintf("Expected status 200 or 204, got %d", getResp.StatusCode()))
-			return
-		}
-	} else {
-		if updateResp.JSON200 == nil {
-			resp.Diagnostics.AddError("Unexpected response while calling the Metabase API for operation 'update setting'.", "Received nil JSON response")
-			return
-		}
-		resp.Diagnostics.Append(updateModelFromSetting(*updateResp.JSON200, data)...)
-	}
-	if resp.Diagnostics.HasError() {
+	// Handle response and update model
+	if err := r.handleSettingResponse(ctx, updateResp, data, "update"); err != nil {
+		resp.Diagnostics.AddError("Failed to handle setting response", err.Error())
 		return
 	}
 
