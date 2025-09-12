@@ -506,6 +506,21 @@ type Session struct {
 	Id string `json:"id"`
 }
 
+// Setting A Metabase instance setting.
+type Setting struct {
+	// DefaultValue The default value of the setting.
+	DefaultValue string `json:"default_value"`
+
+	// Description A description of what this setting does.
+	Description *string `json:"description"`
+
+	// Key The setting key.
+	Key string `json:"key"`
+
+	// Value The current value of the setting.
+	Value string `json:"value"`
+}
+
 // Table A table in a database.
 type Table struct {
 	// DbId The ID of the parent database.
@@ -639,6 +654,12 @@ type UpdatePermissionsGroupBody struct {
 	Name string `json:"name"`
 }
 
+// UpdateSettingBody The payload used to update a setting.
+type UpdateSettingBody struct {
+	// Value The new value for the setting.
+	Value string `json:"value"`
+}
+
 // UpdateTableBody The payload used to update a table.
 type UpdateTableBody struct {
 	// Description A description for the table.
@@ -740,6 +761,9 @@ type UpdatePermissionsGroupJSONRequestBody = UpdatePermissionsGroupBody
 
 // CreateSessionJSONRequestBody defines body for CreateSession for application/json ContentType.
 type CreateSessionJSONRequestBody = CreateSessionBody
+
+// UpdateSettingJSONRequestBody defines body for UpdateSetting for application/json ContentType.
+type UpdateSettingJSONRequestBody = UpdateSettingBody
 
 // UpdateTableJSONRequestBody defines body for UpdateTable for application/json ContentType.
 type UpdateTableJSONRequestBody = UpdateTableBody
@@ -1545,6 +1569,14 @@ type ClientInterface interface {
 
 	CreateSession(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetSetting request
+	GetSetting(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateSettingWithBody request with any body
+	UpdateSettingWithBody(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateSetting(ctx context.Context, key string, body UpdateSettingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListTables request
 	ListTables(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -2087,6 +2119,42 @@ func (c *Client) CreateSessionWithBody(ctx context.Context, contentType string, 
 
 func (c *Client) CreateSession(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateSessionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetSetting(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetSettingRequest(c.Server, key)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSettingWithBody(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSettingRequestWithBody(c.Server, key, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateSetting(ctx context.Context, key string, body UpdateSettingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateSettingRequest(c.Server, key, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3415,6 +3483,87 @@ func NewCreateSessionRequestWithBody(server string, contentType string, body io.
 	return req, nil
 }
 
+// NewGetSettingRequest generates requests for GetSetting
+func NewGetSettingRequest(server string, key string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "key", runtime.ParamLocationPath, key)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/setting/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateSettingRequest calls the generic UpdateSetting builder with application/json body
+func NewUpdateSettingRequest(server string, key string, body UpdateSettingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateSettingRequestWithBody(server, key, "application/json", bodyReader)
+}
+
+// NewUpdateSettingRequestWithBody generates requests for UpdateSetting with any type of body
+func NewUpdateSettingRequestWithBody(server string, key string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithLocation("simple", false, "key", runtime.ParamLocationPath, key)
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/setting/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListTablesRequest generates requests for ListTables
 func NewListTablesRequest(server string) (*http.Request, error) {
 	var err error
@@ -3708,6 +3857,14 @@ type ClientWithResponsesInterface interface {
 	CreateSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
 
 	CreateSessionWithResponse(ctx context.Context, body CreateSessionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateSessionResponse, error)
+
+	// GetSettingWithResponse request
+	GetSettingWithResponse(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*GetSettingResponse, error)
+
+	// UpdateSettingWithBodyWithResponse request with any body
+	UpdateSettingWithBodyWithResponse(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSettingResponse, error)
+
+	UpdateSettingWithResponse(ctx context.Context, key string, body UpdateSettingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSettingResponse, error)
 
 	// ListTablesWithResponse request
 	ListTablesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTablesResponse, error)
@@ -4403,6 +4560,50 @@ func (r CreateSessionResponse) StatusCode() int {
 	return 0
 }
 
+type GetSettingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Setting
+}
+
+// Status returns HTTPResponse.Status
+func (r GetSettingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetSettingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateSettingResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Setting
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateSettingResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateSettingResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListTablesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -4858,6 +5059,32 @@ func (c *ClientWithResponses) CreateSessionWithResponse(ctx context.Context, bod
 		return nil, err
 	}
 	return ParseCreateSessionResponse(rsp)
+}
+
+// GetSettingWithResponse request returning *GetSettingResponse
+func (c *ClientWithResponses) GetSettingWithResponse(ctx context.Context, key string, reqEditors ...RequestEditorFn) (*GetSettingResponse, error) {
+	rsp, err := c.GetSetting(ctx, key, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetSettingResponse(rsp)
+}
+
+// UpdateSettingWithBodyWithResponse request with arbitrary body returning *UpdateSettingResponse
+func (c *ClientWithResponses) UpdateSettingWithBodyWithResponse(ctx context.Context, key string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateSettingResponse, error) {
+	rsp, err := c.UpdateSettingWithBody(ctx, key, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSettingResponse(rsp)
+}
+
+func (c *ClientWithResponses) UpdateSettingWithResponse(ctx context.Context, key string, body UpdateSettingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateSettingResponse, error) {
+	rsp, err := c.UpdateSetting(ctx, key, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateSettingResponse(rsp)
 }
 
 // ListTablesWithResponse request returning *ListTablesResponse
@@ -5655,6 +5882,58 @@ func ParseCreateSessionResponse(rsp *http.Response) (*CreateSessionResponse, err
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest Session
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetSettingResponse parses an HTTP response from a GetSettingWithResponse call
+func ParseGetSettingResponse(rsp *http.Response) (*GetSettingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetSettingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Setting
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateSettingResponse parses an HTTP response from a UpdateSettingWithResponse call
+func ParseUpdateSettingResponse(rsp *http.Response) (*UpdateSettingResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateSettingResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Setting
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

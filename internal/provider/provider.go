@@ -126,6 +126,7 @@ func (p *MetabaseProvider) Resources(ctx context.Context) []func() resource.Reso
 		NewDatabaseResource,
 		NewPermissionsGraphResource,
 		NewPermissionsGroupResource,
+		NewSettingResource,
 		NewTableResource,
 	}
 }

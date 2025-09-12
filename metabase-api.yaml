@@ -731,6 +731,74 @@ paths:
           description: Forbidden (Enterprise Edition required)
         500:
           description: Internal server error
+  # Settings endpoints
+  /setting/{key}:
+    get:
+      operationId: getSetting
+      summary: GET /setting/{key}
+      description: Retrieves a specific setting value and its default
+      tags:
+        - Settings
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+          description: The setting key to retrieve
+      responses:
+        200:
+          description: Successful response (may return 200 with null JSON body when setting is at default value)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Setting"
+        204:
+          description: No value found (setting is at default value)
+        400:
+          description: Bad request
+        401:
+          description: Unauthorized
+        404:
+          description: Setting not found
+        500:
+          description: Internal server error
+    put:
+      operationId: updateSetting
+      summary: PUT /setting/{key}
+      description: Updates a specific setting value
+      tags:
+        - Settings
+      parameters:
+        - in: path
+          name: key
+          required: true
+          schema:
+            type: string
+          description: The setting key to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingBody"
+      responses:
+        200:
+          description: Setting updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Setting"
+        204:
+          description: Setting updated successfully (no content returned when setting value matches default)
+        400:
+          description: Bad request
+        401:
+          description: Unauthorized
+        404:
+          description: Setting not found
+        500:
+          description: Internal server error
 
 components:
   securitySchemes:
@@ -1508,3 +1576,36 @@ components:
         description:
           type: string
           description: A description for the table.
+    # Settings.
+    Setting:
+      type: object
+      description: A Metabase instance setting.
+      additionalProperties: false
+      properties:
+        key:
+          type: string
+          description: The setting key.
+        value:
+          type: string
+          description: The current value of the setting.
+        default_value:
+          type: string
+          description: The default value of the setting.
+        description:
+          type: string
+          description: A description of what this setting does.
+          nullable: true
+      required:
+        - key
+        - value
+        - default_value
+    UpdateSettingBody:
+      type: object
+      description: The payload used to update a setting.
+      additionalProperties: false
+      properties:
+        value:
+          type: string
+          description: The new value for the setting.
+      required:
+        - value
