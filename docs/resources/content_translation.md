@@ -3,14 +3,14 @@
 page_title: "metabase_content_translation Resource - terraform-provider-metabase"
 subcategory: ""
 description: |-
-  A Metabase content translation dictionary. This resource manages the translation dictionary for Metabase Enterprise Edition. The dictionary content is stored as a hash in the state for efficiency.
+  A Metabase content translation dictionary. This resource manages the translation dictionary for Metabase Enterprise Edition.
   ⚠️ Important Warning
   Deleting this resource will erase all translation dictionaries on the Metabase instance. When you destroy this resource, it uploads an empty dictionary to Metabase, effectively removing all translations. Make sure to backup your translation data before destroying this resource if you need to preserve the translations.
 ---
 
 # metabase_content_translation (Resource)
 
-A Metabase content translation dictionary. This resource manages the translation dictionary for Metabase Enterprise Edition. The dictionary content is stored as a hash in the state for efficiency.
+A Metabase content translation dictionary. This resource manages the translation dictionary for Metabase Enterprise Edition.
 
 ## ⚠️ Important Warning
 
@@ -62,7 +62,6 @@ resource "metabase_content_translation" "from_file" {
 
 ### Read-Only
 
-- `content_hash` (String) SHA256 hash of the dictionary content, used for change detection and state management.
 - `id` (String) A unique identifier for the translation set.
 
 
