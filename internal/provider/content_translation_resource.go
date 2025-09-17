@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -33,15 +32,8 @@ type ContentTranslationResource struct {
 
 // The Terraform model for content translations.
 type ContentTranslationResourceModel struct {
-	Id          types.String `tfsdk:"id"`           // A unique identifier for the translation set.
-	Dictionary  types.String `tfsdk:"dictionary"`   // The CSV content of the translation dictionary.
-	ContentHash types.String `tfsdk:"content_hash"` // SHA256 hash of the dictionary content for state management.
-}
-
-// calculateContentHash computes a SHA256 hash of the dictionary content.
-func calculateContentHash(content string) string {
-	hash := sha256.Sum256([]byte(content))
-	return fmt.Sprintf("%x", hash)
+	Id         types.String `tfsdk:"id"`         // A unique identifier for the translation set.
+	Dictionary types.String `tfsdk:"dictionary"` // The CSV content of the translation dictionary.
 }
 
 // Updates the given `ContentTranslationResourceModel` from the dictionary content.
@@ -50,7 +42,6 @@ func updateModelFromContentTranslation(dictionary string, data *ContentTranslati
 
 	data.Id = types.StringValue("content-translation-dictionary")
 	data.Dictionary = types.StringValue(dictionary)
-	data.ContentHash = types.StringValue(calculateContentHash(dictionary))
 
 	return diags
 }
@@ -119,10 +110,6 @@ func (r *ContentTranslationResource) Schema(ctx context.Context, req resource.Sc
 			"dictionary": schema.StringAttribute{
 				MarkdownDescription: "The CSV content of the translation dictionary. Must have columns: Locale Code (locale code), String (text to translate), Translation (translated text). Example: `Locale Code,String,Translation\\npt-BR,Examples,Exemplos\\nen,Dashboard,Dashboard`",
 				Required:            true,
-			},
-			"content_hash": schema.StringAttribute{
-				MarkdownDescription: "SHA256 hash of the dictionary content, used for change detection and state management.",
-				Computed:            true,
 			},
 		},
 	}

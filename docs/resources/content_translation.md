@@ -62,7 +62,6 @@ resource "metabase_content_translation" "from_file" {
 
 ### Read-Only
 
-- `content_hash` (String) SHA256 hash of the dictionary content, used for change detection and state management.
 - `id` (String) A unique identifier for the translation set.
 
 
