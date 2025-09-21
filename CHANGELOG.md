@@ -1,3 +1,9 @@
+## 0.10.0 (2025-09-21)
+
+NEW FEATURES:
+
+- Add the `metabase_content_translation` resource. (#82, thanks @nicolasbriere1!)
+
 ## 0.9.0 (2025-06-29)
 
 NEW FEATURES:
