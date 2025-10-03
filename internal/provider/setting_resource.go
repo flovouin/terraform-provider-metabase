@@ -237,7 +237,7 @@ func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
     // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 120*time.Second); err != nil {
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 10*time.Second); err != nil {
         resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
     }
 
@@ -297,7 +297,7 @@ func (r *SettingResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
     // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 120*time.Second); err != nil {
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 10*time.Second); err != nil {
         resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
     }
 
