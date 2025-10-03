@@ -34,6 +34,7 @@ MBTF_FILES:=$(shell find $(MBTF_FOLDER) -type f -name '*.go')
 PROVIDER_BINARY:=terraform-provider-metabase
 MBTF_BINARY:=mbtf
 TEST_API_KEY_FILE=.test-api-key
+METABASE_SETTING_WAIT_TIMEOUT:=15s
 
 set-up-docker:
 	./test-docker.sh

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+	"os"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -174,6 +175,15 @@ func (r *SettingResource) handleSettingResponse(ctx context.Context, updateResp 
 	return nil
 }
 
+func getWaitTimeout() time.Duration {
+    if v := os.Getenv("METABASE_SETTING_WAIT_TIMEOUT"); v != "" {
+        if d, err := time.ParseDuration(v); err == nil {
+            return d
+        }
+    }
+    return 120 * time.Second // default
+}
+
 // waitForSettingUpdate polls Metabase until the setting matches the desired value or timeout is reached.
 func (r *SettingResource) waitForSettingUpdate(ctx context.Context, key, want string, timeout time.Duration) error {
     backoff := 2 * time.Second
@@ -237,7 +247,7 @@ func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
     // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 10*time.Second); err != nil {
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), getWaitTimeout()); err != nil {
         resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
     }
 
@@ -297,7 +307,7 @@ func (r *SettingResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
     // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 10*time.Second); err != nil {
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), getWaitTimeout()); err != nil {
         resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
     }
 
