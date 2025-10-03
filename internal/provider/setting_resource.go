@@ -173,6 +173,40 @@ func (r *SettingResource) handleSettingResponse(ctx context.Context, updateResp 
 	return nil
 }
 
+// waitForSettingUpdate polls Metabase until the setting matches the desired value or timeout is reached.
+func (r *SettingResource) waitForSettingUpdate(ctx context.Context, key, want string, timeout time.Duration) error {
+    const pollInterval = 2 * time.Second
+    deadline := time.Now().Add(timeout)
+
+    for {
+        // Fetch current value
+        getResp, err := r.client.GetSettingWithResponse(ctx, key)
+        if err != nil {
+            return fmt.Errorf("failed to poll setting: %w", err)
+        }
+        if getResp.StatusCode() == 200 && getResp.JSON200 != nil {
+            // Convert value to string for comparison
+            var current string
+            if jsonBytes, err := json.Marshal(*getResp.JSON200); err == nil {
+                current = string(jsonBytes)
+            } else {
+                current = fmt.Sprintf("%v", *getResp.JSON200)
+            }
+            // Try to normalize JSON if possible
+            if normalized, err := normalizeJSON(current); err == nil {
+                current = normalized
+            }
+            if current == want {
+                return nil // Success
+            }
+        }
+        if time.Now().After(deadline) {
+            return fmt.Errorf("timeout waiting for setting %q to be applied", key)
+        }
+        time.Sleep(pollInterval)
+    }
+}
+
 func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *SettingResourceModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
@@ -194,6 +228,11 @@ func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest
 		resp.Diagnostics.AddError("Failed to handle setting response", err.Error())
 		return
 	}
+
+    // Poll until the setting is applied or timeout (e.g., 30s)
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 30*time.Second); err != nil {
+        resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
+    }
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -249,6 +288,11 @@ func (r *SettingResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("Failed to handle setting response", err.Error())
 		return
 	}
+	
+    // Poll until the setting is applied or timeout (e.g., 30s)
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 30*time.Second); err != nil {
+        resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
+    }
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
