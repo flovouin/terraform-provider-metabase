@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -288,7 +289,7 @@ func (r *SettingResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("Failed to handle setting response", err.Error())
 		return
 	}
-	
+
     // Poll until the setting is applied or timeout (e.g., 30s)
     if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 30*time.Second); err != nil {
         resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
