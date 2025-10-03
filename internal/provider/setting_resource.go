@@ -176,7 +176,8 @@ func (r *SettingResource) handleSettingResponse(ctx context.Context, updateResp 
 
 // waitForSettingUpdate polls Metabase until the setting matches the desired value or timeout is reached.
 func (r *SettingResource) waitForSettingUpdate(ctx context.Context, key, want string, timeout time.Duration) error {
-    const pollInterval = 2 * time.Second
+    backoff := 2 * time.Second
+    maxBackoff := 32 * time.Second
     deadline := time.Now().Add(timeout)
 
     for {
@@ -186,14 +187,12 @@ func (r *SettingResource) waitForSettingUpdate(ctx context.Context, key, want st
             return fmt.Errorf("failed to poll setting: %w", err)
         }
         if getResp.StatusCode() == 200 && getResp.JSON200 != nil {
-            // Convert value to string for comparison
             var current string
             if jsonBytes, err := json.Marshal(*getResp.JSON200); err == nil {
                 current = string(jsonBytes)
             } else {
                 current = fmt.Sprintf("%v", *getResp.JSON200)
             }
-            // Try to normalize JSON if possible
             if normalized, err := normalizeJSON(current); err == nil {
                 current = normalized
             }
@@ -204,7 +203,14 @@ func (r *SettingResource) waitForSettingUpdate(ctx context.Context, key, want st
         if time.Now().After(deadline) {
             return fmt.Errorf("timeout waiting for setting %q to be applied", key)
         }
-        time.Sleep(pollInterval)
+        time.Sleep(backoff)
+        // Exponential backoff, up to maxBackoff
+        if backoff < maxBackoff {
+            backoff *= 2
+            if backoff > maxBackoff {
+                backoff = maxBackoff
+            }
+        }
     }
 }
 
@@ -231,7 +237,7 @@ func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest
 	}
 
     // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 30*time.Second); err != nil {
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 120*time.Second); err != nil {
         resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
     }
 
@@ -291,7 +297,7 @@ func (r *SettingResource) Update(ctx context.Context, req resource.UpdateRequest
 	}
 
     // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 30*time.Second); err != nil {
+    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), 120*time.Second); err != nil {
         resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
     }
 
