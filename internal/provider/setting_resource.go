@@ -80,6 +80,15 @@ When this resource is destroyed, the setting will be reset to its default value.
 	}
 }
 
+func getWaitTimeout() time.Duration {
+    if v := os.Getenv("METABASE_SETTING_WAIT_TIMEOUT"); v != "" {
+        if d, err := time.ParseDuration(v); err == nil {
+            return d
+        }
+    }
+    return 120 * time.Second // default
+}
+
 // Updates the model from a setting value returned by the API.
 func updateModelFromAPIResponse(value *interface{}, key string, data *SettingResourceModel) diag.Diagnostics {
 	data.Id = types.StringValue(key)
@@ -148,70 +157,62 @@ func normalizeJSON(jsonStr string) (string, error) {
 
 // Helper function to handle setting API responses
 func (r *SettingResource) handleSettingResponse(ctx context.Context, updateResp *metabase.UpdateSettingResponse, data *SettingResourceModel, operation string) error {
-	if updateResp.StatusCode() != 200 && updateResp.StatusCode() != 204 {
-		return fmt.Errorf("unexpected status %d for %s", updateResp.StatusCode(), operation)
-	}
-
-	if updateResp.StatusCode() == 200 && updateResp.JSON200 != nil {
-		// Direct response with value
-		updateModelFromAPIResponse(updateResp.JSON200, data.Key.ValueString(), data)
-		return nil
-	}
-
-	// Status 204 or 200 with nil JSON - fetch current state
-	getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
-	if err != nil {
-		return fmt.Errorf("failed to get setting after %s: %w", operation, err)
-	}
-
-	if getResp.StatusCode() == 200 {
-		updateModelFromAPIResponse(getResp.JSON200, data.Key.ValueString(), data)
-	} else if getResp.StatusCode() == 204 {
-		updateModelFromAPIResponse(nil, data.Key.ValueString(), data)
-	} else {
-		return fmt.Errorf("unexpected status %d when getting setting", getResp.StatusCode())
-	}
-
-	return nil
-}
-
-func getWaitTimeout() time.Duration {
-    if v := os.Getenv("METABASE_SETTING_WAIT_TIMEOUT"); v != "" {
-        if d, err := time.ParseDuration(v); err == nil {
-            return d
-        }
+    if updateResp.StatusCode() != 200 && updateResp.StatusCode() != 204 {
+        return fmt.Errorf("unexpected status %d for %s", updateResp.StatusCode(), operation)
     }
-    return 120 * time.Second // default
-}
 
-// waitForSettingUpdate polls Metabase until the setting matches the desired value or timeout is reached.
-func (r *SettingResource) waitForSettingUpdate(ctx context.Context, key, want string, timeout time.Duration) error {
+    if updateResp.StatusCode() == 200 && updateResp.JSON200 != nil {
+        // Direct response with value
+        updateModelFromAPIResponse(updateResp.JSON200, data.Key.ValueString(), data)
+        return nil
+    }
+
     backoff := 2 * time.Second
-    maxBackoff := 32 * time.Second
-    deadline := time.Now().Add(timeout)
+    maxBackoff := 64 * time.Second
+    deadline := time.Now().Add(getWaitTimeout())
+
+    var current string // Declare `current` outside the loop
 
     for {
         // Fetch current value
-        getResp, err := r.client.GetSettingWithResponse(ctx, key)
+        getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
         if err != nil {
             return fmt.Errorf("failed to poll setting: %w", err)
         }
-        if getResp.StatusCode() == 200 && getResp.JSON200 != nil {
-            var current string
-            if jsonBytes, err := json.Marshal(*getResp.JSON200); err == nil {
-                current = string(jsonBytes)
-            } else {
-                current = fmt.Sprintf("%v", *getResp.JSON200)
-            }
-            if normalized, err := normalizeJSON(current); err == nil {
-                current = normalized
-            }
-            if current == want {
-                return nil // Success
-            }
+        if getResp.StatusCode() == 200 {
+			if getResp.JSON200 != nil {
+				if jsonBytes, err := json.Marshal(*getResp.JSON200); err == nil {
+					current = string(jsonBytes)
+				} else {
+					current = fmt.Sprintf("%v", *getResp.JSON200)
+				}
+				if normalized, err := normalizeJSON(current); err == nil {
+					current = normalized
+				}
+
+				desired := data.Value.ValueString()
+				if normalizedDesired, err := normalizeJSON(desired); err == nil {
+					desired = normalizedDesired
+				}
+
+				if current == desired {
+					updateModelFromAPIResponse(getResp.JSON200, data.Key.ValueString(), data)
+					return nil
+				}
+			} else {
+				updateModelFromAPIResponse(getResp.JSON200, data.Key.ValueString(), data)
+				return nil
+			}
+        } else if getResp.StatusCode() == 204 {
+            // Setting is at default value
+            updateModelFromAPIResponse(nil, data.Key.ValueString(), data)
+            return nil
+        } else {
+            return fmt.Errorf("unexpected status %d when getting setting", getResp.StatusCode())
         }
+
         if time.Now().After(deadline) {
-            return fmt.Errorf("timeout waiting for setting %q to be applied", key)
+            return fmt.Errorf("timeout waiting for setting %q to be applied. Last fetched value: %q", data.Key.ValueString(), current)
         }
         time.Sleep(backoff)
         // Exponential backoff, up to maxBackoff
@@ -222,7 +223,10 @@ func (r *SettingResource) waitForSettingUpdate(ctx context.Context, key, want st
             }
         }
     }
+
+    return nil
 }
+
 
 func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *SettingResourceModel
@@ -245,11 +249,6 @@ func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest
 		resp.Diagnostics.AddError("Failed to handle setting response", err.Error())
 		return
 	}
-
-    // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), getWaitTimeout()); err != nil {
-        resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
-    }
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -305,11 +304,6 @@ func (r *SettingResource) Update(ctx context.Context, req resource.UpdateRequest
 		resp.Diagnostics.AddError("Failed to handle setting response", err.Error())
 		return
 	}
-
-    // Poll until the setting is applied or timeout (e.g., 30s)
-    if err := r.waitForSettingUpdate(ctx, data.Key.ValueString(), data.Value.ValueString(), getWaitTimeout()); err != nil {
-        resp.Diagnostics.AddWarning("Setting propagation delay", err.Error())
-    }
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
