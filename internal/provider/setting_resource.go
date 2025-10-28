@@ -120,6 +120,8 @@ func updateModelFromAPIResponse(value *interface{}, key string, data *SettingRes
 	// Try to normalize the JSON if it's valid JSON
 	if normalized, err := normalizeJSON(valueStr); err == nil {
 		valueStr = normalized
+	} else {
+		fmt.Printf("Warning: Failed to normalize JSON for value %q: %v\n", valueStr, err)
 	}
 
 	data.Value = types.StringValue(valueStr)
