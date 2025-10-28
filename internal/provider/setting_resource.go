@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 	"os"
+	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
@@ -81,12 +81,12 @@ When this resource is destroyed, the setting will be reset to its default value.
 }
 
 func getWaitTimeout() time.Duration {
-    if v := os.Getenv("METABASE_SETTING_WAIT_TIMEOUT"); v != "" {
-        if d, err := time.ParseDuration(v); err == nil {
-            return d
-        }
-    }
-    return 120 * time.Second // default
+	if v := os.Getenv("METABASE_SETTING_WAIT_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+	}
+	return 120 * time.Second // default
 }
 
 // Updates the model from a setting value returned by the API.
@@ -104,12 +104,17 @@ func updateModelFromAPIResponse(value *interface{}, key string, data *SettingRes
 	// Convert any value type to string
 	// If it's a complex object (map, slice, etc.), serialize it as JSON
 	var valueStr string
-	if jsonBytes, err := json.Marshal(*value); err == nil {
-		// If it can be marshaled as JSON, use the JSON string
-		valueStr = string(jsonBytes)
-	} else {
-		// Otherwise, use the string representation
-		valueStr = fmt.Sprintf("%v", *value)
+	switch v := (*value).(type) {
+	case string:
+		// If the value is already a string, use it directly
+		valueStr = v
+	default:
+		// Otherwise, try to serialize it as JSON
+		if jsonBytes, err := json.Marshal(*value); err == nil {
+			valueStr = string(jsonBytes)
+		} else {
+			valueStr = fmt.Sprintf("%v", *value)
+		}
 	}
 
 	// Try to normalize the JSON if it's valid JSON
@@ -157,29 +162,29 @@ func normalizeJSON(jsonStr string) (string, error) {
 
 // Helper function to handle setting API responses
 func (r *SettingResource) handleSettingResponse(ctx context.Context, updateResp *metabase.UpdateSettingResponse, data *SettingResourceModel, operation string) error {
-    if updateResp.StatusCode() != 200 && updateResp.StatusCode() != 204 {
-        return fmt.Errorf("unexpected status %d for %s", updateResp.StatusCode(), operation)
-    }
+	if updateResp.StatusCode() != 200 && updateResp.StatusCode() != 204 {
+		return fmt.Errorf("unexpected status %d for %s", updateResp.StatusCode(), operation)
+	}
 
-    if updateResp.StatusCode() == 200 && updateResp.JSON200 != nil {
-        // Direct response with value
-        updateModelFromAPIResponse(updateResp.JSON200, data.Key.ValueString(), data)
-        return nil
-    }
+	if updateResp.StatusCode() == 200 && updateResp.JSON200 != nil {
+		// Direct response with value
+		updateModelFromAPIResponse(updateResp.JSON200, data.Key.ValueString(), data)
+		return nil
+	}
 
-    backoff := 2 * time.Second
-    maxBackoff := 64 * time.Second
-    deadline := time.Now().Add(getWaitTimeout())
+	backoff := 2 * time.Second
+	maxBackoff := 64 * time.Second
+	deadline := time.Now().Add(getWaitTimeout())
 
-    var current string // Declare `current` outside the loop
+	var current string // Declare `current` outside the loop
 
-    for {
-        // Fetch current value
-        getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
-        if err != nil {
-            return fmt.Errorf("failed to poll setting: %w", err)
-        }
-        if getResp.StatusCode() == 200 {
+	for {
+		// Fetch current value
+		getResp, err := r.client.GetSettingWithResponse(ctx, data.Key.ValueString())
+		if err != nil {
+			return fmt.Errorf("failed to poll setting: %w", err)
+		}
+		if getResp.StatusCode() == 200 {
 			if getResp.JSON200 != nil {
 				if jsonBytes, err := json.Marshal(*getResp.JSON200); err == nil {
 					current = string(jsonBytes)
@@ -203,30 +208,29 @@ func (r *SettingResource) handleSettingResponse(ctx context.Context, updateResp 
 				updateModelFromAPIResponse(getResp.JSON200, data.Key.ValueString(), data)
 				return nil
 			}
-        } else if getResp.StatusCode() == 204 {
-            // Setting is at default value
-            updateModelFromAPIResponse(nil, data.Key.ValueString(), data)
-            return nil
-        } else {
-            return fmt.Errorf("unexpected status %d when getting setting", getResp.StatusCode())
-        }
+		} else if getResp.StatusCode() == 204 {
+			// Setting is at default value
+			updateModelFromAPIResponse(nil, data.Key.ValueString(), data)
+			return nil
+		} else {
+			return fmt.Errorf("unexpected status %d when getting setting", getResp.StatusCode())
+		}
 
-        if time.Now().After(deadline) {
-            return fmt.Errorf("timeout waiting for setting %q to be applied. Last fetched value: %q", data.Key.ValueString(), current)
-        }
-        time.Sleep(backoff)
-        // Exponential backoff, up to maxBackoff
-        if backoff < maxBackoff {
-            backoff *= 2
-            if backoff > maxBackoff {
-                backoff = maxBackoff
-            }
-        }
-    }
+		if time.Now().After(deadline) {
+			return fmt.Errorf("timeout waiting for setting %q to be applied. Last fetched value: %q", data.Key.ValueString(), current)
+		}
+		time.Sleep(backoff)
+		// Exponential backoff, up to maxBackoff
+		if backoff < maxBackoff {
+			backoff *= 2
+			if backoff > maxBackoff {
+				backoff = maxBackoff
+			}
+		}
+	}
 
-    return nil
+	return nil
 }
-
 
 func (r *SettingResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *SettingResourceModel
