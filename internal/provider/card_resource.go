@@ -105,13 +105,16 @@ func cleanCardQuery(card map[string]any, existingCard map[string]any) {
 		return
 	}
 
-	if _, ok := existingCard["dataset_query"].(map[string]any)["query"].(map[string]any)["aggregation-idents"]; !ok {
+	existingDatasetQuery, _ := existingCard["dataset_query"].(map[string]any)
+	existingQuery, _ := existingDatasetQuery["query"].(map[string]any)
+
+	if _, ok := existingQuery["aggregation-idents"]; !ok {
 		if query, ok := card["dataset_query"].(map[string]any)["query"].(map[string]any); ok {
 			delete(query, "aggregation-idents")
 		}
 	}
 
-	if _, ok := existingCard["dataset_query"].(map[string]any)["query"].(map[string]any)["breakout-idents"]; !ok {
+	if _, ok := existingQuery["breakout-idents"]; !ok {
 		if query, ok := card["dataset_query"].(map[string]any)["query"].(map[string]any); ok {
 			delete(query, "breakout-idents")
 		}
