@@ -1,3 +1,7 @@
+BUG FIXES:
+
+- Fix card cleaning for native queries.
+
 ## 0.10.0 (2025-09-21)
 
 NEW FEATURES:
