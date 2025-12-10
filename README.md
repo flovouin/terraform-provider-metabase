@@ -47,10 +47,13 @@ Running the tool will connect to the Metabase API, list all dashboards matching 
 metabase:
   # The URL to the Metabase API. Usually suffixed with `/api`.
   endpoint: http://metabase-endpoint.com/api
-  # The following parameters can (and probably should) be defined as environment variables `MBTF_METABASE_USERNAME` and
-  # `MBTF_METABASE_PASSWORD`.
+  # The following authentication parameters can be defined as environment variables:
+  # - To use username/password authentication, set `MBTF_METABASE_USERNAME` and `MBTF_METABASE_PASSWORD`.
+  # - To use API key authentication, set `MBTF_METABASE_APIKEY`.
+  # Only one authentication method is required.
   username: email@address.com
   password: password
+  # apikey: your_metabase_api_key
 
 # Databases are not imported by `mbtf` and should already be defined in the Terraform configuration.
 # This defines how the mapping is made between databases found in the Metabase API and Terraform.

@@ -12,6 +12,15 @@ import (
 
 // Initializes the Metabase API client using the configuration.
 func makeMetabaseClient(ctx context.Context, config metabaseConfig) (*metabase.ClientWithResponses, error) {
+	if len(config.APIKey) > 0 {
+		client, err := metabase.MakeAuthenticatedClientWithApiKey(ctx, config.Endpoint, config.APIKey)
+		if err != nil {
+			return nil, err
+		}
+
+		return client, nil
+	}
+
 	if len(config.Endpoint) == 0 {
 		return nil, errors.New("the Metabase endpoint should be set and non-empty")
 	}
