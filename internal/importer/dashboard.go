@@ -65,6 +65,71 @@ func (ic *ImportContext) insertCardReference(ctx context.Context, obj map[string
 	return nil
 }
 
+// Replaces references to cards in dashboard parameters.
+func (ic *ImportContext) insertReferencesInParameters(ctx context.Context, parameters []any) error {
+	for _, p := range parameters {
+		param, ok := p.(map[string]any)
+		if !ok {
+			return errors.New("unable to cast parameter to map")
+		}
+
+		vstAny, ok := param["values_source_type"]
+		if !ok {
+			continue
+		}
+		vst, ok := vstAny.(string)
+		if !ok {
+			continue
+		}
+
+		if vst == "card" {
+			vscAny, ok := param["values_source_config"]
+			if !ok {
+				continue
+			}
+			vsc, ok := vscAny.(map[string]any)
+			if !ok {
+				return errors.New("unable to cast values_source_config to map")
+			}
+
+			if err := ic.insertCardReference(ctx, vsc); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Converts the list of dashboard parameters to HCL, and replaces the references to card IDs by their corresponding Terraform
+// resources.
+func (ic *ImportContext) makeDashboardParametersHcl(ctx context.Context, parameters []metabase.DashboardParameter) (*string, error) {
+	parametersJson, err := json.Marshal(parameters)
+	if err != nil {
+		return nil, err
+	}
+
+	var parametersUntyped []any
+	err = json.Unmarshal(parametersJson, &parametersUntyped)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ic.insertReferencesInParameters(ctx, parametersUntyped)
+	if err != nil {
+		return nil, err
+	}
+
+	parametersStr, err := json.MarshalIndent(parametersUntyped, "  ", "  ")
+	if err != nil {
+		return nil, err
+	}
+
+	hcl := replacePlaceholders(string(parametersStr))
+
+	return &hcl, nil
+}
+
 // Replaces all references to cards and fields in a "dashcard" by their `imported*` counterpart.
 func (ic *ImportContext) insertReferencesInCard(ctx context.Context, card map[string]any) error {
 	// The dashcard has a `card_id` at its root that should be replaced.
@@ -163,9 +228,7 @@ func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabas
 		return nil, err
 	}
 
-	// Parameters should not contain references to tables or fields, and can be converted to JSON/HCL as is.
-	// Their ID is only used within the dashboard itself, and it is not the ID of an object in the Metabase API / DB.
-	parametersStr, err := json.MarshalIndent(dashboard.Parameters, "  ", "  ")
+	parametersHcl, err := ic.makeDashboardParametersHcl(ctx, dashboard.Parameters)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +274,7 @@ func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabas
 		CacheTtl:           dashboard.CacheTtl,
 		CollectionRef:      collectionRef,
 		CollectionPosition: dashboard.CollectionPosition,
-		ParametersHcl:      string(parametersStr),
+		ParametersHcl:      *parametersHcl,
 		CardsHcl:           *cardsHcl,
 	})
 	if err != nil {
