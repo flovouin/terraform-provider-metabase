@@ -23,6 +23,7 @@ type metabaseConfig struct {
 	Endpoint string `koanf:"endpoint"` // The URL to the Metabase API.
 	Username string `koanf:"username"` // The username (email address) to use to log in.
 	Password string `koanf:"password"` // The password to use to log in.
+	APIKey   string `koanf:"apikey"`   // The API key to use to log in.
 }
 
 // A single mapping from a database to a Terraform resource name.
