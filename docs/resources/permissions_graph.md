@@ -126,6 +126,8 @@ Optional:
 
 Import is supported using the following syntax:
 
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
 ```shell
 # By convention, the revision number of the permissions graph should be used, although it does not really matter as it
 # will be read during the import anyway.

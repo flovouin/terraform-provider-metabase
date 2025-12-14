@@ -62,5 +62,3 @@ output "table_name" {
 - `description` (String) A description for the table.
 - `display_name` (String) The name displayed in the interface for the table.
 - `fields` (Map of Number) A map where keys are field (column) names and values are their Metabase ID.
-
-

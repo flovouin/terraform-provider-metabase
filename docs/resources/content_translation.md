@@ -63,5 +63,3 @@ resource "metabase_content_translation" "from_file" {
 ### Read-Only
 
 - `id` (String) A unique identifier for the translation set.
-
-

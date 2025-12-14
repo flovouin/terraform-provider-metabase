@@ -1,3 +1,10 @@
+## 0.11.0 (2025-12-14)
+
+ENHANCEMENTS:
+
+- Add support for API key authentication in `mbtf`.
+- Handle card references in dashboard parameters. (Thanks @gouglhupf!)
+
 ## 0.10.1 (2025-12-07)
 
 BUG FIXES:

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/deepmap/oapi-codegen/pkg/securityprovider"
+	"github.com/oapi-codegen/oapi-codegen/v2/pkg/securityprovider"
 )
 
 // Authenticates to the Metabase API using the given username and password, and returns an API client configured with
