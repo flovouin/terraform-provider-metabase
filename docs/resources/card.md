@@ -65,6 +65,8 @@ resource "metabase_card" "some_great_insights" {
 
 Import is supported using the following syntax:
 
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
+
 ```shell
 # Use the integer ID from the Metabase API.
 terraform import metabase_card.card 1

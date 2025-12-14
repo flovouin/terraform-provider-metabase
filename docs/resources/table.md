@@ -5,10 +5,10 @@ subcategory: ""
 description: |-
   An existing Metabase table, part of a parent database.
   This resource never creates or deletes tables, as they are managed by Metabase itself. However the table and its fields can be updated.
-  Instead of being created, the table will be looked up based on its id or a combination of (dbid, name, entitytype, and/or schema). The unspecified attributes will be filled with the values from Metabase's response.
+  Instead of being created, the table will be looked up based on its id or a combination of (db_id, name, entity_type, and/or schema). The unspecified attributes will be filled with the values from Metabase's response.
   Like its data source counterpart, this resource exposes the ID of the fields (columns) in the table.
   The display name and the description of the table can be set. If not specified, the remote values are available instead.
-  Finally, this resource may define the semantic type for all or a subset of the fields (columns) using the forcedfieldtypes attribute. Only the fields in the map will be updated, all other fields are left as is.
+  Finally, this resource may define the semantic type for all or a subset of the fields (columns) using the forced_field_types attribute. Only the fields in the map will be updated, all other fields are left as is.
 ---
 
 # metabase_table (Resource)
@@ -79,6 +79,8 @@ output "field_id" {
 ## Import
 
 Import is supported using the following syntax:
+
+The [`terraform import` command](https://developer.hashicorp.com/terraform/cli/commands/import) can be used, for example:
 
 ```shell
 # Use the integer ID from the Metabase API.
