@@ -1,3 +1,9 @@
+## 0.12.0 (2025-12-15)
+
+NEW FEATURES:
+
+- Add the `metabase_collection_graph` and `metabase_permissions_graph` data sources. (Thanks @TheMrZZ!)
+
 ## 0.11.0 (2025-12-14)
 
 ENHANCEMENTS:
