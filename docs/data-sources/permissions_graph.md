@@ -27,7 +27,6 @@ data "metabase_permissions_graph" "current" {}
 # By default, the Administrators group (ID 2) is ignored.
 data "metabase_permissions_graph" "with_options" {
   ignored_groups       = [2]
-  advanced_permissions = false
 }
 
 output "revision" {
@@ -44,7 +43,6 @@ output "permissions" {
 
 ### Optional
 
-- `advanced_permissions` (Boolean) Whether advanced permissions should be read. This is only available to paid versions of Metabase.
 - `ignored_groups` (Set of Number) The list of group IDs that should be ignored when reading permissions. By default, this contains the Administrators group (`[2]`).
 
 ### Read-Only

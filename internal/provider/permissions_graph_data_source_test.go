@@ -16,7 +16,6 @@ func testAccPermissionsGraphDataSourceWithOptions() string {
 	return `
 data "metabase_permissions_graph" "test" {
   ignored_groups       = [2]
-  advanced_permissions = false
 }
 `
 }
