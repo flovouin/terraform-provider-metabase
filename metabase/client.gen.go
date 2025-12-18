@@ -289,6 +289,9 @@ type Dashboard struct {
 
 	// Parameters A list of parameters for the dashboard, that the user can tweak.
 	Parameters []DashboardParameter `json:"parameters"`
+
+	// Tabs The list of tabs in the dashboard.
+	Tabs []DashboardTab `json:"tabs"`
 }
 
 // DashboardCard A card within a dashboard.
@@ -358,6 +361,15 @@ type DashboardParameterDefault1 = []interface{}
 // DashboardParameter_Default The default value for the parameter.
 type DashboardParameter_Default struct {
 	union json.RawMessage
+}
+
+// DashboardTab A tab within a dashboard.
+type DashboardTab struct {
+	// Id The ID of the dashboard tab.
+	Id int `json:"id"`
+
+	// Name The name of the tab.
+	Name string `json:"name"`
 }
 
 // Database An external database that can be queried by cards and dashboards.
@@ -607,6 +619,9 @@ type UpdateDashboardBody struct {
 
 	// Parameters A list of parameters for the dashboard, that the user can tweak.
 	Parameters *[]DashboardParameter `json:"parameters,omitempty"`
+
+	// Tabs The list of tabs in the dashboard.
+	Tabs *[]DashboardTab `json:"tabs,omitempty"`
 }
 
 // UpdateDatabaseBody The payload used to update an existing database.

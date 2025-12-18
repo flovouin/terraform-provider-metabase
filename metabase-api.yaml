@@ -998,6 +998,11 @@ components:
           description: The list of cards in the dashboard.
           items:
             $ref: "#/components/schemas/DashboardCard"
+        tabs:
+          type: array
+          description: The list of tabs in the dashboard.
+          items:
+            $ref: "#/components/schemas/DashboardTab"
       required:
         - id
         - name
@@ -1008,6 +1013,7 @@ components:
         - archived
         - parameters
         - dashcards
+        - tabs
     CreateDashboardBody:
       type: object
       description: The body of the payload when creating a dashboard.
@@ -1077,6 +1083,11 @@ components:
           description: The list of cards in the dashboard.
           items:
             $ref: "#/components/schemas/DashboardCard"
+        tabs:
+          type: array
+          description: The list of tabs in the dashboard.
+          items:
+            $ref: "#/components/schemas/DashboardTab"
     DashboardParameter:
       type: object
       description: A parameter for a dashboard, that the user can tweak.
@@ -1159,6 +1170,19 @@ components:
         - size_x
         - size_y
         - visualization_settings
+    DashboardTab:
+      type: object
+      description: A tab within a dashboard.
+      properties:
+        id:
+          type: integer
+          description: The ID of the dashboard tab.
+        name:
+          type: string
+          description: The name of the tab.
+      required:
+        - id
+        - name
     # Databases.
     Database:
       type: object

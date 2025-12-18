@@ -43,6 +43,7 @@ type DashboardResourceModel struct {
 	Description        types.String `tfsdk:"description"`         // A description for the dashboard.
 	ParametersJson     types.String `tfsdk:"parameters_json"`     // A list of parameters for the dashboard, that the user can tweak, as a JSON string.
 	CardsJson          types.String `tfsdk:"cards_json"`          // The list of cards in the dashboard, as a JSON string.
+	TabsJson           types.String `tfsdk:"tabs_json"`           // The list of tabs in the dashboard, as a JSON string.
 }
 
 // The list of JSON attributes in a dashcard that should be persisted in the state.
@@ -56,6 +57,7 @@ var allowedDashcardAttributes = map[string]bool{
 	"series":                 true,
 	"parameter_mappings":     true,
 	"visualization_settings": true,
+	"dashboard_tab_id":       true,
 }
 
 func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -97,6 +99,10 @@ Although a dashboard object is even more complex than a card (question), basic p
 			"cards_json": schema.StringAttribute{
 				MarkdownDescription: "The list of cards in the dashboard, as a JSON string.",
 				Required:            true,
+			},
+			"tabs_json": schema.StringAttribute{
+				MarkdownDescription: "The list of tabs in the dashboard, as a JSON string. Each tab should have an `id` (positive integer, unique within the dashboard) and a `name`. Cards can reference tabs using `dashboard_tab_id` with the same ID.",
+				Optional:            true,
 			},
 		},
 	}
@@ -174,7 +180,15 @@ func updateModelFromDashboardAndRawBody(d metabase.Dashboard, body []byte, data 
 		data.ParametersJson = types.StringValue(*marshalledNewParameters)
 	}
 
-	cardsDiag := updateCardsFromRawBody(body, data)
+	// Build a mapping from Metabase tab IDs to user-provided tab IDs.
+	// This is needed because we send negative IDs but Metabase returns positive ones.
+	tabIdMapping, tabsDiag := updateTabsFromRawBody(body, data)
+	diags.Append(tabsDiag...)
+	if diags.HasError() {
+		return diags
+	}
+
+	cardsDiag := updateCardsFromRawBody(body, data, tabIdMapping)
 	diags.Append(cardsDiag...)
 	if diags.HasError() {
 		return diags
@@ -184,7 +198,8 @@ func updateModelFromDashboardAndRawBody(d metabase.Dashboard, body []byte, data 
 }
 
 // Updates the `cards_json` attribute in the `DashboardResourceModel` using the raw response from the Metabase API.
-func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Diagnostics {
+// tabIdMapping maps Metabase tab IDs to user-provided tab IDs.
+func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel, tabIdMapping map[int]int) diag.Diagnostics {
 	var diags diag.Diagnostics
 
 	var jsonResponse map[string]any
@@ -222,6 +237,17 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Dia
 				delete(card, key)
 			}
 		}
+
+		// Map Metabase tab ID back to user-provided tab ID, or remove if null/unmapped.
+		if tabId, ok := card["dashboard_tab_id"]; ok {
+			if tabId == nil {
+				delete(card, "dashboard_tab_id")
+			} else if tabIdFloat, ok := tabId.(float64); ok {
+				if userTabId, exists := tabIdMapping[int(tabIdFloat)]; exists {
+					card["dashboard_tab_id"] = userTabId
+				}
+			}
+		}
 	}
 
 	// Unmarshalling `cards_json` from the Terraform state/plan such that it can be compared to Metabase's response.
@@ -249,6 +275,103 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel) diag.Dia
 	}
 
 	return diags
+}
+
+// Updates the `tabs_json` attribute in the `DashboardResourceModel` using the raw response from the Metabase API.
+// Returns a mapping from Metabase tab IDs to user-provided tab IDs (based on array position).
+func updateTabsFromRawBody(bytes []byte, data *DashboardResourceModel) (map[int]int, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	tabIdMapping := make(map[int]int)
+
+	var jsonResponse map[string]any
+	err := json.Unmarshal(bytes, &jsonResponse)
+	if err != nil {
+		diags.AddError("Unable to parse get dashboard response.", err.Error())
+		return tabIdMapping, diags
+	}
+
+	// Parse existing tabs from state to get user-provided IDs.
+	var existingTabs []map[string]any
+	if !data.TabsJson.IsNull() {
+		err = json.Unmarshal([]byte(data.TabsJson.ValueString()), &existingTabs)
+		if err != nil {
+			diags.AddError("Error deserializing existing tabs JSON value.", err.Error())
+			return tabIdMapping, diags
+		}
+	}
+
+	tabsAny, ok := jsonResponse["tabs"]
+	if !ok {
+		// Tabs may not be present in older Metabase versions or if there are no tabs.
+		// In this case, set tabs_json to null if it was null in the state.
+		if data.TabsJson.IsNull() {
+			return tabIdMapping, diags
+		}
+		// If tabs were expected but not returned, set to empty array.
+		data.TabsJson = types.StringNull()
+		return tabIdMapping, diags
+	}
+
+	// Tabs must be cast as a list of `interface{}`.
+	tabs, ok := tabsAny.([]any)
+	if !ok {
+		diags.AddError("Unable to parse tabs as a list from get dashboard response.", string(bytes))
+		return tabIdMapping, diags
+	}
+
+	// If there are no tabs, set to null.
+	if len(tabs) == 0 {
+		if !data.TabsJson.IsNull() {
+			data.TabsJson = types.StringNull()
+		}
+		return tabIdMapping, diags
+	}
+
+	// Build mapping from Metabase IDs to user IDs and normalize tab data.
+	for i, t := range tabs {
+		tab, ok := t.(map[string]any)
+		if !ok {
+			diags.AddError("Could not parse tab as object.", string(bytes))
+			return tabIdMapping, diags
+		}
+
+		// Build mapping: Metabase ID -> User ID (based on position).
+		if metabaseId, ok := tab["id"].(float64); ok {
+			if i < len(existingTabs) {
+				if userId, ok := existingTabs[i]["id"].(float64); ok {
+					tabIdMapping[int(metabaseId)] = int(userId)
+					// Replace Metabase ID with user ID in the response.
+					tab["id"] = int(userId)
+				}
+			}
+		}
+
+		// Removing all attributes except id and name.
+		for key := range tab {
+			if key != "id" && key != "name" {
+				delete(tab, key)
+			}
+		}
+	}
+
+	// Convert existingTabs to []any for comparison.
+	var existingTabsAny []any
+	for _, t := range existingTabs {
+		existingTabsAny = append(existingTabsAny, t)
+	}
+
+	// If the response of the Metabase API is different, update the state.
+	if !reflect.DeepEqual(tabs, existingTabsAny) {
+		tabsJson, err := json.Marshal(tabs)
+		if err != nil {
+			diags.AddError("Error serializing new tabs JSON value.", err.Error())
+			return tabIdMapping, diags
+		}
+
+		data.TabsJson = types.StringValue(string(tabsJson))
+	}
+
+	return tabIdMapping, diags
 }
 
 // Makes the list of dashboard parameters that can be sent to the Metabase API from a Terraform model.
@@ -287,9 +410,41 @@ func makeCardsFromModel(model types.String) ([]map[string]any, diag.Diagnostics)
 	// For simplicity, new (negative) IDs are used, which will simply replace the existing cards.
 	for id, c := range cards {
 		c["id"] = -id
+		// Negate dashboard_tab_id to match the negated tab IDs.
+		if tabId, ok := c["dashboard_tab_id"].(float64); ok {
+			c["dashboard_tab_id"] = -int(tabId)
+		}
 	}
 
 	return cards, diags
+}
+
+// Constructs the list of dashboard tabs as a type-less list of maps that can be serialized to JSON.
+// The IDs of the tabs are negated, which will cause the Metabase API to create new tabs.
+func makeTabsFromModel(model types.String) ([]map[string]any, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if model.IsNull() {
+		return nil, diags
+	}
+
+	tabsJson := model.ValueString()
+
+	var tabs []map[string]any
+	err := json.Unmarshal([]byte(tabsJson), &tabs)
+	if err != nil {
+		diags.AddError("Unable to parse tabs JSON.", err.Error())
+		return nil, diags
+	}
+
+	// Negate user-provided IDs to signal creation of new tabs.
+	for _, t := range tabs {
+		if id, ok := t["id"].(float64); ok {
+			t["id"] = -int(id)
+		}
+	}
+
+	return tabs, diags
 }
 
 func (r *DashboardResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
@@ -353,6 +508,12 @@ func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponse
 		return nil, diags
 	}
 
+	tabs, tabsDiags := makeTabsFromModel(data.TabsJson)
+	diags.Append(tabsDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
 	updatePayload := map[string]any{
 		"name":                valueStringOrNull(data.Name),
 		"description":         valueStringOrNull(data.Description),
@@ -361,6 +522,9 @@ func makeUpdateFromModel(ctx context.Context, client metabase.ClientWithResponse
 		"collection_position": valueInt64OrNull(data.CollectionPosition),
 		"parameters":          parameters,
 		"dashcards":           dashcards,
+	}
+	if tabs != nil {
+		updatePayload["tabs"] = tabs
 	}
 	updateBuffer, err := json.Marshal(updatePayload)
 	if err != nil {

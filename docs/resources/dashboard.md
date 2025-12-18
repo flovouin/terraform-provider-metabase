@@ -63,9 +63,15 @@ resource "metabase_dashboard" "some_great_dashboard" {
     },
   ])
 
+  tabs_json = jsonencode([
+    { name = "My first tab!", id = 1 },
+    { name = "Second tab", id = 2 }
+  ])
+
   cards_json = jsonencode([
     {
       card_id                = metabase_card.some_great_insights.id
+      dashboard_tab_id       = 1
       col                    = 7
       row                    = 0
       size_x                 = 11
@@ -85,6 +91,7 @@ resource "metabase_dashboard" "some_great_dashboard" {
     },
     {
       card_id = null
+      dashboard_tab_id = 2
       col     = 0
       row     = 0
       size_x  = 7
@@ -122,6 +129,7 @@ resource "metabase_dashboard" "some_great_dashboard" {
 - `collection_position` (Number) The position of the dashboard in the collection.
 - `description` (String) A description for the dashboard.
 - `parameters_json` (String) A list of parameters for the dashboard, that the user can tweak, as a JSON string.
+- `tabs_json` (String) The list of tabs in the dashboard, as a JSON string. Each tab should have an `id` (positive integer, unique within the dashboard) and a `name`. Cards can reference tabs using `dashboard_tab_id` with the same ID.
 
 ### Read-Only
 
