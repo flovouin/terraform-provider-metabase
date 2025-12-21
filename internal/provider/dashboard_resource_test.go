@@ -178,3 +178,128 @@ func TestAccDashboardResource(t *testing.T) {
 		},
 	})
 }
+
+func testAccDashboardResourceWithTabs(name string, dashboardName string, description string, extraCard bool) string {
+	extraCardJson := ""
+	if extraCard {
+		extraCardJson = `,
+    {
+      card_id = null
+      col = 6
+      row = 0
+      size_x = 6
+      size_y = 3
+      series = []
+      parameter_mappings = []
+      visualization_settings = {
+        virtual_card = {
+          name = null
+          display = "text"
+          visualization_settings = {}
+          dataset_query = {}
+          archived = false
+        }
+        text = "Extra card on Tab 1"
+      }
+      dashboard_tab_id = 1
+    }`
+	}
+
+	return fmt.Sprintf(`
+resource "metabase_dashboard" "%s" {
+  name        = "%s"
+  description = "%s"
+
+  tabs_json = jsonencode([
+    {
+      "id": 1,
+      "name": "Tab 1"
+    },
+    {
+      "id": 2,
+      "name": "Tab 2"
+    }
+  ])
+
+  cards_json = jsonencode([
+    {
+      card_id = null
+      col = 0
+      row = 0
+      size_x = 6
+      size_y = 3
+      series = []
+      visualization_settings = {
+        virtual_card = {
+          name = null
+          display = "text"
+          visualization_settings = {}
+          dataset_query = {}
+          archived = false
+        }
+        text = "Content on Tab 1"
+      }
+      parameter_mappings = []
+      dashboard_tab_id = 1
+    },
+    {
+      card_id = null
+      col = 0
+      row = 0
+      size_x = 6
+      size_y = 3
+      series = []
+      parameter_mappings = []
+      visualization_settings = {
+        virtual_card = {
+          name = null
+          display = "text"
+          visualization_settings = {}
+          dataset_query = {}
+          archived = false
+        }
+        text = "Content on Tab 2"
+      }
+      dashboard_tab_id = 2
+    }%s
+  ])
+}
+`,
+		name,
+		dashboardName,
+		description,
+		extraCardJson,
+	)
+}
+
+func TestAccDashboardResourceWithTabs(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckDashboardDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: providerApiKeyConfig + testAccDashboardResourceWithTabs("test_tabs", "Dashboard with Tabs", "A dashboard with tabs", false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckDashboardExists("metabase_dashboard.test_tabs"),
+					resource.TestCheckResourceAttrSet("metabase_dashboard.test_tabs", "id"),
+					resource.TestCheckResourceAttr("metabase_dashboard.test_tabs", "name", "Dashboard with Tabs"),
+					resource.TestCheckResourceAttrSet("metabase_dashboard.test_tabs", "tabs_json"),
+				),
+			},
+			{
+				ResourceName: "metabase_dashboard.test_tabs",
+				ImportState:  true,
+			},
+			// Update: add an extra card to Tab 1
+			{
+				Config: providerApiKeyConfig + testAccDashboardResourceWithTabs("test_tabs", "Dashboard with Tabs", "A dashboard with tabs", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckDashboardExists("metabase_dashboard.test_tabs"),
+					resource.TestCheckResourceAttrSet("metabase_dashboard.test_tabs", "id"),
+					resource.TestCheckResourceAttr("metabase_dashboard.test_tabs", "name", "Dashboard with Tabs"),
+					resource.TestCheckResourceAttrSet("metabase_dashboard.test_tabs", "tabs_json"),
+				),
+			},
+		},
+	})
+}
