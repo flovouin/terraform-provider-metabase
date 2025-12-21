@@ -1,3 +1,9 @@
+## 0.13.0 (2025-12-21)
+
+NEW FEATURES:
+
+- Support tabs in dashboards. (Thanks @TheMrZZ!)
+
 ## 0.12.0 (2025-12-15)
 
 NEW FEATURES:
