@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"sort"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -58,6 +59,37 @@ var allowedDashcardAttributes = map[string]bool{
 	"parameter_mappings":     true,
 	"visualization_settings": true,
 	"dashboard_tab_id":       true,
+}
+
+// sortDashcards sorts a slice of dashcards by their position (tab_id, row, col) for stable comparison.
+// This ensures that the order of cards returned by the API doesn't cause spurious diffs.
+func sortDashcards(cards []any) {
+	sort.Slice(cards, func(i, j int) bool {
+		cardI, okI := cards[i].(map[string]any)
+		cardJ, okJ := cards[j].(map[string]any)
+		if !okI || !okJ {
+			return false
+		}
+
+		// Sort by tab_id first
+		tabI, _ := cardI["dashboard_tab_id"].(float64)
+		tabJ, _ := cardJ["dashboard_tab_id"].(float64)
+		if tabI != tabJ {
+			return tabI < tabJ
+		}
+
+		// Then by row
+		rowI, _ := cardI["row"].(float64)
+		rowJ, _ := cardJ["row"].(float64)
+		if rowI != rowJ {
+			return rowI < rowJ
+		}
+
+		// Then by col
+		colI, _ := cardI["col"].(float64)
+		colJ, _ := cardJ["col"].(float64)
+		return colI < colJ
+	})
 }
 
 func (r *DashboardResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -259,6 +291,11 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel, tabIdMap
 			return diags
 		}
 	}
+
+	// Sort both arrays by position before comparing to avoid spurious diffs due to API returning
+	// cards in a different order than provided.
+	sortDashcards(dashcards)
+	sortDashcards(existingCards)
 
 	// If the response of the Metabase API is different, the processed list of cards is marshalled and stored in the
 	// state. There is a high chance this will cause an error in Terraform because `cards_json` should not be modified by

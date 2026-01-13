@@ -3,12 +3,89 @@ package provider
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strconv"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+func TestSortDashcards(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []any
+		expected []any
+	}{
+		{
+			name: "sorts by row then col",
+			input: []any{
+				map[string]any{"card_id": float64(2), "row": float64(1), "col": float64(0)},
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0)},
+				map[string]any{"card_id": float64(3), "row": float64(0), "col": float64(5)},
+			},
+			expected: []any{
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0)},
+				map[string]any{"card_id": float64(3), "row": float64(0), "col": float64(5)},
+				map[string]any{"card_id": float64(2), "row": float64(1), "col": float64(0)},
+			},
+		},
+		{
+			name: "sorts by tab_id first",
+			input: []any{
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0), "dashboard_tab_id": float64(2)},
+				map[string]any{"card_id": float64(2), "row": float64(0), "col": float64(0), "dashboard_tab_id": float64(1)},
+				map[string]any{"card_id": float64(3), "row": float64(1), "col": float64(0), "dashboard_tab_id": float64(1)},
+			},
+			expected: []any{
+				map[string]any{"card_id": float64(2), "row": float64(0), "col": float64(0), "dashboard_tab_id": float64(1)},
+				map[string]any{"card_id": float64(3), "row": float64(1), "col": float64(0), "dashboard_tab_id": float64(1)},
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0), "dashboard_tab_id": float64(2)},
+			},
+		},
+		{
+			name: "handles null card_id (text cards)",
+			input: []any{
+				map[string]any{"card_id": nil, "row": float64(5), "col": float64(0)},
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0)},
+				map[string]any{"card_id": nil, "row": float64(0), "col": float64(6)},
+			},
+			expected: []any{
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0)},
+				map[string]any{"card_id": nil, "row": float64(0), "col": float64(6)},
+				map[string]any{"card_id": nil, "row": float64(5), "col": float64(0)},
+			},
+		},
+		{
+			name:     "handles empty slice",
+			input:    []any{},
+			expected: []any{},
+		},
+		{
+			name: "handles single element",
+			input: []any{
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0)},
+			},
+			expected: []any{
+				map[string]any{"card_id": float64(1), "row": float64(0), "col": float64(0)},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Make a copy to avoid modifying test data
+			input := make([]any, len(tt.input))
+			copy(input, tt.input)
+
+			sortDashcards(input)
+
+			if !reflect.DeepEqual(input, tt.expected) {
+				t.Errorf("sortDashcards() = %v, want %v", input, tt.expected)
+			}
+		})
+	}
+}
 
 func testAccDashboardResource(name string, dashboardName string, description string) string {
 	return fmt.Sprintf(`
