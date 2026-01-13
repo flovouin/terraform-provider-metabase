@@ -1,3 +1,9 @@
+## 0.13.1 (2026-01-13)
+
+BUG FIXES:
+
+- Fix inconsistent cards order in dashboard API result. (Thanks @TheMrZZ!)
+
 ## 0.13.0 (2025-12-21)
 
 NEW FEATURES:
