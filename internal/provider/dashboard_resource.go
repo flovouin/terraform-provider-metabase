@@ -61,6 +61,18 @@ var allowedDashcardAttributes = map[string]bool{
 	"dashboard_tab_id":       true,
 }
 
+// toInt extracts an integer from an interface{} that could be float64 (from JSON) or int.
+func toInt(v any) int {
+	switch n := v.(type) {
+	case float64:
+		return int(n)
+	case int:
+		return n
+	default:
+		return 0
+	}
+}
+
 // sortDashcards sorts a slice of dashcards by their position (tab_id, row, col) for stable comparison.
 // This ensures that the order of cards returned by the API doesn't cause spurious diffs.
 func sortDashcards(cards []any) {
@@ -72,22 +84,22 @@ func sortDashcards(cards []any) {
 		}
 
 		// Sort by tab_id first
-		tabI, _ := cardI["dashboard_tab_id"].(float64)
-		tabJ, _ := cardJ["dashboard_tab_id"].(float64)
+		tabI := toInt(cardI["dashboard_tab_id"])
+		tabJ := toInt(cardJ["dashboard_tab_id"])
 		if tabI != tabJ {
 			return tabI < tabJ
 		}
 
 		// Then by row
-		rowI, _ := cardI["row"].(float64)
-		rowJ, _ := cardJ["row"].(float64)
+		rowI := toInt(cardI["row"])
+		rowJ := toInt(cardJ["row"])
 		if rowI != rowJ {
 			return rowI < rowJ
 		}
 
 		// Then by col
-		colI, _ := cardI["col"].(float64)
-		colJ, _ := cardJ["col"].(float64)
+		colI := toInt(cardI["col"])
+		colJ := toInt(cardJ["col"])
 		return colI < colJ
 	})
 }
@@ -294,22 +306,17 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel, tabIdMap
 
 	// Sort both arrays by position before comparing to avoid spurious diffs due to API returning
 	// cards in a different order than provided.
+	// Sort cards by position for consistent ordering.
 	sortDashcards(dashcards)
-	sortDashcards(existingCards)
 
-	// If the response of the Metabase API is different, the processed list of cards is marshalled and stored in the
-	// state. There is a high chance this will cause an error in Terraform because `cards_json` should not be modified by
-	// create / update operations (as it is specified by the user). However this error will make it clear what has
-	// happened.
-	if !reflect.DeepEqual(dashcards, existingCards) {
-		cardsJson, err := json.Marshal(dashcards)
-		if err != nil {
-			diags.AddError("Error serializing new JSON value.", err.Error())
-			return diags
-		}
-
-		data.CardsJson = types.StringValue(string(cardsJson))
+	// Always store sorted result so it matches the sorted plan value.
+	cardsJson, err := json.Marshal(dashcards)
+	if err != nil {
+		diags.AddError("Error serializing new JSON value.", err.Error())
+		return diags
 	}
+
+	data.CardsJson = types.StringValue(string(cardsJson))
 
 	return diags
 }
