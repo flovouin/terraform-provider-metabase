@@ -257,9 +257,10 @@ func TestAccDashboardResource(t *testing.T) {
 }
 
 func testAccDashboardResourceWithTabs(name string, dashboardName string, description string, extraCard bool) string {
+	// Extra card for Tab 1 - inserted in sorted position (after Tab 1 col=0, before Tab 2)
 	extraCardJson := ""
 	if extraCard {
-		extraCardJson = `,
+		extraCardJson = `
     {
       card_id = null
       col = 6
@@ -279,7 +280,7 @@ func testAccDashboardResourceWithTabs(name string, dashboardName string, descrip
         text = "Extra card on Tab 1"
       }
       dashboard_tab_id = 1
-    }`
+    },`
 	}
 
 	return fmt.Sprintf(`
@@ -318,7 +319,7 @@ resource "metabase_dashboard" "%s" {
       }
       parameter_mappings = []
       dashboard_tab_id = 1
-    },
+    },%s
     {
       card_id = null
       col = 0
@@ -338,7 +339,7 @@ resource "metabase_dashboard" "%s" {
         text = "Content on Tab 2"
       }
       dashboard_tab_id = 2
-    }%s
+    }
   ])
 }
 `,
