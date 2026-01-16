@@ -21,6 +21,8 @@ const dashboardTemplate = `resource "metabase_dashboard" "{{.TerraformSlug}}" {
 
   parameters_json = jsonencode({{.ParametersHcl}})
 
+  tabs_json = jsonencode({{.TabsHcl}})
+
   cards_json = jsonencode({{.CardsHcl}})
 }
 `
@@ -34,6 +36,7 @@ type dashboardTemplateData struct {
 	CollectionRef      *string // The reference to the collection where the dashboard is located.
 	CollectionPosition *int    // The position in the collection.
 	ParametersHcl      string  // The dashboard parameters, as an HCL string.
+	TabsHcl            string  // The dashboard tabs, as an HCL string. Nil if there are no tabs.
 	CardsHcl           string  // The dashboard cards, as an HCL string, possibly referencing cards.
 }
 
@@ -184,7 +187,12 @@ func (ic *ImportContext) insertReferencesInCard(ctx context.Context, card map[st
 
 // Converts the list of "dashcards" to HCL, and replaces the references to card IDs by their corresponding Terraform
 // resources.
-func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []metabase.DashboardCard) (*string, error) {
+// tabIdMapping maps original Metabase tab IDs to sequential IDs (1, 2, 3...).
+func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []metabase.DashboardCard, tabIdMapping map[int]int) (*string, error) {
+	for i, c := range cards {
+		cards[i].DashboardTabId = tabIdMapping[c.DashboardTabId]
+	}
+
 	cardsJson, err := json.Marshal(cards)
 	if err != nil {
 		return nil, err
@@ -221,6 +229,28 @@ func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []meta
 	return &hcl, nil
 }
 
+// Converts the list of dashboard tabs to HCL.
+// Returns the tabs HCL and a mapping from original Metabase tab IDs to sequential IDs (1, 2, 3...).
+// Returns an error if there are no tabs.
+func (ic *ImportContext) makeDashboardTabsHcl(tabs []metabase.DashboardTab) (*string, map[int]int, error) {
+	tabIdMapping := make(map[int]int)
+
+	for i, tab := range tabs {
+		sequentialId := i + 1
+		tabIdMapping[tab.Id] = sequentialId
+		tabs[i].Id = sequentialId
+	}
+
+	tabsJson, err := json.MarshalIndent(tabs, "  ", "  ")
+	if err != nil {
+		return nil, nil, fmt.Errorf("error serializing tabs: %w", err)
+	}
+
+	hcl := replacePlaceholders(string(tabsJson))
+
+	return &hcl, tabIdMapping, nil
+}
+
 // Produces the Terraform definition for a `metabase_dashboard` resource.
 func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabase.Dashboard, slug string) (*string, error) {
 	tpl, err := template.New("dashboard").Parse(dashboardTemplate)
@@ -233,7 +263,12 @@ func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabas
 		return nil, err
 	}
 
-	cardsHcl, err := ic.makeDashboardCardsHcl(ctx, dashboard.Dashcards)
+	tabsHcl, tabIdMapping, err := ic.makeDashboardTabsHcl(dashboard.Tabs)
+	if err != nil {
+		return nil, err
+	}
+
+	cardsHcl, err := ic.makeDashboardCardsHcl(ctx, dashboard.Dashcards, tabIdMapping)
 	if err != nil {
 		return nil, err
 	}
@@ -275,6 +310,7 @@ func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabas
 		CollectionRef:      collectionRef,
 		CollectionPosition: dashboard.CollectionPosition,
 		ParametersHcl:      *parametersHcl,
+		TabsHcl:            *tabsHcl,
 		CardsHcl:           *cardsHcl,
 	})
 	if err != nil {

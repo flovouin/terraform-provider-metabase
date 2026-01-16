@@ -302,6 +302,9 @@ type DashboardCard struct {
 	// Col The index of the column at which the card is placed.
 	Col int `json:"col"`
 
+	// DashboardTabId The ID of the dashboard tab.
+	DashboardTabId int `json:"dashboard_tab_id"`
+
 	// Id The ID of the dashboard card.
 	Id int `json:"id"`
 
