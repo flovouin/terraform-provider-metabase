@@ -198,6 +198,22 @@ func (ic *ImportContext) insertCardCollectionReference(ctx context.Context, card
 	return nil
 }
 
+// Replaces references to cards in card parameters (specifically in values_source_config when values_source_type is "card").
+func (ic *ImportContext) insertCardParameterReferences(ctx context.Context, card map[string]any) error {
+	parametersAny, ok := card["parameters"]
+	if !ok || parametersAny == nil {
+		// Parameters may not be present or may be null.
+		return nil
+	}
+
+	parameters, ok := parametersAny.([]any)
+	if !ok {
+		return errors.New("unable to convert card parameters to array")
+	}
+
+	return ic.insertReferencesInParameters(ctx, parameters)
+}
+
 // Converts a raw JSON card to its HCL representation, including references to other Terraform resources and data
 // sources. Only known attributes are kept.
 func (ic *ImportContext) makeCardJson(ctx context.Context, card []byte) (*string, error) {
@@ -234,6 +250,11 @@ func (ic *ImportContext) makeCardJson(ctx context.Context, card []byte) (*string
 	}
 
 	err = ic.insertFieldReferenceInCardColumnSettings(ctx, cardMap)
+	if err != nil {
+		return nil, err
+	}
+
+	err = ic.insertCardParameterReferences(ctx, cardMap)
 	if err != nil {
 		return nil, err
 	}
