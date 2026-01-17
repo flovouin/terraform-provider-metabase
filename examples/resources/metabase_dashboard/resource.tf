@@ -45,9 +45,15 @@ resource "metabase_dashboard" "some_great_dashboard" {
     },
   ])
 
+  tabs_json = jsonencode([
+    { name = "My first tab!", id = 1 },
+    { name = "Second tab", id = 2 }
+  ])
+
   cards_json = jsonencode([
     {
       card_id                = metabase_card.some_great_insights.id
+      dashboard_tab_id       = 1
       col                    = 7
       row                    = 0
       size_x                 = 11
@@ -66,12 +72,13 @@ resource "metabase_dashboard" "some_great_dashboard" {
       ]
     },
     {
-      card_id = null
-      col     = 0
-      row     = 0
-      size_x  = 7
-      size_y  = 6
-      series  = []
+      card_id          = null
+      dashboard_tab_id = 2
+      col              = 0
+      row              = 0
+      size_x           = 7
+      size_y           = 6
+      series           = []
       visualization_settings = {
         virtual_card = {
           name                   = null

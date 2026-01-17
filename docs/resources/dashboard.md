@@ -90,13 +90,13 @@ resource "metabase_dashboard" "some_great_dashboard" {
       ]
     },
     {
-      card_id = null
+      card_id          = null
       dashboard_tab_id = 2
-      col     = 0
-      row     = 0
-      size_x  = 7
-      size_y  = 6
-      series  = []
+      col              = 0
+      row              = 0
+      size_x           = 7
+      size_y           = 6
+      series           = []
       visualization_settings = {
         virtual_card = {
           name                   = null
