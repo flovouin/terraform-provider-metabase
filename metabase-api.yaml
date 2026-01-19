@@ -1160,6 +1160,9 @@ components:
           type: object
           description: The visualization settings for the card.
           additionalProperties: true
+        dashboard_tab_id:
+          type: integer
+          description: The ID of the dashboard tab.
       required:
         - card_id
         - col
@@ -1170,6 +1173,7 @@ components:
         - size_x
         - size_y
         - visualization_settings
+        - dashboard_tab_id
     DashboardTab:
       type: object
       description: A tab within a dashboard.
