@@ -21,7 +21,7 @@ const dashboardTemplate = `resource "metabase_dashboard" "{{.TerraformSlug}}" {
 
   parameters_json = jsonencode({{.ParametersHcl}})
 
-  tabs_json = jsonencode({{.TabsHcl}})
+  tabs_json = {{if .TabsHcl}}jsonencode({{.TabsHcl}}){{else}}null{{end}}
 
   cards_json = jsonencode({{.CardsHcl}})
 }
@@ -36,7 +36,7 @@ type dashboardTemplateData struct {
 	CollectionRef      *string // The reference to the collection where the dashboard is located.
 	CollectionPosition *int    // The position in the collection.
 	ParametersHcl      string  // The dashboard parameters, as an HCL string.
-	TabsHcl            string  // The dashboard tabs, as an HCL string. Nil if there are no tabs.
+	TabsHcl            *string // The dashboard tabs, as an HCL string. Nil if there are no tabs.
 	CardsHcl           string  // The dashboard cards, as an HCL string, possibly referencing cards.
 }
 
@@ -217,6 +217,13 @@ func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []meta
 		}
 
 		delete(card, "id")
+
+		// Omit dashboard_tab_id if it's 0 (default/no tab)
+		if dashboardTabIdAny, ok := card["dashboard_tab_id"]; ok {
+			if dashboardTabIdFloat, ok := dashboardTabIdAny.(float64); ok && int(dashboardTabIdFloat) == 0 {
+				delete(card, "dashboard_tab_id")
+			}
+		}
 	}
 
 	cardsJson, err = json.MarshalIndent(cardsUntyped, "  ", "  ")
@@ -231,9 +238,13 @@ func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []meta
 
 // Converts the list of dashboard tabs to HCL.
 // Returns the tabs HCL and a mapping from original Metabase tab IDs to sequential IDs (1, 2, 3...).
-// Returns an error if there are no tabs.
+// Returns nil for tabs HCL if there are no tabs.
 func (ic *ImportContext) makeDashboardTabsHcl(tabs []metabase.DashboardTab) (*string, map[int]int, error) {
 	tabIdMapping := make(map[int]int)
+
+	if len(tabs) == 0 {
+		return nil, tabIdMapping, nil
+	}
 
 	for i, tab := range tabs {
 		sequentialId := i + 1
@@ -310,7 +321,7 @@ func (ic *ImportContext) makeDashboardHcl(ctx context.Context, dashboard metabas
 		CollectionRef:      collectionRef,
 		CollectionPosition: dashboard.CollectionPosition,
 		ParametersHcl:      *parametersHcl,
-		TabsHcl:            *tabsHcl,
+		TabsHcl:            tabsHcl,
 		CardsHcl:           *cardsHcl,
 	})
 	if err != nil {
