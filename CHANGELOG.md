@@ -1,3 +1,13 @@
+## Unreleased
+
+## 0.14.0 (2026-01-28)
+
+NEW FEATURES:
+
+- Add the `metabase_database` data source, and support referencing them in `mbtf`. (Thanks @cschuff!)
+- Support importing dashboard tabs in `mbtf`. (Thanks @gouglhupf and @cschuff!)
+- Support replacing card parameter references in card configuration in `mbtf`. (Thanks @gouglhupf!)
+
 ## 0.13.2 (2026-01-14)
 
 BUG FIXES:
