@@ -35,8 +35,9 @@ type importedField struct {
 // A database available as a reference for other Terraform resources.
 // It is not automatically imported, but defined as an input to the importer.
 type importedDatabase struct {
-	Database metabase.Database // The database, as returned by the Metabase API.
-	Slug     string            // A slug attributed to the database, used as the name of the Terraform resource.
+	Database   metabase.Database // The database, as returned by the Metabase API.
+	Slug       string            // A slug attributed to the database, used as the name of the Terraform resource or data source.
+	DataSource bool              // If true, the database should be referenced as a data source; if false, as a resource.
 }
 
 // A collection available as a reference for other Terraform resources.

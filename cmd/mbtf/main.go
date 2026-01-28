@@ -56,14 +56,28 @@ func setUpDatabases(ctx context.Context, config databasesConfig, ic importer.Imp
 			return errors.New("database ID or name should be specified")
 		}
 
-		if len(d.ResourceName) == 0 {
-			return errors.New("database resource name should be specified")
+		// Validate that either ResourceName or DataSourceName is provided, but not both
+		hasResourceName := len(d.ResourceName) > 0
+		hasDataSourceName := len(d.DataSourceName) > 0
+
+		if !hasResourceName && !hasDataSourceName {
+			return errors.New("either database resource_name or data_source_name should be specified")
+		}
+
+		if hasResourceName && hasDataSourceName {
+			return errors.New("database cannot have both resource_name and data_source_name specified")
+		}
+
+		var dataSourceName *string
+		if hasDataSourceName {
+			dataSourceName = &d.DataSourceName
 		}
 
 		definitions = append(definitions, importer.ExistingDatabaseDefinition{
-			Id:           id,
-			Name:         name,
-			ResourceName: d.ResourceName,
+			Id:             id,
+			Name:           name,
+			ResourceName:   d.ResourceName,
+			DataSourceName: dataSourceName,
 		})
 	}
 

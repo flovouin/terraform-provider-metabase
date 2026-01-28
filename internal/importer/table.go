@@ -11,9 +11,9 @@ import (
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 )
 
-// The template producing a `metabase_table` Terraform data source definition.
+// The template producing a `metabase_table` Terraform resource definition.
 const tableTemplate = `resource "metabase_table" "{{.TerraformSlug}}" {
-  {{if .DbRef}}db_id = metabase_database.{{.DbRef}}.id{{end}}
+  {{if .Database}}db_id = {{if .Database.DataSource}}data.{{end}}metabase_database.{{.Database.Slug}}.id{{end}}
   {{if .Schema}}schema = {{.Schema}}{{end}}
   name = {{.Name}}
 
@@ -21,16 +21,16 @@ const tableTemplate = `resource "metabase_table" "{{.TerraformSlug}}" {
 }
 `
 
-// The data required to produce a `metabase_table` Terraform data source definition.
+// The data required to produce a `metabase_table` Terraform resource definition.
 type tableTemplateData struct {
-	TerraformSlug    string  // The slug used as the name of the Terraform resource.
-	Name             string  // The name of the table.
-	Schema           *string // The schema the table is part of. If `nil`, this is not added as an attribute.
-	DbRef            *string // A (Terraform) reference to the database the table is part of. If `nil`, this is not added as an attribute.
-	ForcedFieldTypes string  // A map of semantic types for fields in the table.
+	TerraformSlug    string            // The slug used as the name of the Terraform resource.
+	Name             string            // The name of the table.
+	Schema           *string           // The schema the table is part of. If `nil`, this is not added as an attribute.
+	Database         *importedDatabase // The database the table is part of. If `nil`, this is not added as an attribute.
+	ForcedFieldTypes string            // A map of semantic types for fields in the table.
 }
 
-// Produces the Terraform definition for a `metabase_table` data source.
+// Produces the Terraform definition for a `metabase_table` resource.
 func (ic *ImportContext) makeTableHcl(table metabase.TableMetadata, slug string) (*string, error) {
 	tpl, err := template.New("table").Parse(tableTemplate)
 	if err != nil {
@@ -56,10 +56,10 @@ func (ic *ImportContext) makeTableHcl(table metabase.TableMetadata, slug string)
 
 	// If the database cannot be found in the list of imported databases, the `db_id` condition is simply not added to the
 	// data source definition. It is not treated as an error because the field is optional to find the table.
-	var dbRef *string
+	var database *importedDatabase
 	db, err := ic.getDatabase(table.DbId)
 	if err == nil {
-		dbRef = &db.Slug
+		database = db
 	}
 
 	forcedFieldTypes := make(map[string]*string, len(table.Fields))
@@ -74,7 +74,7 @@ func (ic *ImportContext) makeTableHcl(table metabase.TableMetadata, slug string)
 	buf := new(bytes.Buffer)
 	err = tpl.Execute(buf, tableTemplateData{
 		TerraformSlug:    slug,
-		DbRef:            dbRef,
+		Database:         database,
 		Schema:           schema,
 		Name:             string(name),
 		ForcedFieldTypes: string(forcedFieldTypesJson),
