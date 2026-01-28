@@ -42,7 +42,7 @@ func (ic *ImportContext) ImportDatabasesFromDefinitions(ctx context.Context, exi
 				return err
 			}
 			if getResp.JSON200 == nil {
-				msg := fmt.Sprintf("received unexpected response from the Metabase API when getting database. %s %d: %s", getResp.Status(), getResp.StatusCode(), getResp.BodyString())
+				msg := fmt.Sprintf("received unexpected response from the Metabase API when getting database %d. %s: %s", *existingDatabase.Id, getResp.Status(), getResp.BodyString())
 				return errors.New(msg)
 			}
 
