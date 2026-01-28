@@ -128,6 +128,14 @@ func (r *GetDatabaseResponse) HasExpectedStatusWithoutExpectedBody() bool {
 	return r.StatusCode() == 200 && r.JSON200 == nil
 }
 
+func (r *ListDatabasesResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ListDatabasesResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
 func (r *UpdateDatabaseResponse) BodyString() string {
 	return string(r.Body)
 }

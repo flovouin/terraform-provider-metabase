@@ -28,9 +28,10 @@ type metabaseConfig struct {
 
 // A single mapping from a database to a Terraform resource name.
 type databaseMappingConfig struct {
-	Id           int    `koanf:"id"`            // The ID of the database in the Metabase API. Can be omitted (0) if the name is provided.
-	Name         string `koanf:"name"`          // The name of the database in the Metabase API. Can be omitted ("") if the ID is provided.
-	ResourceName string `koanf:"resource_name"` // The name of the (manually defined) Terraform resource.
+	Id             int    `koanf:"id"`               // The ID of the database in the Metabase API. Can be omitted (0) if the name is provided.
+	Name           string `koanf:"name"`             // The name of the database in the Metabase API. Can be omitted ("") if the ID is provided.
+	ResourceName   string `koanf:"resource_name"`    // The name of the (manually defined) Terraform resource. Either ResourceName or DataSourceName must be provided, but not both.
+	DataSourceName string `koanf:"data_source_name"` // The name of the data source referencing the database. Either ResourceName or DataSourceName must be provided, but not both.
 }
 
 // Defines how databases references are handled and converted in the generated Terraform code.

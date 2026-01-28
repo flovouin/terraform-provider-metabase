@@ -11,9 +11,10 @@ import (
 // A database that has already been defined in Terraform manually, and that can be referenced by resources that are
 // automatically generated.
 type ExistingDatabaseDefinition struct {
-	Id           *int    // The ID of the database. Can be `nil` if the name is provided.
-	Name         *string // The name of the database. Can be `nil` if the ID is provided.
-	ResourceName string  // The name of the manually defined Terraform resource.
+	Id             *int    // The ID of the database. Can be `nil` if the name is provided.
+	Name           *string // The name of the database. Can be `nil` if the ID is provided.
+	ResourceName   string  // The name of the manually defined Terraform resource. Either ResourceName or DataSourceName must be provided, but not both.
+	DataSourceName *string // The name of the data source referencing the database. Either ResourceName or DataSourceName must be provided, but not both.
 }
 
 // Retrieves an imported database given its ID.
@@ -41,7 +42,8 @@ func (ic *ImportContext) ImportDatabasesFromDefinitions(ctx context.Context, exi
 				return err
 			}
 			if getResp.JSON200 == nil {
-				return errors.New("received unexpected response from the Metabase API when getting database")
+				msg := fmt.Sprintf("received unexpected response from the Metabase API when getting database %d. %s: %s", *existingDatabase.Id, getResp.Status(), getResp.BodyString())
+				return errors.New(msg)
 			}
 
 			database = getResp.JSON200
@@ -81,9 +83,21 @@ func (ic *ImportContext) ImportDatabasesFromDefinitions(ctx context.Context, exi
 			return fmt.Errorf("database %d has already been imported", database.Id)
 		}
 
+		// Determine the slug and whether this is a data source
+		var slug string
+		var isDataSource bool
+		if existingDatabase.DataSourceName != nil {
+			slug = *existingDatabase.DataSourceName
+			isDataSource = true
+		} else {
+			slug = existingDatabase.ResourceName
+			isDataSource = false
+		}
+
 		ic.databases[database.Id] = importedDatabase{
-			Database: *database,
-			Slug:     existingDatabase.ResourceName,
+			Database:   *database,
+			Slug:       slug,
+			DataSource: isDataSource,
 		}
 	}
 

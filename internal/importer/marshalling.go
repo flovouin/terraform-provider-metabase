@@ -28,7 +28,7 @@ var tableRegexp = regexp.MustCompile("\\\"!!(metabase_table\\.\\w+\\.id)!!\\\"")
 
 // The regexp matching the placeholder for `metabase_database` resources.
 // The captured group can be used as is in an HCL file.
-var databaseRegexp = regexp.MustCompile("\\\"!!(metabase_database\\.\\w+\\.id)!!\\\"")
+var databaseRegexp = regexp.MustCompile("\\\"!!((metabase_database|data.metabase_database)\\.\\w+\\.id)!!\\\"")
 
 // The regexp matching the placeholder for `metabase_collection` resources.
 // The captured group can be used as is in an HCL file.
@@ -50,8 +50,11 @@ func (t *importedTable) MarshalJSON() ([]byte, error) {
 	return fmt.Appendf(nil, "\"!!metabase_table.%s.id!!\"", t.Slug), nil
 }
 
-// Marshals an `importedDatabase` as a placeholder which references the corresponding Terraform resource.
+// Marshals an `importedDatabase` as a placeholder which references the corresponding Terraform resource or data source.
 func (d *importedDatabase) MarshalJSON() ([]byte, error) {
+	if d.DataSource {
+		return fmt.Appendf(nil, "\"!!data.metabase_database.%s.id!!\"", d.Slug), nil
+	}
 	return fmt.Appendf(nil, "\"!!metabase_database.%s.id!!\"", d.Slug), nil
 }
 
