@@ -182,6 +182,15 @@ func (ic *ImportContext) insertReferencesInCard(ctx context.Context, card map[st
 		}
 	}
 
+	// Handle card references in visualization_settings (e.g., "card:XXX" in columnValuesMapping.sourceId)
+	visualizationSettingsAny, ok := card[metabase.VisualizationSettingsAttribute]
+	if ok {
+		err = ic.insertCardReferencesInVisualizationSettings(ctx, visualizationSettingsAny)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

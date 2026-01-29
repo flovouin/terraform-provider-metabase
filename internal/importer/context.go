@@ -11,6 +11,12 @@ type importedCard struct {
 	Hcl  string        // The HCL definition for the card.
 }
 
+// A wrapper for an imported card that includes the "card:" prefix when marshalled.
+// Used for sourceId references in visualization_settings.visualization.columnValuesMapping.
+type importedCardWithPrefix struct {
+	*importedCard
+}
+
 // A table imported from the Metabase API and converted to HCL (as a data source).
 type importedTable struct {
 	Table metabase.TableMetadata // The table, as returned by the Metabase API.
