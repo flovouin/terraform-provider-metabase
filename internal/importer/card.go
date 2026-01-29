@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"strconv"
+	"strings"
 	"text/template"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
@@ -97,6 +99,75 @@ func (ic *ImportContext) insertCardDatabaseReference(ctx context.Context, card m
 	}
 
 	queryMap[metabase.DatabaseAttribute] = database
+
+	return nil
+}
+
+// Replaces card references in visualization_settings.visualization.columnValuesMapping[].sourceId
+// that match the pattern "card:XXX" with imported card references.
+// The "card:" prefix is preserved in the output.
+func (ic *ImportContext) insertCardReferencesInVisualizationSettings(ctx context.Context, visualizationSettings any) error {
+	vsMap, ok := visualizationSettings.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	columnValuesMapping, ok := func() (map[string]any, bool) {
+		if visualization, ok := vsMap["visualization"].(map[string]any); ok {
+			if cvm, ok := visualization["columnValuesMapping"].(map[string]any); ok {
+				return cvm, true
+			}
+		}
+		return nil, false
+	}()
+	if !ok {
+		return nil
+	}
+
+	// Iterate over each COLUMN_X
+	for _, columnDefsAny := range columnValuesMapping {
+		columnDefs, ok := columnDefsAny.([]any)
+		if !ok {
+			continue
+		}
+
+		// Each COLUMN_X contains an array of column definition objects
+		for _, columnDefAny := range columnDefs {
+			columnDef, ok := columnDefAny.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			// Check if there's a sourceId field
+			sourceIdAny, ok := columnDef["sourceId"]
+			if !ok {
+				continue
+			}
+
+			sourceId, ok := sourceIdAny.(string)
+			if !ok {
+				continue
+			}
+
+			// Check if it matches "card:XXX" pattern
+			if strings.HasPrefix(sourceId, "card:") {
+				cardIdStr := strings.TrimPrefix(sourceId, "card:")
+				cardId, err := strconv.Atoi(cardIdStr)
+				if err != nil {
+					continue // Not a valid card ID, skip
+				}
+
+				// Import the card and wrap it with the prefix
+				importedCard, err := ic.importCard(ctx, cardId)
+				if err != nil {
+					return fmt.Errorf("failed to import card %d referenced in visualization_settings.columnValuesMapping.sourceId: %w", cardId, err)
+				}
+
+				// Use the wrapper that preserves the "card:" prefix
+				columnDef["sourceId"] = &importedCardWithPrefix{importedCard}
+			}
+		}
+	}
 
 	return nil
 }
@@ -257,6 +328,15 @@ func (ic *ImportContext) makeCardJson(ctx context.Context, card []byte) (*string
 	err = ic.insertCardParameterReferences(ctx, cardMap)
 	if err != nil {
 		return nil, err
+	}
+
+	// Handle card references in visualization_settings (e.g., "card:XXX" in columnValuesMapping.sourceId)
+	visualizationSettingsAny, ok := cardMap[metabase.VisualizationSettingsAttribute]
+	if ok {
+		err = ic.insertCardReferencesInVisualizationSettings(ctx, visualizationSettingsAny)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	cardJson, err := json.MarshalIndent(cardMap, "  ", "  ")
