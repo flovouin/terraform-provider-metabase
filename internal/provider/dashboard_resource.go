@@ -306,17 +306,21 @@ func updateCardsFromRawBody(bytes []byte, data *DashboardResourceModel, tabIdMap
 
 	// Sort both arrays by position before comparing to avoid spurious diffs due to API returning
 	// cards in a different order than provided.
-	// Sort cards by position for consistent ordering.
 	sortDashcards(dashcards)
+	sortDashcards(existingCards)
 
-	// Always store sorted result so it matches the sorted plan value.
-	cardsJson, err := json.Marshal(dashcards)
-	if err != nil {
-		diags.AddError("Error serializing new JSON value.", err.Error())
-		return diags
+	// Only update state if there's an actual difference (order-independent).
+	// This preserves the user's original card ordering in state, preventing the "Provider produced inconsistent result
+	// after apply" error when the only difference is card order.
+	if !reflect.DeepEqual(dashcards, existingCards) {
+		cardsJson, err := json.Marshal(dashcards)
+		if err != nil {
+			diags.AddError("Error serializing new JSON value.", err.Error())
+			return diags
+		}
+
+		data.CardsJson = types.StringValue(string(cardsJson))
 	}
-
-	data.CardsJson = types.StringValue(string(cardsJson))
 
 	return diags
 }
