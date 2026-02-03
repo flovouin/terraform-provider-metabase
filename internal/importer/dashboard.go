@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"text/template"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
@@ -201,6 +202,17 @@ func (ic *ImportContext) makeDashboardCardsHcl(ctx context.Context, cards []meta
 	for i, c := range cards {
 		cards[i].DashboardTabId = tabIdMapping[c.DashboardTabId]
 	}
+
+	// Sort cards by dashboard_tab_id, row, and column for reliable ordering
+	sort.Slice(cards, func(i, j int) bool {
+		if cards[i].DashboardTabId != cards[j].DashboardTabId {
+			return cards[i].DashboardTabId < cards[j].DashboardTabId
+		}
+		if cards[i].Row != cards[j].Row {
+			return cards[i].Row < cards[j].Row
+		}
+		return cards[i].Col < cards[j].Col
+	})
 
 	cardsJson, err := json.Marshal(cards)
 	if err != nil {
