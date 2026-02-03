@@ -1,8 +1,12 @@
 ## Unreleased
 
+## 0.14.1 (2026-02-03)
+
 BUG FIXES:
 
 - Only update dashboard cards in the state if the API returns an order-independent difference.
+- Fix broken card references in dashboard card visualization settings in `mbtf`. (Thanks @cschuff!)
+- Sort cards by position in `mbtf` importer output for stable diffs. (Thanks @cschuff!)
 
 ## 0.14.0 (2026-01-28)
 
