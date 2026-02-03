@@ -1,5 +1,9 @@
 ## Unreleased
 
+BUG FIXES:
+
+- Only update dashboard cards in the state if the API returns an order-independent difference.
+
 ## 0.14.0 (2026-01-28)
 
 NEW FEATURES:
