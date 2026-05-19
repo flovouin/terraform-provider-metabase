@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 
@@ -131,11 +132,6 @@ func (d *PermissionsGraphDataSource) Configure(ctx context.Context, req datasour
 func makeDataSourcePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId int, dbId int, p metabase.PermissionsGraphDatabasePermissions) (*types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	createQueries := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
-	if p.CreateQueries != nil {
-		createQueries = *p.CreateQueries
-	}
-
 	downloadAccess, accessDiags := makeAccessPermissionsFromDatabaseAccess(ctx, p.Download)
 	diags.Append(accessDiags...)
 	if diags.HasError() {
@@ -161,11 +157,31 @@ func makeDataSourcePermissionsObjectFromDatabasePermissions(ctx context.Context,
 		viewData = fmt.Sprintf("%v", viewDataObject)
 	}
 
+	createQueries := string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)
+	if p.CreateQueries != nil {
+		if createQueriesString, err := p.CreateQueries.AsPermissionsGraphDatabasePermissionsCreateQueries0(); err == nil {
+			createQueries = string(createQueriesString)
+		} else {
+			createQueriesObject, err := p.CreateQueries.AsPermissionsGraphDatabasePermissionsCreateQueries1()
+			if err != nil {
+				diags.AddError("Unexpected permissions value.", err.Error())
+				return nil, diags
+			}
+
+			createQueriesBytes, err := json.Marshal(createQueriesObject)
+			if err != nil {
+				diags.AddError("Unexpected error marshaling create-queries permissions to JSON.", err.Error())
+				return nil, diags
+			}
+			createQueries = string(createQueriesBytes)
+		}
+	}
+
 	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, DatabasePermissions{
 		Group:         types.Int64Value(int64(groupId)),
 		Database:      types.Int64Value(int64(dbId)),
 		ViewData:      types.StringValue(viewData),
-		CreateQueries: types.StringValue(string(createQueries)),
+		CreateQueries: types.StringValue(createQueries),
 		Download:      *downloadAccess,
 		DataModel:     *dataModelAccess,
 		Details:       stringValueOrNull(p.Details),

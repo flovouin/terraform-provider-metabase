@@ -1,5 +1,9 @@
 ## Unreleased
 
+BUG FIXES:
+
+- Handle `metabase_permissions_graph` `create_queries` as either a simple string or a serialized JSON object. Metabase 0.60+ returns the field as a granular per-schema/per-table object, which previously caused `terraform plan` to fail with a JSON unmarshal error during state refresh.
+
 ## 0.14.1 (2026-02-03)
 
 BUG FIXES:

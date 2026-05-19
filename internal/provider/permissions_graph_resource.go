@@ -179,11 +179,6 @@ func makeAccessPermissionsFromDatabaseAccess(ctx context.Context, da *metabase.P
 func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId int, dbId int, p metabase.PermissionsGraphDatabasePermissions, existing *DatabasePermissions) (*types.Object, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	createQueries := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
-	if p.CreateQueries != nil {
-		createQueries = *p.CreateQueries
-	}
-
 	downloadAccess, accessDiags := makeAccessPermissionsFromDatabaseAccess(ctx, p.Download)
 	diags.Append(accessDiags...)
 	if diags.HasError() {
@@ -238,11 +233,54 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 		}
 	}
 
+	var existingCreateQueries *string
+	var existingCreateQueriesIsJson bool
+	if existing != nil {
+		existingCreateQueries = existing.CreateQueries.ValueStringPointer()
+
+		if existingCreateQueries != nil {
+			var createQueriesObject map[string]any
+			err := json.Unmarshal([]byte(*existingCreateQueries), &createQueriesObject)
+			existingCreateQueriesIsJson = err == nil
+		}
+	}
+
+	createQueries := string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)
+	if p.CreateQueries != nil {
+		if createQueriesString, err := p.CreateQueries.AsPermissionsGraphDatabasePermissionsCreateQueries0(); err == nil {
+			// Same reasoning as for view-data: if the existing model carries an object form but Metabase has
+			// collapsed it to a scalar, keep the existing serialized form to avoid spurious diffs.
+			if existingCreateQueries != nil && existingCreateQueriesIsJson {
+				createQueries = *existingCreateQueries
+			} else {
+				createQueries = string(createQueriesString)
+			}
+		} else {
+			createQueriesObject, err := p.CreateQueries.AsPermissionsGraphDatabasePermissionsCreateQueries1()
+			if err != nil {
+				diags.AddError("Unexpected permissions value.", err.Error())
+				return nil, diags
+			}
+
+			createQueriesBytes, err := json.Marshal(createQueriesObject)
+			if err != nil {
+				diags.AddError("Unexpected error marshaling create-queries permissions to JSON.", err.Error())
+				return nil, diags
+			}
+
+			if existingCreateQueries == nil || existingCreateQueriesIsJson {
+				createQueries = string(createQueriesBytes)
+			} else {
+				createQueries = *existingCreateQueries
+			}
+		}
+	}
+
 	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, DatabasePermissions{
 		Group:         types.Int64Value(int64(groupId)),
 		Database:      types.Int64Value(int64(dbId)),
 		ViewData:      types.StringValue(viewData),
-		CreateQueries: types.StringValue(string(createQueries)),
+		CreateQueries: types.StringValue(createQueries),
 		Download:      *downloadAccess,
 		DataModel:     *dataModelAccess,
 		Details:       stringValueOrNull(p.Details),
@@ -423,10 +461,26 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 			)
 		}
 
-		createQueries := valueApproximateStringOrNull[metabase.PermissionsGraphDatabasePermissionsCreateQueries](p.CreateQueries)
-		if createQueries == nil {
-			no := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
-			createQueries = &no
+		var createQueries *metabase.PermissionsGraphDatabasePermissions_CreateQueries
+		if !p.CreateQueries.IsNull() && !p.CreateQueries.IsUnknown() {
+			createQueriesString := p.CreateQueries.ValueString()
+			var createQueriesObject map[string]any
+			var unionValue metabase.PermissionsGraphDatabasePermissions_CreateQueries
+			// Tries to parse the string as JSON.
+			if err := json.Unmarshal([]byte(createQueriesString), &createQueriesObject); err == nil {
+				unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries1(
+					metabase.PermissionsGraphDatabasePermissionsCreateQueries1(createQueriesObject),
+				)
+			} else {
+				unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries0(
+					metabase.PermissionsGraphDatabasePermissionsCreateQueries0(createQueriesString),
+				)
+			}
+			createQueries = &unionValue
+		} else {
+			var unionValue metabase.PermissionsGraphDatabasePermissions_CreateQueries
+			unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries0(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)
+			createQueries = &unionValue
 		}
 
 		download, accessDiags := makeDatasetAccessFromModel(ctx, p.Download, advancedPermissions)
@@ -499,9 +553,13 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 				diags.AddError("Unexpected error setting schema none value", err.Error())
 				return nil, diags
 			}
-			no := metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo
+			var createQueriesNo metabase.PermissionsGraphDatabasePermissions_CreateQueries
+			if err := createQueriesNo.FromPermissionsGraphDatabasePermissionsCreateQueries0(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No); err != nil {
+				diags.AddError("Unexpected error setting create-queries to none value", err.Error())
+				return nil, diags
+			}
 			deletedPermissions := metabase.PermissionsGraphDatabasePermissions{
-				CreateQueries: &no,
+				CreateQueries: &createQueriesNo,
 			}
 			if advancedPermissions {
 				deletedPermissions.Download = &metabase.PermissionsGraphDatabaseAccess{
