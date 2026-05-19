@@ -42,7 +42,7 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
-					string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesQueryBuilderAndNative),
+					string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative),
 					"\"unrestricted\"",
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -52,7 +52,7 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 			},
 			{
 				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
-					string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo),
+					string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No),
 					"\"unrestricted\"",
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -62,7 +62,7 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 			},
 			{
 				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
-					string(metabase.PermissionsGraphDatabasePermissionsCreateQueriesNo),
+					string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No),
 					"jsonencode({ public = \"unrestricted\" })",
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
