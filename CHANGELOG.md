@@ -2,7 +2,7 @@
 
 BUG FIXES:
 
-- Handle `metabase_permissions_graph` `create_queries` as either a simple string or a serialized JSON object. Metabase 0.60+ returns the field as a granular per-schema/per-table object, which previously caused `terraform plan` to fail with a JSON unmarshal error during state refresh.
+- Handle `metabase_permissions_graph` `create_queries` as either a simple string or a serialized JSON object. The Metabase API has accepted both shapes since 0.50.0 (`create-queries` shares the same `Schemas` union as `view-data`), but the provider was only modeling the scalar form, which caused `terraform plan` to fail with a JSON unmarshal error during state refresh whenever the server returned the object form.
 
 ## 0.14.1 (2026-02-03)
 
