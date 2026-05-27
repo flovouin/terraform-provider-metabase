@@ -26,7 +26,7 @@ resource "metabase_permissions_graph" "graph" {
         schemas = "full"
       }
       view_data = %s
-      create_queries = "%s"
+      create_queries = %s
     },
   ]
 }
@@ -42,7 +42,7 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
-					string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative),
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative)),
 					"\"unrestricted\"",
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -52,7 +52,7 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 			},
 			{
 				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
-					string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No),
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)),
 					"\"unrestricted\"",
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
@@ -62,7 +62,17 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 			},
 			{
 				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
-					string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No),
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)),
+					"jsonencode({ public = \"unrestricted\" })",
+				),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("metabase_permissions_graph.graph", "advanced_permissions", "false"),
+					resource.TestCheckResourceAttrSet("metabase_permissions_graph.graph", "revision"),
+				),
+			},
+			{
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					"jsonencode({ public = \"query-builder-and-native\" })",
 					"jsonencode({ public = \"unrestricted\" })",
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
