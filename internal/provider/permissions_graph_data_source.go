@@ -209,6 +209,14 @@ func updateDataSourceModelFromPermissionsGraph(ctx context.Context, g metabase.P
 				continue
 			}
 
+			// Metabase 0.61+ can return edges that carry only advanced permissions (e.g. an internal group with
+			// just `data-model` set) and omit `view-data` entirely. The data source models every edge around
+			// `view-data`, so it cannot represent these fragments; skip them rather than failing to parse the
+			// empty `view-data` union.
+			if viewDataBytes, err := dbPermissions.ViewData.MarshalJSON(); err != nil || len(viewDataBytes) == 0 || string(viewDataBytes) == "null" {
+				continue
+			}
+
 			dbIdInt, err := strconv.Atoi(dbId)
 			if err != nil {
 				diags.AddError("Could not convert the database ID to an integer.", err.Error())
