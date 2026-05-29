@@ -225,11 +225,14 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 			return nil, diags
 		}
 
-		// Same reasoning as for the string case above.
-		if existingViewData == nil || existingViewDataIsJson {
-			viewData = string(viewDataBytes)
-		} else {
+		// Same reasoning as for the string case above: Metabase may reshape an object-form response it considers
+		// equivalent (e.g. pruning tables or collapsing uniform schemas), so when the existing model already carries
+		// an object form, keep that serialization to avoid a spurious, perpetual diff. Only fall back to the response
+		// when there is no existing object to preserve (e.g. import).
+		if existingViewData != nil && existingViewDataIsJson {
 			viewData = *existingViewData
+		} else {
+			viewData = string(viewDataBytes)
 		}
 	}
 
@@ -268,10 +271,16 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 				return nil, diags
 			}
 
-			if existingCreateQueries == nil || existingCreateQueriesIsJson {
-				createQueries = string(createQueriesBytes)
-			} else {
+			// Metabase reshapes object-form create-queries it considers equivalent: it prunes "no" tables and
+			// collapses uniform schemas. When the existing model already carries an object form, keep that
+			// serialization so the (possibly reshaped) response does not produce a spurious, perpetual diff. The
+			// existing object is also the only form guaranteed to be accepted on a subsequent write, since the
+			// reshaped response can be a schema-level scalar that Metabase rejects. Only fall back to the response
+			// when there is no existing object to preserve (e.g. import).
+			if existingCreateQueries != nil && existingCreateQueriesIsJson {
 				createQueries = *existingCreateQueries
+			} else {
+				createQueries = string(createQueriesBytes)
 			}
 		}
 	}
@@ -328,6 +337,14 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 		for dbId, dbPermissions := range dbPermissionsMap {
 			// Ignore the Metabase Analytics database until we have proper support.
 			if dbId == metabase.MetabaseAnalyticsDatabaseId {
+				continue
+			}
+
+			// Metabase 0.61+ can return edges that carry only advanced permissions (e.g. an internal group with
+			// just `data-model` set) and omit `view-data` entirely. The provider models every edge around
+			// `view-data`, so it cannot represent these fragments; skip them rather than failing to parse the
+			// empty `view-data` union.
+			if viewDataBytes, err := dbPermissions.ViewData.MarshalJSON(); err != nil || len(viewDataBytes) == 0 || string(viewDataBytes) == "null" {
 				continue
 			}
 
