@@ -60,11 +60,11 @@ const (
 	PermissionsGraphDatabaseAccessSchemas0None PermissionsGraphDatabaseAccessSchemas0 = "none"
 )
 
-// Defines values for PermissionsGraphDatabasePermissionsCreateQueries.
+// Defines values for PermissionsGraphDatabasePermissionsCreateQueries0.
 const (
-	PermissionsGraphDatabasePermissionsCreateQueriesNo                    PermissionsGraphDatabasePermissionsCreateQueries = "no"
-	PermissionsGraphDatabasePermissionsCreateQueriesQueryBuilder          PermissionsGraphDatabasePermissionsCreateQueries = "query-builder"
-	PermissionsGraphDatabasePermissionsCreateQueriesQueryBuilderAndNative PermissionsGraphDatabasePermissionsCreateQueries = "query-builder-and-native"
+	PermissionsGraphDatabasePermissionsCreateQueries0No                    PermissionsGraphDatabasePermissionsCreateQueries0 = "no"
+	PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilder          PermissionsGraphDatabasePermissionsCreateQueries0 = "query-builder"
+	PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative PermissionsGraphDatabasePermissionsCreateQueries0 = "query-builder-and-native"
 )
 
 // Defines values for PermissionsGraphDatabasePermissionsDetails.
@@ -473,8 +473,7 @@ type PermissionsGraphDatabaseAccess_Schemas struct {
 
 // PermissionsGraphDatabasePermissions The permissions related to a single database.
 type PermissionsGraphDatabasePermissions struct {
-	// CreateQueries The permission definition for creating queries.
-	CreateQueries *PermissionsGraphDatabasePermissionsCreateQueries `json:"create-queries,omitempty"`
+	CreateQueries *PermissionsGraphDatabasePermissions_CreateQueries `json:"create-queries,omitempty"`
 
 	// DataModel The permissions for a single access type.
 	DataModel *PermissionsGraphDatabaseAccess `json:"data-model,omitempty"`
@@ -487,8 +486,16 @@ type PermissionsGraphDatabasePermissions struct {
 	ViewData PermissionsGraphDatabasePermissions_ViewData `json:"view-data"`
 }
 
-// PermissionsGraphDatabasePermissionsCreateQueries The permission definition for creating queries.
-type PermissionsGraphDatabasePermissionsCreateQueries string
+// PermissionsGraphDatabasePermissionsCreateQueries0 The permission definition for creating queries.
+type PermissionsGraphDatabasePermissionsCreateQueries0 string
+
+// PermissionsGraphDatabasePermissionsCreateQueries1 An object containing granular create-query permissions (per-schema/per-table, as returned by Metabase 0.60+).
+type PermissionsGraphDatabasePermissionsCreateQueries1 map[string]interface{}
+
+// PermissionsGraphDatabasePermissions_CreateQueries defines model for PermissionsGraphDatabasePermissions.CreateQueries.
+type PermissionsGraphDatabasePermissions_CreateQueries struct {
+	union json.RawMessage
+}
 
 // PermissionsGraphDatabasePermissionsDetails The permission definition for accessing details.
 type PermissionsGraphDatabasePermissionsDetails string
@@ -1303,6 +1310,68 @@ func (t PermissionsGraphDatabaseAccess_Schemas) MarshalJSON() ([]byte, error) {
 }
 
 func (t *PermissionsGraphDatabaseAccess_Schemas) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPermissionsGraphDatabasePermissionsCreateQueries0 returns the union data inside the PermissionsGraphDatabasePermissions_CreateQueries as a PermissionsGraphDatabasePermissionsCreateQueries0
+func (t PermissionsGraphDatabasePermissions_CreateQueries) AsPermissionsGraphDatabasePermissionsCreateQueries0() (PermissionsGraphDatabasePermissionsCreateQueries0, error) {
+	var body PermissionsGraphDatabasePermissionsCreateQueries0
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPermissionsGraphDatabasePermissionsCreateQueries0 overwrites any union data inside the PermissionsGraphDatabasePermissions_CreateQueries as the provided PermissionsGraphDatabasePermissionsCreateQueries0
+func (t *PermissionsGraphDatabasePermissions_CreateQueries) FromPermissionsGraphDatabasePermissionsCreateQueries0(v PermissionsGraphDatabasePermissionsCreateQueries0) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePermissionsGraphDatabasePermissionsCreateQueries0 performs a merge with any union data inside the PermissionsGraphDatabasePermissions_CreateQueries, using the provided PermissionsGraphDatabasePermissionsCreateQueries0
+func (t *PermissionsGraphDatabasePermissions_CreateQueries) MergePermissionsGraphDatabasePermissionsCreateQueries0(v PermissionsGraphDatabasePermissionsCreateQueries0) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsPermissionsGraphDatabasePermissionsCreateQueries1 returns the union data inside the PermissionsGraphDatabasePermissions_CreateQueries as a PermissionsGraphDatabasePermissionsCreateQueries1
+func (t PermissionsGraphDatabasePermissions_CreateQueries) AsPermissionsGraphDatabasePermissionsCreateQueries1() (PermissionsGraphDatabasePermissionsCreateQueries1, error) {
+	var body PermissionsGraphDatabasePermissionsCreateQueries1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPermissionsGraphDatabasePermissionsCreateQueries1 overwrites any union data inside the PermissionsGraphDatabasePermissions_CreateQueries as the provided PermissionsGraphDatabasePermissionsCreateQueries1
+func (t *PermissionsGraphDatabasePermissions_CreateQueries) FromPermissionsGraphDatabasePermissionsCreateQueries1(v PermissionsGraphDatabasePermissionsCreateQueries1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePermissionsGraphDatabasePermissionsCreateQueries1 performs a merge with any union data inside the PermissionsGraphDatabasePermissions_CreateQueries, using the provided PermissionsGraphDatabasePermissionsCreateQueries1
+func (t *PermissionsGraphDatabasePermissions_CreateQueries) MergePermissionsGraphDatabasePermissionsCreateQueries1(v PermissionsGraphDatabasePermissionsCreateQueries1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t PermissionsGraphDatabasePermissions_CreateQueries) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *PermissionsGraphDatabasePermissions_CreateQueries) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

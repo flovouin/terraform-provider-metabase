@@ -10,8 +10,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
-func testAccCardResource(name string, displayName string, queryOptions string) string {
+func testAccCardResource(name string, displayName string) string {
 	// This references the sample database, which should always have ID 1.
+	// The query is expressed in the pMBQL ("lib") format, which is what Metabase 0.61+ stores and returns.
 	return fmt.Sprintf(`
 resource "metabase_card" "%s" {
   json = jsonencode({
@@ -22,12 +23,14 @@ resource "metabase_card" "%s" {
     cache_ttl           = null
     query_type          = "query"
     dataset_query = {
-      %s
-      database = 1
-      type     = "query"
-      query = {
-        source-table = 1
-      }
+      "lib/type" = "mbql/query"
+      database   = 1
+      stages = [
+        {
+          "lib/type"   = "mbql.stage/mbql"
+          source-table = 1
+        }
+      ]
     }
     parameter_mappings     = []
     display                = "table"
@@ -38,7 +41,6 @@ resource "metabase_card" "%s" {
 `,
 		name,
 		displayName,
-		queryOptions,
 	)
 }
 
@@ -53,11 +55,14 @@ resource "metabase_card" "%s" {
     cache_ttl           = null
     query_type          = "native"
     dataset_query = {
-      database = 1
-      type     = "native"
-      native = {
-        query = "SELECT 1"
-      }
+      "lib/type" = "mbql/query"
+      database   = 1
+      stages = [
+        {
+          "lib/type" = "mbql.stage/native"
+          native     = "SELECT 1"
+        }
+      ]
     }
     parameter_mappings     = []
     display                = "table"
@@ -124,7 +129,7 @@ func TestAccCardResource(t *testing.T) {
 		CheckDestroy:             testAccCheckCardDestroy,
 		Steps: []resource.TestStep{
 			{
-				Config: providerConfig + testAccCardResource("test", "🪪", ""),
+				Config: providerConfig + testAccCardResource("test", "🪪"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckCardExists("metabase_card.test"),
 					resource.TestCheckResourceAttrSet("metabase_card.test", "id"),
@@ -136,14 +141,7 @@ func TestAccCardResource(t *testing.T) {
 				ImportState:  true,
 			},
 			{
-				Config: providerConfig + testAccCardResource("test", "💳", ""),
-				Check: resource.ComposeAggregateTestCheckFunc(
-					resource.TestCheckResourceAttrSet("metabase_card.test", "id"),
-					resource.TestCheckResourceAttrSet("metabase_card.test", "json"),
-				),
-			},
-			{
-				Config: providerConfig + testAccCardResource("test", "💳", "breakout-idents = { 0 = \"ABCD\" }"),
+				Config: providerConfig + testAccCardResource("test", "💳"),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttrSet("metabase_card.test", "id"),
 					resource.TestCheckResourceAttrSet("metabase_card.test", "json"),

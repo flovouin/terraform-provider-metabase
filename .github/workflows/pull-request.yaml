@@ -6,16 +6,16 @@ on:
       - main
 
 jobs:
-  test:
-    name: 🧪 Run tests
+  build:
+    name: 🛠️ Build
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: "go.mod"
 
@@ -24,6 +24,33 @@ jobs:
 
       - name: Build mbtf
         run: make mbtf
+
+  test:
+    name: 🧪 Run tests (Metabase ${{ matrix.metabase_version }})
+    runs-on: ubuntu-latest
+    needs: build
+
+    strategy:
+      fail-fast: false
+      matrix:
+        metabase_version:
+          - v0.57.x
+          - v0.58.x
+          # - v0.59.x # This version has an HTTP keep alive bug that is out of our control.
+          - v0.60.x
+          - v0.61.x
+
+    env:
+      METABASE_VERSION: ${{ matrix.metabase_version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: "go.mod"
 
       - name: Run tests
         run: make testacc-with-setup
