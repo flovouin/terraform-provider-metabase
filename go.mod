@@ -1,6 +1,6 @@
 module github.com/flovouin/terraform-provider-metabase
 
-go 1.25.8
+go 1.26.5
 
 require (
 	github.com/gosimple/slug v1.15.0
