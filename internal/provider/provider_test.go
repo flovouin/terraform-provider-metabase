@@ -32,6 +32,18 @@ provider "metabase" {
 	os.Getenv("METABASE_API_KEY"),
 )
 
+// The schema the tables of the sample database belong to. Until 0.62, Metabase bundled an H2 sample database, in which
+// tables belong to the `PUBLIC` schema. From 0.63 onwards, the sample database is a SQLite one, in which tables belong
+// to no schema at all. The test setup detects it and sets `METABASE_SAMPLE_SCHEMA` accordingly, an empty value being a
+// valid (schema-less) result. The `PUBLIC` fallback only applies when the variable is not set at all.
+var sampleDatabaseSchema = func() string {
+	if schema, ok := os.LookupEnv("METABASE_SAMPLE_SCHEMA"); ok {
+		return schema
+	}
+
+	return "PUBLIC"
+}()
+
 var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServer, error){
 	"metabase": providerserver.NewProtocol6WithError(New("test")()),
 }

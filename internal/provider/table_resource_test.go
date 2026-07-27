@@ -42,7 +42,7 @@ func TestAccTableResource(t *testing.T) {
 				Config: providerConfig + testAccTableResource("test", existingTableName, nil),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("metabase_table.test", "id", "6"),
-					resource.TestCheckResourceAttr("metabase_table.test", "schema", "PUBLIC"),
+					resource.TestCheckResourceAttr("metabase_table.test", "schema", sampleDatabaseSchema),
 					resource.TestCheckResourceAttr("metabase_table.test", "display_name", expectedDisplayName),
 					resource.TestCheckResourceAttr("metabase_table.test", "description", expectedDescription),
 				),
@@ -55,7 +55,7 @@ func TestAccTableResource(t *testing.T) {
 				Config: providerConfig + testAccTableResource("test", existingTableName, &newDisplayName),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("metabase_table.test", "id", "6"),
-					resource.TestCheckResourceAttr("metabase_table.test", "schema", "PUBLIC"),
+					resource.TestCheckResourceAttr("metabase_table.test", "schema", sampleDatabaseSchema),
 					resource.TestCheckResourceAttr("metabase_table.test", "display_name", newDisplayName),
 					resource.TestCheckResourceAttr("metabase_table.test", "description", expectedDescription),
 				),

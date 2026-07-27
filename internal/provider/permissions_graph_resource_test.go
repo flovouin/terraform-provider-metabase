@@ -9,7 +9,7 @@ import (
 )
 
 // perTableCreateQueries builds a `create_queries` `jsonencode` expression covering every table in the sample
-// database's `PUBLIC` schema (IDs 1-8). Tables listed in `noTables` are set to `"no"`, the rest to `"query-builder"`.
+// database's schema (IDs 1-8). Tables listed in `noTables` are set to `"no"`, the rest to `"query-builder"`.
 //
 // Metabase reshapes its response in two ways the provider must absorb without producing a perpetual diff:
 //   - With no `noTables`, the value is uniform across the whole (single-schema) database, so Metabase collapses the
@@ -35,7 +35,7 @@ func perTableCreateQueries(noTables ...int) string {
 		}
 		tables += fmt.Sprintf("%q = %q", fmt.Sprintf("%d", id), permission)
 	}
-	return fmt.Sprintf("jsonencode({ PUBLIC = { %s } })", tables)
+	return fmt.Sprintf("jsonencode({ %q = { %s } })", sampleDatabaseSchema, tables)
 }
 
 func testAccPermissionsGraphResource(createQueries, viewData string) string {
@@ -106,7 +106,7 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 				// Metabase only accepts `query-builder`/`no` (never `query-builder-and-native`, which is database-wide).
 				// Table 6 is `ACCOUNTS` in the bundled sample database. Metabase echoes this exact shape, so it round-trips.
 				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
-					"jsonencode({ PUBLIC = { \"6\" = \"query-builder\" } })",
+					fmt.Sprintf("jsonencode({ %q = { \"6\" = \"query-builder\" } })", sampleDatabaseSchema),
 					"jsonencode({ public = \"unrestricted\" })",
 				),
 				Check: resource.ComposeAggregateTestCheckFunc(
