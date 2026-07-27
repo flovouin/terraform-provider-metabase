@@ -1,5 +1,9 @@
 ## Unreleased
 
+BUG FIXES:
+
+- Treat the map and list representations of `template-tags` in a `metabase_card` query as equivalent.
+
 ## 0.14.2 (2026-05-29)
 
 BUG FIXES:
