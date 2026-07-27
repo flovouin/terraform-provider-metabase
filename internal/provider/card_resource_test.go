@@ -2,10 +2,13 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
@@ -121,6 +124,144 @@ func testAccCheckCardDestroy(s *terraform.State) error {
 	}
 
 	return nil
+}
+
+// Returns the JSON definition of a card with a native query, using the pMBQL format, and the given template tags.
+func makeNativeCardJson(templateTags string) string {
+	return fmt.Sprintf(`{
+  "name": "Native query card",
+  "query_type": "native",
+  "dataset_query": {
+    "lib/type": "mbql/query",
+    "database": 1,
+    "stages": [
+      {
+        "lib/type": "mbql.stage/native",
+        "native": "SELECT {{id}}",
+        "template-tags": %s
+      }
+    ]
+  },
+  "display": "table"
+}`, templateTags)
+}
+
+// Checks that the JSON definition in the model is equivalent to the expected JSON string.
+func checkCardJson(t *testing.T, data *CardResourceModel, expectedJson string) {
+	t.Helper()
+
+	var actual any
+	if err := json.Unmarshal([]byte(data.Json.ValueString()), &actual); err != nil {
+		t.Fatalf("Failed to deserialize the card JSON in the model: %s", err)
+	}
+
+	var expected any
+	if err := json.Unmarshal([]byte(expectedJson), &expected); err != nil {
+		t.Fatalf("Failed to deserialize the expected card JSON: %s", err)
+	}
+
+	if !reflect.DeepEqual(actual, expected) {
+		t.Errorf("Unexpected card JSON.\nActual:   %s\nExpected: %s", data.Json.ValueString(), expectedJson)
+	}
+}
+
+// Metabase 0.63+ returns template tags as a list, while existing definitions use a map indexed by the tag name.
+func TestUpdateModelFromCardBytesKeepsTemplateTagsAsMap(t *testing.T) {
+	existingJson := makeNativeCardJson(`{"id": {"id": "abc", "name": "id", "display-name": "Id", "type": "number"}}`)
+	responseJson := makeNativeCardJson(`[{"id": "abc", "name": "id", "display-name": "Id", "type": "number"}]`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// The same applies to the legacy query format, where template tags are found under the `native` attribute.
+func TestUpdateModelFromCardBytesKeepsLegacyTemplateTagsAsMap(t *testing.T) {
+	makeCard := func(templateTags string) string {
+		return fmt.Sprintf(`{
+  "name": "Native query card",
+  "query_type": "native",
+  "dataset_query": {
+    "type": "native",
+    "database": 1,
+    "native": {
+      "query": "SELECT {{id}}",
+      "template-tags": %s
+    }
+  },
+  "display": "table"
+}`, templateTags)
+	}
+
+	existingJson := makeCard(`{"id": {"id": "abc", "name": "id", "type": "number"}}`)
+	responseJson := makeCard(`[{"id": "abc", "name": "id", "type": "number"}]`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// Definitions using a list of template tags are also supported, in which case the order of the existing list is kept.
+func TestUpdateModelFromCardBytesKeepsTemplateTagsAsList(t *testing.T) {
+	existingJson := makeNativeCardJson(`[{"id": "1", "name": "b"}, {"id": "2", "name": "a"}]`)
+	responseJson := makeNativeCardJson(`{"a": {"id": "2", "name": "a"}, "b": {"id": "1", "name": "b"}}`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// The order in which the Metabase API returns the list of template tags should not cause a diff.
+func TestUpdateModelFromCardBytesReordersTemplateTagsList(t *testing.T) {
+	existingJson := makeNativeCardJson(`[{"id": "1", "name": "b"}, {"id": "2", "name": "a"}]`)
+	responseJson := makeNativeCardJson(`[{"id": "2", "name": "a"}, {"id": "1", "name": "b"}]`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, existingJson)
+}
+
+// An actual difference in the template tags should still be reflected in the state.
+func TestUpdateModelFromCardBytesUpdatesModifiedTemplateTags(t *testing.T) {
+	existingJson := makeNativeCardJson(`{"id": {"id": "abc", "name": "id", "type": "number"}}`)
+	responseJson := makeNativeCardJson(`[{"id": "abc", "name": "id", "type": "text"}]`)
+
+	data := &CardResourceModel{Json: types.StringValue(existingJson)}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, makeNativeCardJson(`{"id": {"id": "abc", "name": "id", "type": "text"}}`))
+}
+
+// When the card is created, or imported, there is no existing definition to compare the template tags with.
+func TestUpdateModelFromCardBytesKeepsTemplateTagsWithoutExistingCard(t *testing.T) {
+	responseJson := makeNativeCardJson(`[{"id": "abc", "name": "id", "type": "number"}]`)
+
+	data := &CardResourceModel{Json: types.StringNull()}
+	diags := updateModelFromCardBytes(fmt.Appendf(nil, `{"id": 1, %s`, responseJson[1:]), data)
+
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %s", diags)
+	}
+	checkCardJson(t, data, responseJson)
 }
 
 func TestAccCardResource(t *testing.T) {

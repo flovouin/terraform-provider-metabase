@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
@@ -121,6 +122,158 @@ func cleanCardQuery(card map[string]any, existingCard map[string]any) {
 	}
 }
 
+// The name of the attribute holding the template tags of a native query. Depending on the format of the query, it can
+// either be found at the root of the `native` object (legacy format), or in one of the `stages` (pMBQL format).
+const templateTagsAttribute = "template-tags"
+
+// Returns the name of a single template tag, defined as an untyped JSON object.
+func getTemplateTagName(tag any) (string, bool) {
+	tagMap, ok := tag.(map[string]any)
+	if !ok {
+		return "", false
+	}
+
+	name, ok := tagMap["name"].(string)
+	return name, ok
+}
+
+// Converts template tags to a map indexed by the name of each tag. If they are already a map, they are returned as is.
+// If the conversion is not possible, the tags are returned unchanged.
+func templateTagsToMap(tags any) any {
+	switch t := tags.(type) {
+	case map[string]any:
+		return t
+	case []any:
+		tagsMap := make(map[string]any, len(t))
+		for _, tag := range t {
+			name, ok := getTemplateTagName(tag)
+			if !ok {
+				return tags
+			}
+
+			tagsMap[name] = tag
+		}
+
+		return tagsMap
+	default:
+		return tags
+	}
+}
+
+// Converts template tags to a list of tags, ordered like the existing (expected) list of tags. Tags that cannot be
+// found in the existing list are appended at the end, sorted by name to ensure a stable output. If the conversion is
+// not possible, the tags are returned unchanged.
+func templateTagsToList(tags any, existingTags []any) any {
+	tagsByName := map[string]any{}
+	switch t := tags.(type) {
+	case map[string]any:
+		for name, tag := range t {
+			// The key of the map is only used as a fallback, as Metabase indexes tags by their name.
+			if tagName, ok := getTemplateTagName(tag); ok {
+				name = tagName
+			}
+
+			tagsByName[name] = tag
+		}
+	case []any:
+		for _, tag := range t {
+			name, ok := getTemplateTagName(tag)
+			if !ok {
+				return tags
+			}
+
+			tagsByName[name] = tag
+		}
+	default:
+		return tags
+	}
+
+	tagsList := make([]any, 0, len(tagsByName))
+	for _, existingTag := range existingTags {
+		name, ok := getTemplateTagName(existingTag)
+		if !ok {
+			continue
+		}
+
+		if tag, ok := tagsByName[name]; ok {
+			tagsList = append(tagsList, tag)
+			delete(tagsByName, name)
+		}
+	}
+
+	remainingNames := make([]string, 0, len(tagsByName))
+	for name := range tagsByName {
+		remainingNames = append(remainingNames, name)
+	}
+	sort.Strings(remainingNames)
+
+	for _, name := range remainingNames {
+		tagsList = append(tagsList, tagsByName[name])
+	}
+
+	return tagsList
+}
+
+// Converts the template tags returned by the Metabase API to the representation used by the existing (expected) tags.
+func convertTemplateTags(tags any, existingTags any) any {
+	switch existing := existingTags.(type) {
+	case map[string]any:
+		return templateTagsToMap(tags)
+	case []any:
+		return templateTagsToList(tags, existing)
+	default:
+		return tags
+	}
+}
+
+// Recursively rewrites the `template-tags` in the given value returned by the Metabase API, such that they use the same
+// representation as in the existing value, coming from the Terraform plan or state.
+// Metabase 0.63 changed the serialization of template tags from a map indexed by the tag name to a list of tags. Both
+// representations are accepted by the API and are semantically equivalent, as tags always define their own name.
+func normalizeTemplateTagsValue(value any, existingValue any) any {
+	switch v := value.(type) {
+	case map[string]any:
+		existingMap, _ := existingValue.(map[string]any)
+
+		for key, child := range v {
+			existingChild := existingMap[key]
+
+			if key == templateTagsAttribute {
+				v[key] = convertTemplateTags(child, existingChild)
+			} else {
+				v[key] = normalizeTemplateTagsValue(child, existingChild)
+			}
+		}
+
+		return v
+	case []any:
+		existingList, _ := existingValue.([]any)
+
+		for i, child := range v {
+			var existingChild any
+			if i < len(existingList) {
+				existingChild = existingList[i]
+			}
+
+			v[i] = normalizeTemplateTagsValue(child, existingChild)
+		}
+
+		return v
+	default:
+		return value
+	}
+}
+
+// Rewrites the template tags in the query of the card returned by the Metabase API, such that they use the same
+// representation (map or list) as the ones in the existing card definition.
+func normalizeCardTemplateTags(card map[string]any, existingCard map[string]any) {
+	if existingCard == nil {
+		return
+	}
+
+	normalizeTemplateTagsValue(card["dataset_query"], existingCard["dataset_query"])
+}
+
 // Updates the given `CardResourceModel` from the `Card` returned by the Metabase API.
 func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -159,6 +312,7 @@ func updateModelFromCardBytes(cardBytes []byte, data *CardResourceModel) diag.Di
 	}
 
 	cleanCardQuery(card, existingCard)
+	normalizeCardTemplateTags(card, existingCard)
 
 	// If the existing card is different from the response from the API, updates the JSON string by remarshalling the
 	// "cleaned" response to a string. This should only happen:
