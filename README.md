@@ -8,11 +8,13 @@ For how to use the provider in a Terraform project, please refer to the [Terrafo
 
 Unfortunately, this provider relies on the Metabase API which is [subject to breaking changes and not versioned](https://www.metabase.com/docs/latest/api-documentation#about-the-metabase-api). This makes it hard for this provider to keep up with Metabase versions, apologies for that. Here is a table that summarizes supported Metabase versions:
 
-| Provider version \ Metabase version | .44 | .45 | .46 | .47 | .48 | .49 | .50 |
-| ----------------------------------: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-|                              <= 0.3 | ✅  | ❌  | ❌  | ❌  | ❌  | ❌  | ❌  |
-|                       >= 0.4, < 0.8 | ❌  | ❌  | ❌  | ❌  | ✅  | ✅  | ❌  |
-|                              >= 0.8 | ❌  | ❌  | ❌  | ❌  | ❌  | ❌  | ✅  |
+|    Provider version | Supported Metabase versions  |
+| ------------------: | :--------------------------- |
+|              <= 0.3 | .44                          |
+|       >= 0.4, < 0.8 | .48, .49                     |
+|    >= 0.8, < 0.14.2 | .50                          |
+| >= 0.14.2, < 0.14.3 | .57, .58, .60, .61           |
+|           >= 0.14.3 | .57, .58, .60, .61, .62, .63 |
 
 ## 🔨 `mbtf` importer tool
 
