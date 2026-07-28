@@ -7,7 +7,7 @@ DOCKER_NETWORK=terraform-metabase
 
 METABASE_IMAGE=${METABASE_IMAGE:=metabase/metabase}
 METABASE_CONTAINER_NAME=terraform-metabase-mb
-METABASE_VERSION=${METABASE_VERSION:=v0.61.x}
+METABASE_VERSION=${METABASE_VERSION:=v0.63.x}
 METABASE_PORT=${METABASE_PORT:=3000}
 METABASE_USERNAME=${METABASE_USERNAME:=terraform-provider@tests.com}
 METABASE_PASSWORD=${METABASE_PASSWORD:=$(uuidgen)}
@@ -20,8 +20,13 @@ PG_PASSWORD=${PG_PASSWORD:=$(uuidgen)}
 PG_DATABASE=${PG_DATABASE:=metabase}
 
 SETUP_TOKEN_MAX_ATTEMPTS=10
+SAMPLE_DATABASE_MAX_ATTEMPTS=10
+# A table from the sample database, used to check that it has been synchronized, and to determine the schema its tables
+# belong to.
+SAMPLE_DATABASE_TABLE=ACCOUNTS
 
 TEST_API_KEY_FILE=.test-api-key
+TEST_SAMPLE_SCHEMA_FILE=.test-sample-schema
 
 # Sets up a non-default Docker network, such that the containers can communicate using hostnames.
 set_up_network () {
@@ -199,6 +204,50 @@ ${METABASE_API_KEY_RESPONSE}" 1>&2
   echo "${METABASE_API_KEY}"
 }
 
+# The sample database is loaded and synchronized asynchronously, after Metabase has started serving requests.
+# Because the tests rely on it, the setup waits until its tables are available.
+# The schema those tables belong to depends on the engine of the sample database bundled with Metabase: it is `PUBLIC`
+# for the H2 database shipped until 0.62, and empty for the SQLite one shipped from 0.63 onwards.
+# Rather than mapping Metabase versions to engines, the schema is read from the API and passed to the tests.
+set_sample_database_schema () {
+  METABASE_API_KEY=$1
+  NUM_ATTEMPTS=0
+
+  while true; do
+    NUM_ATTEMPTS=$((NUM_ATTEMPTS + 1))
+    if [ ${NUM_ATTEMPTS} -gt ${SAMPLE_DATABASE_MAX_ATTEMPTS} ]; then
+      echo "❌ The ${SAMPLE_DATABASE_TABLE} table from the sample database was not found after ${SAMPLE_DATABASE_MAX_ATTEMPTS} attempts." 1>&2
+      exit 1
+    fi
+
+    echo "🔎 Looking for the sample database tables (attempt ${NUM_ATTEMPTS})..." 1>&2
+
+    TABLES_RESPONSE=$(
+      curl ${METABASE_URL}/api/table \
+        --silent \
+        --header "X-API-KEY: ${METABASE_API_KEY}"
+    )
+
+    # A table belonging to no schema is reported as an empty string, which is exactly how the tests expect it. Thanks to
+    # `-e`, `jq` fails when the table cannot be found (or the response could not be parsed because Metabase is not ready
+    # yet), which is what tells that case apart from an empty schema.
+    SAMPLE_DATABASE_SCHEMA=$(
+      echo "${TABLES_RESPONSE}" | \
+      jq -er --arg name "${SAMPLE_DATABASE_TABLE}" \
+        'first(.[]? | select(.name == $name) | .schema // "")' \
+        2> /dev/null
+    )
+
+    if [ $? -eq 0 ]; then
+      echo "${SAMPLE_DATABASE_SCHEMA}" > ${TEST_SAMPLE_SCHEMA_FILE}
+      echo "${SAMPLE_DATABASE_SCHEMA}"
+      return 0
+    fi
+
+    sleep 5
+  done
+}
+
 # Entry point.
 set_up () {
   set_up_network
@@ -206,6 +255,7 @@ set_up () {
   set_up_metabase
   set_metabase_credentials
   METABASE_API_KEY=$(set_api_key)
+  SAMPLE_DATABASE_SCHEMA=$(set_sample_database_schema "${METABASE_API_KEY}") || exit 1
 
   echo "✅ Setup complete.
 
@@ -219,7 +269,8 @@ set_up () {
   🔗 URL: ${METABASE_URL}
   👤 Email: ${METABASE_USERNAME}
   🔒 Password: ${METABASE_PASSWORD}
-  🔑 API key: ${METABASE_API_KEY}" 1>&2
+  🔑 API key: ${METABASE_API_KEY}
+  🗂️ Sample database schema: ${SAMPLE_DATABASE_SCHEMA:-(none)}" 1>&2
 }
 
 tear_down () {

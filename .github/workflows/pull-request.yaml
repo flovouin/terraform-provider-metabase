@@ -39,6 +39,8 @@ jobs:
           # - v0.59.x # This version has an HTTP keep alive bug that is out of our control.
           - v0.60.x
           - v0.61.x
+          - v0.62.x
+          - v0.63.x
 
     env:
       METABASE_VERSION: ${{ matrix.metabase_version }}
