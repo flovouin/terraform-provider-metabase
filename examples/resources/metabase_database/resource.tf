@@ -1,3 +1,10 @@
+variable "database_password" {
+  description = "Password used by Metabase to connect to the custom database."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
+
 resource "metabase_database" "bigquery" {
   name = "🗃️ Big Query"
 
@@ -35,7 +42,6 @@ resource "metabase_database" "custom" {
       port                    = 5432
       dbname                  = "database"
       user                    = "user"
-      password                = "password"
       schema-filters-type     = "inclusion"
       schema-filters-patterns = "this_schema_only"
       ssl                     = false
@@ -43,8 +49,13 @@ resource "metabase_database" "custom" {
       advanced-options        = false
     })
 
-    # Details attributes redacted by Metabase should be listed here, such that they are not incorrectly detected as a
-    # change.
+    sensitive_details_json_wo = jsonencode({
+      password = var.database_password
+    })
+    sensitive_details_json_wo_version = 1
+
+    # Detail attributes redacted by Metabase should be listed here so they are not incorrectly detected as a change.
+    # Also list attributes that are present in both JSON objects.
     redacted_attributes = [
       "password",
     ]

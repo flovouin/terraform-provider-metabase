@@ -3,11 +3,13 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"reflect"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
@@ -18,6 +20,7 @@ import (
 
 // Ensures provider defined types fully satisfy framework interfaces.
 var _ resource.ResourceWithImportState = &DatabaseResource{}
+var _ resource.ResourceWithValidateConfig = &DatabaseResource{}
 
 // Creates a new database resource.
 func NewDatabaseResource() resource.Resource {
@@ -49,9 +52,11 @@ type BigQueryDetails struct {
 
 // The content of the `custom_details` attribute to set up a database not supported by this provider.
 type CustomDetails struct {
-	Engine             types.String `tfsdk:"engine"`              // The name of the engine, as defined by Metabase.
-	DetailsJson        types.String `tfsdk:"details_json"`        // A JSON string containing the details for the database.
-	RedactedAttributes types.Set    `tfsdk:"redacted_attributes"` // The list of `details_json` attributes that are sent back redacted by Metabase.
+	Engine                        types.String `tfsdk:"engine"`                            // The name of the engine, as defined by Metabase.
+	DetailsJson                   types.String `tfsdk:"details_json"`                      // A JSON string containing the details for the database.
+	SensitiveDetailsJsonWo        types.String `tfsdk:"sensitive_details_json_wo"`         // A write-only JSON object merged into `details_json`.
+	SensitiveDetailsJsonWoVersion types.Int64  `tfsdk:"sensitive_details_json_wo_version"` // The version used to trigger updates of `sensitive_details_json_wo`.
+	RedactedAttributes            types.Set    `tfsdk:"redacted_attributes"`               // The list of `details_json` attributes that are sent back redacted by Metabase.
 }
 
 // The object type for BigQuery details.
@@ -67,8 +72,10 @@ var bigQueryDetailsObjectType = types.ObjectType{
 // The object type for custom details.
 var customDetailsObjectType = types.ObjectType{
 	AttrTypes: map[string]attr.Type{
-		"engine":       types.StringType,
-		"details_json": types.StringType,
+		"engine":                            types.StringType,
+		"details_json":                      types.StringType,
+		"sensitive_details_json_wo":         types.StringType,
+		"sensitive_details_json_wo_version": types.Int64Type,
 		"redacted_attributes": types.SetType{
 			ElemType: types.StringType,
 		},
@@ -79,7 +86,7 @@ func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaReques
 	resp.Schema = schema.Schema{
 		MarkdownDescription: `A database Metabase can connect to. Currently only BigQuery has a dedicated attribute, but any engine can be set up using the custom_details attribute.
 
-The configuration of this resource requires passing sensitive credentials to the Metabase API. Those credentials will also be stored in the Terraform state. Ensure those values are not checked into a repository nor are being displayed during Terraform operations.`,
+The configuration of this resource requires passing sensitive credentials to the Metabase API. Credentials supplied through regular attributes are stored in Terraform state. For custom details, sensitive_details_json_wo can be used with Terraform 1.11 or later to avoid storing credentials in plan or state.`,
 
 		Attributes: map[string]schema.Attribute{
 			"id": schema.Int64Attribute{
@@ -126,14 +133,47 @@ The configuration of this resource requires passing sensitive credentials to the
 						MarkdownDescription: "The details for the database, as a JSON string. `jsonencode` can be used for clarity.",
 						Required:            true,
 					},
+					"sensitive_details_json_wo": schema.StringAttribute{
+						MarkdownDescription: "A write-only JSON object containing sensitive details. Its attributes are merged into `details_json` before requests are sent to Metabase, with values in this object taking precedence. `sensitive_details_json_wo_version` must also be set. Attributes present in both JSON objects must be included in `redacted_attributes` to prevent response values from entering state. Requires Terraform 1.11 or later.",
+						Optional:            true,
+						Sensitive:           true,
+						WriteOnly:           true,
+					},
+					"sensitive_details_json_wo_version": schema.Int64Attribute{
+						MarkdownDescription: "A non-sensitive version for `sensitive_details_json_wo` that is stored in state. Required when `sensitive_details_json_wo` is set. Increment this value to send updated sensitive details to Metabase.",
+						Optional:            true,
+					},
 					"redacted_attributes": schema.SetAttribute{
 						ElementType:         types.StringType,
-						MarkdownDescription: "The list of `details_json` attributes that are sent back redacted by Metabase.",
+						MarkdownDescription: "The list of database detail attributes whose values from Metabase responses should be ignored, typically because Metabase redacts them. Include any attribute present in both `details_json` and `sensitive_details_json_wo`.",
 						Optional:            true,
 					},
 				},
 			},
 		},
+	}
+}
+
+func (r *DatabaseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
+	var data DatabaseResourceModel
+
+	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() || data.CustomDetails.IsNull() || data.CustomDetails.IsUnknown() {
+		return
+	}
+
+	var customDetails CustomDetails
+	resp.Diagnostics.Append(data.CustomDetails.As(ctx, &customDetails, basetypes.ObjectAsOptions{})...)
+	if resp.Diagnostics.HasError() || customDetails.SensitiveDetailsJsonWo.IsNull() || customDetails.SensitiveDetailsJsonWo.IsUnknown() {
+		return
+	}
+
+	if customDetails.SensitiveDetailsJsonWoVersion.IsNull() {
+		resp.Diagnostics.AddAttributeError(
+			path.Root("custom_details").AtName("sensitive_details_json_wo_version"),
+			"Missing sensitive details version",
+			"sensitive_details_json_wo_version must be set when sensitive_details_json_wo is configured. Increment the version whenever the sensitive details change.",
+		)
 	}
 }
 
@@ -192,6 +232,7 @@ func makeCustomDetailsFromResponseBody(ctx context.Context, db metabase.Database
 	var detailsJson string
 	var existingDetails map[string]any
 	redactedAttributesValue := types.SetNull(types.StringType)
+	sensitiveDetailsJsonWoVersionValue := types.Int64Null()
 	if !data.CustomDetails.IsNull() {
 		var cd CustomDetails
 		diags.Append(data.CustomDetails.As(ctx, &cd, basetypes.ObjectAsOptions{})...)
@@ -200,6 +241,7 @@ func makeCustomDetailsFromResponseBody(ctx context.Context, db metabase.Database
 		}
 
 		redactedAttributesValue = cd.RedactedAttributes
+		sensitiveDetailsJsonWoVersionValue = cd.SensitiveDetailsJsonWoVersion
 		var redactedAttributes []string
 		if !cd.RedactedAttributes.IsNull() {
 			diags.Append(cd.RedactedAttributes.ElementsAs(ctx, &redactedAttributes, false)...)
@@ -249,9 +291,11 @@ func makeCustomDetailsFromResponseBody(ctx context.Context, db metabase.Database
 	}
 
 	details, objectDiags := types.ObjectValue(customDetailsObjectType.AttrTypes, map[string]attr.Value{
-		"engine":              types.StringValue(engine),
-		"details_json":        types.StringValue(detailsJson),
-		"redacted_attributes": redactedAttributesValue,
+		"engine":                            types.StringValue(engine),
+		"details_json":                      types.StringValue(detailsJson),
+		"sensitive_details_json_wo":         types.StringNull(),
+		"sensitive_details_json_wo_version": sensitiveDetailsJsonWoVersionValue,
+		"redacted_attributes":               redactedAttributesValue,
 	})
 	diags.Append(objectDiags...)
 	if diags.HasError() {
@@ -302,7 +346,7 @@ type DatabaseEngineAndDetails struct {
 }
 
 // Converts a `DatabaseResourceModel` to a `DatabaseEngineAndDetails` that can be used to make requests against the database API.
-func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceModel) (*DatabaseEngineAndDetails, diag.Diagnostics) {
+func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceModel, configuredCustomDetails types.Object) (*DatabaseEngineAndDetails, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	var engine metabase.DatabaseEngine
@@ -343,6 +387,55 @@ func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceMod
 			return nil, diags
 		}
 
+		if !configuredCustomDetails.IsNull() {
+			var configuredCd CustomDetails
+			diags.Append(configuredCustomDetails.As(ctx, &configuredCd, basetypes.ObjectAsOptions{})...)
+			if diags.HasError() {
+				return nil, diags
+			}
+
+			if !configuredCd.SensitiveDetailsJsonWo.IsNull() {
+				var sensitiveRawDetails map[string]any
+				err = json.Unmarshal([]byte(configuredCd.SensitiveDetailsJsonWo.ValueString()), &sensitiveRawDetails)
+				if err != nil {
+					diags.AddError("Unable to deserialize sensitive_details_json_wo as an object.", err.Error())
+					return nil, diags
+				}
+				if sensitiveRawDetails == nil {
+					diags.AddError("Unable to deserialize sensitive_details_json_wo as an object.", "The JSON value must be an object, not null.")
+					return nil, diags
+				}
+				if rawDetails == nil {
+					rawDetails = make(map[string]any)
+				}
+
+				redactedAttributes := make(map[string]struct{})
+				if !cd.RedactedAttributes.IsNull() {
+					var attributes []string
+					diags.Append(cd.RedactedAttributes.ElementsAs(ctx, &attributes, false)...)
+					if diags.HasError() {
+						return nil, diags
+					}
+					for _, attribute := range attributes {
+						redactedAttributes[attribute] = struct{}{}
+					}
+				}
+
+				for attribute, value := range sensitiveRawDetails {
+					if _, existsInDetails := rawDetails[attribute]; existsInDetails {
+						if _, isRedacted := redactedAttributes[attribute]; !isRedacted {
+							diags.AddError(
+								"Sensitive detail is also present in details_json.",
+								fmt.Sprintf("Attribute %q must either be removed from details_json or included in redacted_attributes to prevent its sensitive value from being stored in state.", attribute),
+							)
+							return nil, diags
+						}
+					}
+					rawDetails[attribute] = value
+				}
+			}
+		}
+
 		err = details.FromDatabaseDetailsCustom(rawDetails)
 		if err != nil {
 			diags.AddError("Failed to prepare database payload from Terraform model.", err.Error())
@@ -364,13 +457,18 @@ func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceMod
 
 func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *DatabaseResourceModel
+	var config *DatabaseResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
-	engineAndDetails, diags := makeEngineAndDetailsFromModel(ctx, *data)
+	engineAndDetails, diags := makeEngineAndDetailsFromModel(ctx, *data, config.CustomDetails)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -426,8 +524,13 @@ func (r *DatabaseResource) Read(ctx context.Context, req resource.ReadRequest, r
 func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
 	var data *DatabaseResourceModel
 	var state *DatabaseResourceModel
+	var config *DatabaseResourceModel
 
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -443,7 +546,7 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 	// Only updating database details if they have changed. This avoids unnecessarily passing credentials in API calls.
 	if !state.BigQueryDetails.Equal(data.BigQueryDetails) ||
 		!state.CustomDetails.Equal(data.CustomDetails) {
-		engineAndDetails, diags := makeEngineAndDetailsFromModel(ctx, *data)
+		engineAndDetails, diags := makeEngineAndDetailsFromModel(ctx, *data, config.CustomDetails)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
