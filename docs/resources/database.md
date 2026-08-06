@@ -71,12 +71,6 @@ resource "metabase_database" "custom" {
       password = var.database_password
     })
     sensitive_details_json_wo_version = 1
-
-    # Detail attributes redacted by Metabase should be listed here so they are not incorrectly detected as a change.
-    # Also list attributes that are present in both JSON objects.
-    redacted_attributes = [
-      "password",
-    ]
   }
 }
 ```
@@ -121,9 +115,9 @@ Required:
 
 Optional:
 
-- `redacted_attributes` (Set of String) The list of database detail attributes whose values from Metabase responses should be ignored, typically because Metabase redacts them. Include any attribute present in both `details_json` and `sensitive_details_json_wo`.
-- `sensitive_details_json_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A write-only JSON object containing sensitive details. Its attributes are merged into `details_json` before requests are sent to Metabase, with values in this object taking precedence. `sensitive_details_json_wo_version` must also be set. Attributes present in both JSON objects must be included in `redacted_attributes` to prevent response values from entering state. Requires Terraform 1.11 or later.
-- `sensitive_details_json_wo_version` (Number) A non-sensitive version for `sensitive_details_json_wo` that is stored in state. Required when `sensitive_details_json_wo` is set. Increment this value to send updated sensitive details to Metabase.
+- `redacted_attributes` (Set of String) The list of `details_json` attributes that are sent back redacted by Metabase.
+- `sensitive_details_json_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A write-only JSON object containing sensitive details. Its attributes are merged into `details_json` before requests are sent to Metabase. Attributes must not also appear in `details_json`. `sensitive_details_json_wo_version` must also be set. Requires Terraform 1.11 or later.
+- `sensitive_details_json_wo_version` (Number) A non-sensitive version for `sensitive_details_json_wo` that is stored in state. It must be configured together with `sensitive_details_json_wo`. Increment this value to send updated sensitive details to Metabase.
 
 ## Import
 

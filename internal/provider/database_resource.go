@@ -134,24 +134,93 @@ The configuration of this resource requires passing sensitive credentials to the
 						Required:            true,
 					},
 					"sensitive_details_json_wo": schema.StringAttribute{
-						MarkdownDescription: "A write-only JSON object containing sensitive details. Its attributes are merged into `details_json` before requests are sent to Metabase, with values in this object taking precedence. `sensitive_details_json_wo_version` must also be set. Attributes present in both JSON objects must be included in `redacted_attributes` to prevent response values from entering state. Requires Terraform 1.11 or later.",
+						MarkdownDescription: "A write-only JSON object containing sensitive details. Its attributes are merged into `details_json` before requests are sent to Metabase. Attributes must not also appear in `details_json`. `sensitive_details_json_wo_version` must also be set. Requires Terraform 1.11 or later.",
 						Optional:            true,
 						Sensitive:           true,
 						WriteOnly:           true,
 					},
 					"sensitive_details_json_wo_version": schema.Int64Attribute{
-						MarkdownDescription: "A non-sensitive version for `sensitive_details_json_wo` that is stored in state. Required when `sensitive_details_json_wo` is set. Increment this value to send updated sensitive details to Metabase.",
+						MarkdownDescription: "A non-sensitive version for `sensitive_details_json_wo` that is stored in state. It must be configured together with `sensitive_details_json_wo`. Increment this value to send updated sensitive details to Metabase.",
 						Optional:            true,
 					},
 					"redacted_attributes": schema.SetAttribute{
 						ElementType:         types.StringType,
-						MarkdownDescription: "The list of database detail attributes whose values from Metabase responses should be ignored, typically because Metabase redacts them. Include any attribute present in both `details_json` and `sensitive_details_json_wo`.",
+						MarkdownDescription: "The list of `details_json` attributes that are sent back redacted by Metabase.",
 						Optional:            true,
 					},
 				},
 			},
 		},
 	}
+}
+
+func validateCustomDetails(customDetails CustomDetails) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	sensitiveDetailsConfigured := !customDetails.SensitiveDetailsJsonWo.IsNull()
+	sensitiveDetailsVersionConfigured := !customDetails.SensitiveDetailsJsonWoVersion.IsNull()
+
+	if sensitiveDetailsConfigured && !sensitiveDetailsVersionConfigured {
+		diags.AddAttributeError(
+			path.Root("custom_details").AtName("sensitive_details_json_wo_version"),
+			"Missing sensitive details version",
+			"sensitive_details_json_wo_version must be set when sensitive_details_json_wo is configured. Increment the version whenever the sensitive details change.",
+		)
+		return diags
+	}
+	if !sensitiveDetailsConfigured && sensitiveDetailsVersionConfigured {
+		diags.AddAttributeError(
+			path.Root("custom_details").AtName("sensitive_details_json_wo"),
+			"Missing sensitive details",
+			"sensitive_details_json_wo must be set when sensitive_details_json_wo_version is configured.",
+		)
+		return diags
+	}
+
+	if !sensitiveDetailsConfigured || customDetails.DetailsJson.IsUnknown() || customDetails.SensitiveDetailsJsonWo.IsUnknown() {
+		return diags
+	}
+
+	var rawDetails map[string]any
+	if err := json.Unmarshal([]byte(customDetails.DetailsJson.ValueString()), &rawDetails); err != nil {
+		diags.AddAttributeError(
+			path.Root("custom_details").AtName("details_json"),
+			"Unable to deserialize details_json as an object",
+			err.Error(),
+		)
+		return diags
+	}
+
+	var sensitiveRawDetails map[string]any
+	if err := json.Unmarshal([]byte(customDetails.SensitiveDetailsJsonWo.ValueString()), &sensitiveRawDetails); err != nil {
+		diags.AddAttributeError(
+			path.Root("custom_details").AtName("sensitive_details_json_wo"),
+			"Unable to deserialize sensitive_details_json_wo as an object",
+			err.Error(),
+		)
+		return diags
+	}
+	if sensitiveRawDetails == nil {
+		diags.AddAttributeError(
+			path.Root("custom_details").AtName("sensitive_details_json_wo"),
+			"Unable to deserialize sensitive_details_json_wo as an object",
+			"The JSON value must be an object, not null.",
+		)
+		return diags
+	}
+
+	for attribute := range sensitiveRawDetails {
+		if _, exists := rawDetails[attribute]; exists {
+			diags.AddAttributeError(
+				path.Root("custom_details").AtName("sensitive_details_json_wo"),
+				"Database detail is configured more than once",
+				fmt.Sprintf("Attribute %q must be configured in either details_json or sensitive_details_json_wo, not both.", attribute),
+			)
+			return diags
+		}
+	}
+
+	return diags
 }
 
 func (r *DatabaseResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
@@ -164,17 +233,11 @@ func (r *DatabaseResource) ValidateConfig(ctx context.Context, req resource.Vali
 
 	var customDetails CustomDetails
 	resp.Diagnostics.Append(data.CustomDetails.As(ctx, &customDetails, basetypes.ObjectAsOptions{})...)
-	if resp.Diagnostics.HasError() || customDetails.SensitiveDetailsJsonWo.IsNull() || customDetails.SensitiveDetailsJsonWo.IsUnknown() {
+	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if customDetails.SensitiveDetailsJsonWoVersion.IsNull() {
-		resp.Diagnostics.AddAttributeError(
-			path.Root("custom_details").AtName("sensitive_details_json_wo_version"),
-			"Missing sensitive details version",
-			"sensitive_details_json_wo_version must be set when sensitive_details_json_wo is configured. Increment the version whenever the sensitive details change.",
-		)
-	}
+	resp.Diagnostics.Append(validateCustomDetails(customDetails)...)
 }
 
 // Makes the Terraform object for the `bigquery_details` field.
@@ -393,6 +456,10 @@ func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceMod
 			if diags.HasError() {
 				return nil, diags
 			}
+			diags.Append(validateCustomDetails(configuredCd)...)
+			if diags.HasError() {
+				return nil, diags
+			}
 
 			if !configuredCd.SensitiveDetailsJsonWo.IsNull() {
 				var sensitiveRawDetails map[string]any
@@ -401,36 +468,11 @@ func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceMod
 					diags.AddError("Unable to deserialize sensitive_details_json_wo as an object.", err.Error())
 					return nil, diags
 				}
-				if sensitiveRawDetails == nil {
-					diags.AddError("Unable to deserialize sensitive_details_json_wo as an object.", "The JSON value must be an object, not null.")
-					return nil, diags
-				}
 				if rawDetails == nil {
 					rawDetails = make(map[string]any)
 				}
 
-				redactedAttributes := make(map[string]struct{})
-				if !cd.RedactedAttributes.IsNull() {
-					var attributes []string
-					diags.Append(cd.RedactedAttributes.ElementsAs(ctx, &attributes, false)...)
-					if diags.HasError() {
-						return nil, diags
-					}
-					for _, attribute := range attributes {
-						redactedAttributes[attribute] = struct{}{}
-					}
-				}
-
 				for attribute, value := range sensitiveRawDetails {
-					if _, existsInDetails := rawDetails[attribute]; existsInDetails {
-						if _, isRedacted := redactedAttributes[attribute]; !isRedacted {
-							diags.AddError(
-								"Sensitive detail is also present in details_json.",
-								fmt.Sprintf("Attribute %q must either be removed from details_json or included in redacted_attributes to prevent its sensitive value from being stored in state.", attribute),
-							)
-							return nil, diags
-						}
-					}
 					rawDetails[attribute] = value
 				}
 			}

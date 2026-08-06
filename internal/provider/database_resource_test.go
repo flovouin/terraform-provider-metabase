@@ -41,7 +41,6 @@ func TestMakeEngineAndDetailsFromModelCustomDetails(t *testing.T) {
 
 	tests := map[string]struct {
 		sensitiveDetailsJsonWo types.String
-		redactedAttributes     []string
 		expected               map[string]any
 	}{
 		"legacy details_json": {
@@ -51,11 +50,10 @@ func TestMakeEngineAndDetailsFromModelCustomDetails(t *testing.T) {
 				"port": float64(5432),
 			},
 		},
-		"write-only details override regular details": {
-			sensitiveDetailsJsonWo: types.StringValue(`{"host":"secret.example.internal","password":"secret"}`),
-			redactedAttributes:     []string{"host"},
+		"write-only details are merged with regular details": {
+			sensitiveDetailsJsonWo: types.StringValue(`{"password":"secret"}`),
 			expected: map[string]any{
-				"host":     "secret.example.internal",
+				"host":     "postgres.example.internal",
 				"port":     float64(5432),
 				"password": "secret",
 			},
@@ -66,19 +64,22 @@ func TestMakeEngineAndDetailsFromModelCustomDetails(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
+			sensitiveDetailsVersion := types.Int64Null()
+			if !test.sensitiveDetailsJsonWo.IsNull() {
+				sensitiveDetailsVersion = types.Int64Value(1)
+			}
+
 			data := DatabaseResourceModel{
 				CustomDetails: testCustomDetailsValue(
 					`{"host":"postgres.example.internal","port":5432}`,
 					types.StringNull(),
-					types.Int64Value(1),
-					test.redactedAttributes...,
+					sensitiveDetailsVersion,
 				),
 			}
 			configuredCustomDetails := testCustomDetailsValue(
 				`{"host":"postgres.example.internal","port":5432}`,
 				test.sensitiveDetailsJsonWo,
-				types.Int64Value(1),
-				test.redactedAttributes...,
+				sensitiveDetailsVersion,
 			)
 
 			engineAndDetails, diags := makeEngineAndDetailsFromModel(context.Background(), data, configuredCustomDetails)
@@ -97,24 +98,25 @@ func TestMakeEngineAndDetailsFromModelCustomDetails(t *testing.T) {
 	}
 }
 
-func TestMakeEngineAndDetailsFromModelRejectsUnredactedOverlap(t *testing.T) {
+func TestMakeEngineAndDetailsFromModelRejectsOverlap(t *testing.T) {
 	t.Parallel()
 
 	data := DatabaseResourceModel{
-		CustomDetails: testCustomDetailsValue(`{"host":"postgres.example.internal"}`, types.StringNull(), types.Int64Value(1)),
+		CustomDetails: testCustomDetailsValue(`{"host":"postgres.example.internal"}`, types.StringNull(), types.Int64Value(1), "host"),
 	}
 	configuredCustomDetails := testCustomDetailsValue(
 		`{"host":"postgres.example.internal"}`,
 		types.StringValue(`{"host":"secret.example.internal"}`),
 		types.Int64Value(1),
+		"host",
 	)
 
 	engineAndDetails, diags := makeEngineAndDetailsFromModel(context.Background(), data, configuredCustomDetails)
 	if engineAndDetails != nil {
-		t.Fatalf("Expected no database details for an unredacted overlapping attribute, got %#v", engineAndDetails)
+		t.Fatalf("Expected no database details for an overlapping attribute, got %#v", engineAndDetails)
 	}
 	if !diags.HasError() {
-		t.Fatal("Expected an error diagnostic for an unredacted overlapping attribute")
+		t.Fatal("Expected an error diagnostic for an overlapping attribute")
 	}
 }
 
@@ -144,7 +146,7 @@ func TestMakeCustomDetailsFromResponseBodyOmitsSensitiveDetails(t *testing.T) {
 
 	var databaseDetails metabase.DatabaseDetails
 	err := databaseDetails.FromDatabaseDetailsCustom(map[string]any{
-		"host":     "secret.example.internal",
+		"host":     "postgres.example.internal",
 		"password": "**MetabasePass**",
 	})
 	if err != nil {
@@ -156,7 +158,6 @@ func TestMakeCustomDetailsFromResponseBodyOmitsSensitiveDetails(t *testing.T) {
 			`{"host":"postgres.example.internal"}`,
 			types.StringNull(),
 			types.Int64Value(7),
-			"host",
 		),
 	}
 	details, diags := makeCustomDetailsFromResponseBody(context.Background(), metabase.Database{
@@ -180,9 +181,6 @@ func TestMakeCustomDetailsFromResponseBodyOmitsSensitiveDetails(t *testing.T) {
 	if _, exists := storedDetails["password"]; exists {
 		t.Fatalf("Sensitive detail was retained in state details: %#v", storedDetails)
 	}
-	if storedDetails["host"] != "postgres.example.internal" {
-		t.Fatalf("Sensitive overlapping detail replaced the configured state value: %#v", storedDetails)
-	}
 	if !actual.SensitiveDetailsJsonWo.IsNull() {
 		t.Fatalf("Write-only details must be null in state, got %q", actual.SensitiveDetailsJsonWo.ValueString())
 	}
@@ -191,10 +189,152 @@ func TestMakeCustomDetailsFromResponseBodyOmitsSensitiveDetails(t *testing.T) {
 	}
 }
 
+func TestMakeCustomDetailsFromResponseBodyPreservesRedactedDetails(t *testing.T) {
+	t.Parallel()
+
+	var databaseDetails metabase.DatabaseDetails
+	err := databaseDetails.FromDatabaseDetailsCustom(map[string]any{
+		"host":     "postgres.example.internal",
+		"password": "**MetabasePass**",
+	})
+	if err != nil {
+		t.Fatalf("Failed to prepare API database details: %v", err)
+	}
+
+	data := DatabaseResourceModel{
+		CustomDetails: testCustomDetailsValue(
+			`{"host":"postgres.example.internal","password":"secret"}`,
+			types.StringNull(),
+			types.Int64Null(),
+			"password",
+		),
+	}
+	details, diags := makeCustomDetailsFromResponseBody(context.Background(), metabase.Database{
+		Engine:  metabase.DatabaseEngine("postgres"),
+		Details: databaseDetails,
+	}, &data)
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %v", diags)
+	}
+
+	var actual CustomDetails
+	diags = details.As(context.Background(), &actual, basetypes.ObjectAsOptions{})
+	if diags.HasError() {
+		t.Fatalf("Failed to read Terraform custom details: %v", diags)
+	}
+
+	var storedDetails map[string]any
+	if err := json.Unmarshal([]byte(actual.DetailsJson.ValueString()), &storedDetails); err != nil {
+		t.Fatalf("Failed to read stored details_json: %v", err)
+	}
+	if storedDetails["password"] != "secret" {
+		t.Fatalf("Redacted detail was not preserved in state: %#v", storedDetails)
+	}
+}
+
+func TestValidateCustomDetails(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		customDetails CustomDetails
+		expectError   bool
+	}{
+		"legacy details": {
+			customDetails: CustomDetails{
+				DetailsJson:                   types.StringValue(`{"host":"postgres.example.internal"}`),
+				SensitiveDetailsJsonWo:        types.StringNull(),
+				SensitiveDetailsJsonWoVersion: types.Int64Null(),
+			},
+		},
+		"write-only details and version": {
+			customDetails: CustomDetails{
+				DetailsJson:                   types.StringValue(`{"host":"postgres.example.internal"}`),
+				SensitiveDetailsJsonWo:        types.StringValue(`{"password":"secret"}`),
+				SensitiveDetailsJsonWoVersion: types.Int64Value(1),
+			},
+		},
+		"unknown details defer overlap validation": {
+			customDetails: CustomDetails{
+				DetailsJson:                   types.StringUnknown(),
+				SensitiveDetailsJsonWo:        types.StringValue(`{"password":"secret"}`),
+				SensitiveDetailsJsonWoVersion: types.Int64Value(1),
+			},
+		},
+		"unknown write-only details defer overlap validation": {
+			customDetails: CustomDetails{
+				DetailsJson:                   types.StringValue(`{"host":"postgres.example.internal"}`),
+				SensitiveDetailsJsonWo:        types.StringUnknown(),
+				SensitiveDetailsJsonWoVersion: types.Int64Value(1),
+			},
+		},
+		"write-only details without version": {
+			customDetails: CustomDetails{
+				DetailsJson:                   types.StringValue(`{"host":"postgres.example.internal"}`),
+				SensitiveDetailsJsonWo:        types.StringValue(`{"password":"secret"}`),
+				SensitiveDetailsJsonWoVersion: types.Int64Null(),
+			},
+			expectError: true,
+		},
+		"version without write-only details": {
+			customDetails: CustomDetails{
+				DetailsJson:                   types.StringValue(`{"host":"postgres.example.internal"}`),
+				SensitiveDetailsJsonWo:        types.StringNull(),
+				SensitiveDetailsJsonWoVersion: types.Int64Value(1),
+			},
+			expectError: true,
+		},
+		"overlapping details": {
+			customDetails: CustomDetails{
+				DetailsJson:                   types.StringValue(`{"host":"postgres.example.internal"}`),
+				SensitiveDetailsJsonWo:        types.StringValue(`{"host":"secret.example.internal"}`),
+				SensitiveDetailsJsonWoVersion: types.Int64Value(1),
+				RedactedAttributes:            types.SetValueMust(types.StringType, []attr.Value{types.StringValue("host")}),
+			},
+			expectError: true,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			diags := validateCustomDetails(test.customDetails)
+			if diags.HasError() != test.expectError {
+				t.Fatalf("Unexpected validation diagnostics: %v", diags)
+			}
+		})
+	}
+}
+
 func testAccDatabaseResource(name string, dbName string, sensitiveDetailsVersion int) string {
 	return fmt.Sprintf(`
 resource "metabase_database" "%s" {
   name = "%s"
+
+  custom_details = {
+    engine = "postgres"
+
+    details_json = jsonencode({
+      host                    = "%s"
+      port                    = 5432
+      dbname                  = "%s"
+      user                    = "%s"
+      password                = "%s"
+      schema-filters-type     = "inclusion"
+      schema-filters-patterns = "this_schema_only"
+      ssl                     = false
+      tunnel-enabled          = false
+      advanced-options        = false
+    })
+
+    redacted_attributes = [
+      "password",
+    ]
+  }
+}
+
+resource "metabase_database" "%s_write_only" {
+  name = "%s write-only"
 
   custom_details = {
     engine = "postgres"
@@ -215,13 +355,15 @@ resource "metabase_database" "%s" {
       password = "%s"
     })
     sensitive_details_json_wo_version = %d
-
-    redacted_attributes = [
-      "password",
-    ]
   }
 }
 `,
+		name,
+		dbName,
+		os.Getenv("PG_HOST"),
+		os.Getenv("PG_DATABASE"),
+		os.Getenv("PG_USER"),
+		os.Getenv("PG_PASSWORD"),
 		name,
 		dbName,
 		os.Getenv("PG_HOST"),
@@ -240,6 +382,22 @@ func testAccCheckDatabaseDetailNotStored(resourceName string, detailName string)
 		}
 		if _, exists := details[detailName]; exists {
 			return fmt.Errorf("Database detail %q was unexpectedly stored in state.", detailName)
+		}
+
+		return nil
+	})
+}
+
+func testAccCheckDatabaseDetailStored(resourceName string, detailName string, expectedValue string) resource.TestCheckFunc {
+	return resource.TestCheckResourceAttrWith(resourceName, "custom_details.details_json", func(value string) error {
+		var details map[string]any
+		if err := json.Unmarshal([]byte(value), &details); err != nil {
+			return fmt.Errorf("Failed to deserialize custom database details from state: %w", err)
+		}
+		if detailValue, exists := details[detailName]; !exists {
+			return fmt.Errorf("Database detail %q was unexpectedly missing from state.", detailName)
+		} else if detailValue != expectedValue {
+			return fmt.Errorf("Database detail %q did not retain its configured value: got %#v, expected %#v.", detailName, detailValue, expectedValue)
 		}
 
 		return nil
@@ -306,13 +464,22 @@ func TestAccDatabaseResource(t *testing.T) {
 				Config: providerConfig + testAccDatabaseResource("test", "🐘 PG", 1),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckDatabaseExists("metabase_database.test"),
-					testAccCheckDatabaseDetailNotStored("metabase_database.test", "password"),
+					testAccCheckDatabaseDetailStored("metabase_database.test", "password", os.Getenv("PG_PASSWORD")),
 					resource.TestCheckResourceAttrSet("metabase_database.test", "id"),
 					resource.TestCheckResourceAttr("metabase_database.test", "name", "🐘 PG"),
 					resource.TestCheckNoResourceAttr("metabase_database.test", "bigquery_details"),
 					resource.TestCheckResourceAttr("metabase_database.test", "custom_details.engine", "postgres"),
 					resource.TestCheckNoResourceAttr("metabase_database.test", "custom_details.sensitive_details_json_wo"),
-					resource.TestCheckResourceAttr("metabase_database.test", "custom_details.sensitive_details_json_wo_version", "1"),
+					resource.TestCheckNoResourceAttr("metabase_database.test", "custom_details.sensitive_details_json_wo_version"),
+					testAccCheckDatabaseExists("metabase_database.test_write_only"),
+					testAccCheckDatabaseDetailNotStored("metabase_database.test_write_only", "password"),
+					resource.TestCheckResourceAttrSet("metabase_database.test_write_only", "id"),
+					resource.TestCheckResourceAttr("metabase_database.test_write_only", "name", "🐘 PG write-only"),
+					resource.TestCheckNoResourceAttr("metabase_database.test_write_only", "bigquery_details"),
+					resource.TestCheckResourceAttr("metabase_database.test_write_only", "custom_details.engine", "postgres"),
+					resource.TestCheckNoResourceAttr("metabase_database.test_write_only", "custom_details.sensitive_details_json_wo"),
+					resource.TestCheckResourceAttr("metabase_database.test_write_only", "custom_details.sensitive_details_json_wo_version", "1"),
+					resource.TestCheckNoResourceAttr("metabase_database.test_write_only", "custom_details.redacted_attributes"),
 				),
 			},
 			{
@@ -322,13 +489,21 @@ func TestAccDatabaseResource(t *testing.T) {
 			{
 				Config: providerConfig + testAccDatabaseResource("test", "✨ New", 2),
 				Check: resource.ComposeAggregateTestCheckFunc(
-					testAccCheckDatabaseDetailNotStored("metabase_database.test", "password"),
+					testAccCheckDatabaseDetailStored("metabase_database.test", "password", os.Getenv("PG_PASSWORD")),
 					resource.TestCheckResourceAttrSet("metabase_database.test", "id"),
 					resource.TestCheckResourceAttr("metabase_database.test", "name", "✨ New"),
 					resource.TestCheckNoResourceAttr("metabase_database.test", "bigquery_details"),
 					resource.TestCheckResourceAttr("metabase_database.test", "custom_details.engine", "postgres"),
 					resource.TestCheckNoResourceAttr("metabase_database.test", "custom_details.sensitive_details_json_wo"),
-					resource.TestCheckResourceAttr("metabase_database.test", "custom_details.sensitive_details_json_wo_version", "2"),
+					resource.TestCheckNoResourceAttr("metabase_database.test", "custom_details.sensitive_details_json_wo_version"),
+					testAccCheckDatabaseDetailNotStored("metabase_database.test_write_only", "password"),
+					resource.TestCheckResourceAttrSet("metabase_database.test_write_only", "id"),
+					resource.TestCheckResourceAttr("metabase_database.test_write_only", "name", "✨ New write-only"),
+					resource.TestCheckNoResourceAttr("metabase_database.test_write_only", "bigquery_details"),
+					resource.TestCheckResourceAttr("metabase_database.test_write_only", "custom_details.engine", "postgres"),
+					resource.TestCheckNoResourceAttr("metabase_database.test_write_only", "custom_details.sensitive_details_json_wo"),
+					resource.TestCheckResourceAttr("metabase_database.test_write_only", "custom_details.sensitive_details_json_wo_version", "2"),
+					resource.TestCheckNoResourceAttr("metabase_database.test_write_only", "custom_details.redacted_attributes"),
 				),
 			},
 		},

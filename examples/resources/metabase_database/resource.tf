@@ -53,11 +53,5 @@ resource "metabase_database" "custom" {
       password = var.database_password
     })
     sensitive_details_json_wo_version = 1
-
-    # Detail attributes redacted by Metabase should be listed here so they are not incorrectly detected as a change.
-    # Also list attributes that are present in both JSON objects.
-    redacted_attributes = [
-      "password",
-    ]
   }
 }
