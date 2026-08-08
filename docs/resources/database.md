@@ -4,18 +4,25 @@ page_title: "metabase_database Resource - terraform-provider-metabase"
 subcategory: ""
 description: |-
   A database Metabase can connect to. Currently only BigQuery has a dedicated attribute, but any engine can be set up using the custom_details attribute.
-  The configuration of this resource requires passing sensitive credentials to the Metabase API. Those credentials will also be stored in the Terraform state. Ensure those values are not checked into a repository nor are being displayed during Terraform operations.
+  The configuration of this resource requires passing sensitive credentials to the Metabase API. Credentials supplied through regular attributes are stored in Terraform state. For custom details, sensitive_details_json_wo can be used with Terraform 1.11 or later to avoid storing credentials in plan or state.
 ---
 
 # metabase_database (Resource)
 
 A database Metabase can connect to. Currently only BigQuery has a dedicated attribute, but any engine can be set up using the custom_details attribute.
 
-The configuration of this resource requires passing sensitive credentials to the Metabase API. Those credentials will also be stored in the Terraform state. Ensure those values are not checked into a repository nor are being displayed during Terraform operations.
+The configuration of this resource requires passing sensitive credentials to the Metabase API. Credentials supplied through regular attributes are stored in Terraform state. For custom details, sensitive_details_json_wo can be used with Terraform 1.11 or later to avoid storing credentials in plan or state.
 
 ## Example Usage
 
 ```terraform
+variable "database_password" {
+  description = "Password used by Metabase to connect to the custom database."
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+}
+
 resource "metabase_database" "bigquery" {
   name = "🗃️ Big Query"
 
@@ -53,7 +60,6 @@ resource "metabase_database" "custom" {
       port                    = 5432
       dbname                  = "database"
       user                    = "user"
-      password                = "password"
       schema-filters-type     = "inclusion"
       schema-filters-patterns = "this_schema_only"
       ssl                     = false
@@ -61,11 +67,10 @@ resource "metabase_database" "custom" {
       advanced-options        = false
     })
 
-    # Details attributes redacted by Metabase should be listed here, such that they are not incorrectly detected as a
-    # change.
-    redacted_attributes = [
-      "password",
-    ]
+    sensitive_details_json_wo = jsonencode({
+      password = var.database_password
+    })
+    sensitive_details_json_wo_version = 1
   }
 }
 ```
@@ -111,6 +116,8 @@ Required:
 Optional:
 
 - `redacted_attributes` (Set of String) The list of `details_json` attributes that are sent back redacted by Metabase.
+- `sensitive_details_json_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A write-only JSON object containing sensitive details. Its attributes are merged into `details_json` before requests are sent to Metabase. Attributes must not also appear in `details_json`. `sensitive_details_json_wo_version` must also be set. Requires Terraform 1.11 or later.
+- `sensitive_details_json_wo_version` (Number) A non-sensitive version for `sensitive_details_json_wo` that is stored in state. It must be configured together with `sensitive_details_json_wo`. Increment this value to send updated sensitive details to Metabase.
 
 ## Import
 
