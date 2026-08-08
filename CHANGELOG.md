@@ -1,5 +1,11 @@
 ## Unreleased
 
+## 0.15.0 (2026-08-08)
+
+NEW FEATURES:
+
+- Support write-only credentials in the `metabase_database` resource. `custom_details.sensitive_details_json_wo` accepts a JSON object that is merged into `details_json` before requests are sent to Metabase, but is never persisted in plans nor in the state. `custom_details.sensitive_details_json_wo_version` should be incremented to send rotated credentials to Metabase. Requires Terraform 1.11 or later. (Thanks @samssh!)
+
 ## 0.14.3 (2026-07-28)
 
 BUG FIXES:
