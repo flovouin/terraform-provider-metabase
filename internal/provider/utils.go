@@ -61,6 +61,25 @@ func valueInt64OrNull(v types.Int64) *int {
 	return &r
 }
 
+// Returns the ID of a collection as a string. The ID can be a string because of the "root" collection, while all
+// user-created collections have an integer ID.
+func collectionIdToString(id metabase.Collection_Id) (*string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if strId, err := id.AsCollectionId0(); err == nil {
+		return &strId, diags
+	}
+
+	if intId, err := id.AsCollectionId1(); err == nil {
+		strId := fmt.Sprint(intId)
+		return &strId, diags
+	}
+
+	marshalled, _ := id.MarshalJSON()
+	diags.AddError("Unable to parse collection ID.", string(marshalled))
+	return nil, diags
+}
+
 // Ensures that a Metabase response is not an error and has the expected status code. Otherwise, returns a diagnostic
 // error.
 func checkMetabaseResponse(r metabase.MetabaseResponse, err error, statusCodes []int, operation string) diag.Diagnostics {

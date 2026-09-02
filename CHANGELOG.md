@@ -1,5 +1,9 @@
 ## Unreleased
 
+NEW FEATURES:
+
+- Add the `metabase_collections` data source, listing all the collections along with a computed human-readable `path` and an `ids_by_path` lookup map.
+
 ## 0.15.0 (2026-08-08)
 
 NEW FEATURES:
