@@ -7,9 +7,16 @@ import (
 	"testing"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/hashicorp/terraform-plugin-testing/helper/acctest"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
 	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
+
+// Metabase never deletes users, and the email address of a deactivated user stays in use. Tests therefore generate a
+// unique email address for every run, so that they can be run repeatedly against the same Metabase instance.
+func testAccUserEmail(prefix string) string {
+	return fmt.Sprintf("%s-%s@tests.com", prefix, acctest.RandString(8))
+}
 
 func testAccUserResource(name string, email string, firstName string, lastName string, extraAttributes string) string {
 	return fmt.Sprintf(`
@@ -142,6 +149,8 @@ func testAccCheckUserDestroy(s *terraform.State) error {
 }
 
 func TestAccUserResource(t *testing.T) {
+	email := testAccUserEmail("terraform-user")
+
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
 		CheckDestroy:             testAccCheckUserDestroy,
@@ -149,11 +158,11 @@ func TestAccUserResource(t *testing.T) {
 			{
 				Config: providerConfig +
 					testAccPermissionsGroupResource("group", "🧑‍🚀 User group") +
-					testAccUserResource("test", "terraform-user@tests.com", "Terra", "Form", ""),
+					testAccUserResource("test", email, "Terra", "Form", ""),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccCheckUserExists("metabase_user.test"),
 					resource.TestCheckResourceAttrSet("metabase_user.test", "id"),
-					resource.TestCheckResourceAttr("metabase_user.test", "email", "terraform-user@tests.com"),
+					resource.TestCheckResourceAttr("metabase_user.test", "email", email),
 					resource.TestCheckResourceAttr("metabase_user.test", "first_name", "Terra"),
 					resource.TestCheckResourceAttr("metabase_user.test", "last_name", "Form"),
 					resource.TestCheckResourceAttr("metabase_user.test", "common_name", "Terra Form"),
@@ -172,7 +181,7 @@ func TestAccUserResource(t *testing.T) {
 				// Updating the user, and adding it to a group.
 				Config: providerConfig +
 					testAccPermissionsGroupResource("group", "🧑‍🚀 User group") +
-					testAccUserResource("test", "terraform-user@tests.com", "Terra", "Formed", `
+					testAccUserResource("test", email, "Terra", "Formed", `
   locale    = "fr"
   group_ids = [metabase_permissions_group.group.id]
 `),
@@ -182,6 +191,8 @@ func TestAccUserResource(t *testing.T) {
 					resource.TestCheckResourceAttr("metabase_user.test", "locale", "fr"),
 					resource.TestCheckResourceAttr("metabase_user.test", "group_ids.#", "1"),
 					resource.TestCheckResourceAttrPair("metabase_user.test", "group_ids.0", "metabase_permissions_group.group", "id"),
+					resource.TestCheckResourceAttr("metabase_user.test", "is_active", "true"),
+					testAccCheckUserIsActive("metabase_user.test", true),
 				),
 			},
 			{
@@ -189,7 +200,7 @@ func TestAccUserResource(t *testing.T) {
 				// not reported in `group_ids`.
 				Config: providerConfig +
 					testAccPermissionsGroupResource("group", "🧑‍🚀 User group") +
-					testAccUserResource("test", "terraform-user@tests.com", "Terra", "Formed", `
+					testAccUserResource("test", email, "Terra", "Formed", `
   locale       = "fr"
   is_superuser = true
   group_ids    = [metabase_permissions_group.group.id]
@@ -197,13 +208,15 @@ func TestAccUserResource(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("metabase_user.test", "is_superuser", "true"),
 					resource.TestCheckResourceAttr("metabase_user.test", "group_ids.#", "1"),
+					resource.TestCheckResourceAttr("metabase_user.test", "is_active", "true"),
+					testAccCheckUserIsActive("metabase_user.test", true),
 				),
 			},
 			{
 				// Explicitly deactivating the user.
 				Config: providerConfig +
 					testAccPermissionsGroupResource("group", "🧑‍🚀 User group") +
-					testAccUserResource("test", "terraform-user@tests.com", "Terra", "Formed", `
+					testAccUserResource("test", email, "Terra", "Formed", `
   locale       = "fr"
   is_superuser = true
   is_active    = false
@@ -218,7 +231,7 @@ func TestAccUserResource(t *testing.T) {
 				// Explicitly reactivating the user.
 				Config: providerConfig +
 					testAccPermissionsGroupResource("group", "🧑‍🚀 User group") +
-					testAccUserResource("test", "terraform-user@tests.com", "Terra", "Formed", `
+					testAccUserResource("test", email, "Terra", "Formed", `
   locale       = "fr"
   is_superuser = true
   is_active    = true
@@ -238,7 +251,7 @@ func TestAccUserResource(t *testing.T) {
 // Checks that a user deactivated outside of Terraform is *not* silently reactivated by a refresh. This is the main
 // reason why this resource does not treat a missing user as an invitation to reactivate it.
 func TestAccUserResourceDoesNotReactivateOnRefresh(t *testing.T) {
-	config := providerConfig + testAccUserResource("leaver", "terraform-leaver@tests.com", "Gone", "Away", "")
+	config := providerConfig + testAccUserResource("leaver", testAccUserEmail("terraform-leaver"), "Gone", "Away", "")
 
 	resource.Test(t, resource.TestCase{
 		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
@@ -260,6 +273,46 @@ func TestAccUserResourceDoesNotReactivateOnRefresh(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("metabase_user.leaver", "is_active", "false"),
 					testAccCheckUserIsActive("metabase_user.leaver", false),
+				),
+			},
+		},
+	})
+}
+
+// Checks that updating an attribute of a user does not have side effects on the attributes that are left out of the
+// configuration. `is_active` and `group_ids` are both optional and computed, and are therefore unknown in the plan when
+// the configuration does not set them: reading those unknown values as "inactive" and "no group at all" would deactivate
+// the user and strip its permissions on every unrelated change.
+func TestAccUserResourceUpdateKeepsOmittedAttributes(t *testing.T) {
+	email := testAccUserEmail("terraform-omitted")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckUserDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: providerConfig +
+					testAccPermissionsGroupResource("group", "🧑‍🏫 Omitted attributes group") +
+					testAccUserResource("test", email, "Kept", "Around", `
+  group_ids = [metabase_permissions_group.group.id]
+`),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("metabase_user.test", "group_ids.#", "1"),
+					resource.TestCheckResourceAttr("metabase_user.test", "is_active", "true"),
+				),
+			},
+			{
+				// Only the first name changes. Neither `is_active` nor `group_ids` appear in the configuration anymore,
+				// and both must keep the value they already have, in Terraform and in Metabase.
+				Config: providerConfig +
+					testAccPermissionsGroupResource("group", "🧑‍🏫 Omitted attributes group") +
+					testAccUserResource("test", email, "Still", "Around", ""),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("metabase_user.test", "first_name", "Still"),
+					resource.TestCheckResourceAttr("metabase_user.test", "is_active", "true"),
+					testAccCheckUserIsActive("metabase_user.test", true),
+					resource.TestCheckResourceAttr("metabase_user.test", "group_ids.#", "1"),
+					resource.TestCheckResourceAttrPair("metabase_user.test", "group_ids.0", "metabase_permissions_group.group", "id"),
 				),
 			},
 		},

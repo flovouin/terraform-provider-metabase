@@ -11,8 +11,11 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -83,21 +86,24 @@ of a deactivated one fails. Import the existing user instead, and set ` + "`is_a
 			"first_name": schema.StringAttribute{
 				MarkdownDescription: "The first name of the user. Metabase does not allow changing it for users authenticating through SSO. " +
 					"Removing the attribute from the configuration leaves the value untouched in Metabase, which does not support clearing it.",
-				Optional: true,
-				Computed: true,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"last_name": schema.StringAttribute{
 				MarkdownDescription: "The last name of the user. Metabase does not allow changing it for users authenticating through SSO. " +
 					"Removing the attribute from the configuration leaves the value untouched in Metabase, which does not support clearing it.",
-				Optional: true,
-				Computed: true,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"locale": schema.StringAttribute{
 				MarkdownDescription: "The locale used by Metabase when displaying the interface to the user, e.g. `en` or `fr`. " +
 					"When unset, the instance default is used. Removing the attribute from the configuration leaves the value " +
 					"untouched in Metabase, which does not support clearing it.",
-				Optional: true,
-				Computed: true,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"group_ids": schema.SetAttribute{
 				MarkdownDescription: fmt.Sprintf(
@@ -109,9 +115,10 @@ of a deactivated one fails. Import the existing user instead, and set ` + "`is_a
 					metabase.AllUsersPermissionsGroupId,
 					metabase.AdministratorsPermissionsGroupId,
 				),
-				Optional:    true,
-				Computed:    true,
-				ElementType: types.Int64Type,
+				Optional:      true,
+				Computed:      true,
+				ElementType:   types.Int64Type,
+				PlanModifiers: []planmodifier.Set{setplanmodifier.UseStateForUnknown()},
 			},
 			"is_superuser": schema.BoolAttribute{
 				MarkdownDescription: "Whether the user is an administrator of the Metabase instance. Administrators are members of the `Administrators` permissions group.",
@@ -123,8 +130,9 @@ of a deactivated one fails. Import the existing user instead, and set ` + "`is_a
 				MarkdownDescription: "Whether the user is active. Deactivated users cannot log in. Leave this unset to " +
 					"let Metabase own the value: the provider then reports deactivations but never undoes them. Set it " +
 					"to `true` to explicitly (re)activate a user, or to `false` to deactivate one.",
-				Optional: true,
-				Computed: true,
+				Optional:      true,
+				Computed:      true,
+				PlanModifiers: []planmodifier.Bool{boolplanmodifier.UseStateForUnknown()},
 			},
 			"common_name": schema.StringAttribute{
 				MarkdownDescription: "The display name for the user, computed by Metabase from the first and last names.",
@@ -461,9 +469,20 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 
 	id := int(plan.Id.ValueInt64())
 	wasActive := state.IsActive.ValueBool()
-	// `is_active` is optional and computed: when it is not set in the configuration, the plan carries the value from the
-	// state, which means a deactivated user stays deactivated unless the configuration explicitly asks otherwise.
-	shouldBeActive := plan.IsActive.ValueBool()
+
+	// `is_active` is optional and computed, so the plan carries an unknown value when the configuration does not set it.
+	// An unknown (or null) value expresses no intent, and the state of the user must then be left exactly as it is:
+	// reading it as a boolean would silently turn every update of an unrelated attribute into a deactivation.
+	shouldBeActive := wasActive
+	if !plan.IsActive.IsUnknown() && !plan.IsActive.IsNull() {
+		shouldBeActive = plan.IsActive.ValueBool()
+	}
+
+	// For the same reason, an unknown set of groups means "leave the memberships alone", not "remove every group".
+	groupIds := plan.GroupIds
+	if groupIds.IsUnknown() {
+		groupIds = state.GroupIds
+	}
 
 	if !wasActive && shouldBeActive {
 		reactivateResp, err := r.client.ReactivateUserWithResponse(ctx, id)
@@ -475,7 +494,7 @@ func (r *UserResource) Update(ctx context.Context, req resource.UpdateRequest, r
 	}
 
 	if wasActive || shouldBeActive {
-		memberships, diags := makeUserGroupMemberships(ctx, plan.GroupIds, plan.IsSuperuser)
+		memberships, diags := makeUserGroupMemberships(ctx, groupIds, plan.IsSuperuser)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
 			return
