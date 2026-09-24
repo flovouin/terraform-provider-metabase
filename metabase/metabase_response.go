@@ -248,6 +248,54 @@ func (r *UpdateFieldResponse) HasExpectedStatusWithoutExpectedBody() bool {
 	return r.StatusCode() == 200 && r.JSON200 == nil
 }
 
+func (r *CreateUserResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *CreateUserResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *ListUsersResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ListUsersResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *GetUserResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetUserResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *UpdateUserResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *UpdateUserResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
+func (r *DeactivateUserResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *DeactivateUserResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return false
+}
+
+func (r *ReactivateUserResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ReactivateUserResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
 func (r *GetContentTranslationCsvResponse) BodyString() string {
 	return string(r.Body)
 }

@@ -3,6 +3,10 @@ package metabase
 // The default ID of the `Administrators` permissions group, created automatically by Terraform.
 const AdministratorsPermissionsGroupId = 2
 
+// The default ID of the `All Users` permissions group, created automatically by Metabase. Every user belongs to this
+// group, and Metabase does not allow removing them from it.
+const AllUsersPermissionsGroupId = 1
+
 // The ID of the `Metabase Analytics` database, automatically created for pro plans.
 const MetabaseAnalyticsDatabaseId = "13371337"
 

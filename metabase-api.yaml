@@ -634,6 +634,132 @@ paths:
               schema:
                 $ref: "#/components/schemas/TableMetadata"
 
+  /user:
+    post:
+      operationId: createUser
+      description: Creates (invites) a new user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserBody"
+      responses:
+        200:
+          description: The user was successfully created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    get:
+      operationId: listUsers
+      description: Retrieves the list of users.
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: Which users should be returned, one of `active`, `deactivated` or `all`. Defaults to active users only.
+          required: false
+        - in: query
+          name: query
+          schema:
+            type: string
+          description: A string used to filter users on their first name, last name, or email.
+          required: false
+        - in: query
+          name: group_id
+          schema:
+            type: integer
+          description: Only return users belonging to the given permissions group.
+          required: false
+      responses:
+        200:
+          description: The list of users.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+
+  /user/{userId}:
+    get:
+      operationId: getUser
+      description: Retrieves a single user. Deactivated users are returned with `is_active` set to `false`.
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the user.
+      responses:
+        200:
+          description: The user was successfully retrieved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        404:
+          description: The user could not be found.
+
+    put:
+      operationId: updateUser
+      description: Updates a single (active) user.
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserBody"
+      responses:
+        200:
+          description: The user was successfully updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    delete:
+      operationId: deactivateUser
+      description: Deactivates a single user. Metabase does not support permanently deleting users.
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the user.
+      responses:
+        200:
+          description: The user was successfully deactivated.
+
+  /user/{userId}/reactivate:
+    put:
+      operationId: reactivateUser
+      description: Reactivates a previously deactivated user.
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the user.
+      responses:
+        200:
+          description: The user was successfully reactivated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
   # Content Translation endpoints (Enterprise Edition)
   /ee/content-translation/csv:
     get:
@@ -1542,3 +1668,125 @@ components:
         description:
           type: string
           description: A description for the table.
+    # Users.
+    User:
+      type: object
+      description: A Metabase user.
+      properties:
+        id:
+          type: integer
+          description: The ID of the user.
+        email:
+          type: string
+          description: The email address of the user, which is also used as the login.
+        first_name:
+          type: string
+          description: The first name of the user.
+        last_name:
+          type: string
+          description: The last name of the user.
+        common_name:
+          type: string
+          description: The display name for the user, computed by Metabase from the first and last names.
+        locale:
+          type: string
+          description: The locale used by Metabase when displaying the interface to the user.
+        is_active:
+          type: boolean
+          description: Whether the user is active. Deactivated users cannot log in and are hidden from most of the interface.
+        is_superuser:
+          type: boolean
+          description: Whether the user is an administrator of the Metabase instance.
+        date_joined:
+          type: string
+          description: The date at which the user was created.
+        last_login:
+          type: string
+          description: The date at which the user last logged in.
+        sso_source:
+          type: string
+          description: The SSO provider the user authenticates with, if any.
+        group_ids:
+          type: array
+          description: The IDs of the permissions groups the user belongs to. Only returned by the endpoint listing users.
+          items:
+            type: integer
+        user_group_memberships:
+          type: array
+          description: The permissions groups the user belongs to. Only returned by the endpoints operating on a single user.
+          items:
+            $ref: "#/components/schemas/UserGroupMembership"
+      required:
+        - id
+        - email
+    UserGroupMembership:
+      type: object
+      description: The membership of a user in a single permissions group.
+      properties:
+        id:
+          type: integer
+          description: The ID of the permissions group.
+        is_group_manager:
+          type: boolean
+          description: Whether the user manages the group. This is an enterprise feature and is ignored by open source instances.
+      required:
+        - id
+    UserList:
+      type: object
+      description: The list of users returned by the Metabase API.
+      properties:
+        data:
+          type: array
+          description: The list of users.
+          items:
+            $ref: "#/components/schemas/User"
+        total:
+          type: integer
+          description: The total number of users matching the query.
+      required:
+        - data
+        - total
+    CreateUserBody:
+      type: object
+      description: The payload used to create a new user.
+      properties:
+        email:
+          type: string
+          description: The email address of the user, which is also used as the login.
+        first_name:
+          type: string
+          description: The first name of the user.
+        last_name:
+          type: string
+          description: The last name of the user.
+        user_group_memberships:
+          type: array
+          description: The permissions groups the user should belong to.
+          items:
+            $ref: "#/components/schemas/UserGroupMembership"
+      required:
+        - email
+    UpdateUserBody:
+      type: object
+      description: The payload used to update an existing user.
+      properties:
+        email:
+          type: string
+          description: The email address of the user, which is also used as the login.
+        first_name:
+          type: string
+          description: The first name of the user.
+        last_name:
+          type: string
+          description: The last name of the user.
+        locale:
+          type: string
+          description: The locale used by Metabase when displaying the interface to the user.
+        is_superuser:
+          type: boolean
+          description: Whether the user is an administrator of the Metabase instance.
+        user_group_memberships:
+          type: array
+          description: The permissions groups the user should belong to.
+          items:
+            $ref: "#/components/schemas/UserGroupMembership"
