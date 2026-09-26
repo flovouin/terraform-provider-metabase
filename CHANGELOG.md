@@ -1,8 +1,10 @@
 ## Unreleased
 
+## 0.16.0 (2026-09-26)
+
 NEW FEATURES:
 
-- Add the `metabase_user` resource and the `metabase_user` data source, allowing user accounts and their permissions group memberships to be managed as code. Metabase only deactivates users rather than deleting them, and this resource never reactivates one implicitly: a user deactivated outside of Terraform is reported with `is_active = false` by refreshes, plans and imports, and is only restored when `is_active = true` is set explicitly in the configuration.
+- Add the `metabase_user` resource and the `metabase_user` data source, allowing user accounts and their permissions group memberships to be managed as code. Metabase only deactivates users rather than deleting them, and this resource never reactivates one implicitly: a user deactivated outside of Terraform is reported with `is_active = false` by refreshes, plans and imports, and is only restored when `is_active = true` is set explicitly in the configuration. (Thanks @goakshit!)
 
 ## 0.15.0 (2026-08-08)
 
