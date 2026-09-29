@@ -28,12 +28,11 @@ type MetabaseProvider struct {
 
 // The Terraform model for the provider.
 type MetabaseProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"` // The URL to the Metabase API.
-	Username types.String `tfsdk:"username"` // The user name (or email address) to use to authenticate.
-	Password types.String `tfsdk:"password"` // The password to use to authenticate.
-	ApiKey   types.String `tfsdk:"api_key"`  // The API key to use to authenticate. This can be used instead of a user name and password.
-	// Additional HTTP headers sent with every request to the Metabase API.
-	ExtraHeaders types.Map `tfsdk:"extra_headers"`
+	Endpoint     types.String `tfsdk:"endpoint"`      // The URL to the Metabase API.
+	Username     types.String `tfsdk:"username"`      // The user name (or email address) to use to authenticate.
+	Password     types.String `tfsdk:"password"`      // The password to use to authenticate.
+	ApiKey       types.String `tfsdk:"api_key"`       // The API key to use to authenticate. This can be used instead of a user name and password.
+	ExtraHeaders types.Map    `tfsdk:"extra_headers"` // Additional HTTP headers sent with every request to the Metabase API.
 }
 
 func (p *MetabaseProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
