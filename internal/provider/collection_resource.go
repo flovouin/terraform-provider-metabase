@@ -148,11 +148,16 @@ func (r *CollectionResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
+	// Metabase records a new revision of the collection graph when a collection is created or moved. Concurrent revisions
+	// can conflict with one another (failing with a duplicate key error), which is why this is serialized with the updates
+	// to the collection graph. Updates and archiving, which can also move the collection, are serialized as well.
+	collectionGraphMutex.Lock()
 	createResp, err := r.client.CreateCollectionWithResponse(ctx, metabase.CreateCollectionBody{
 		Name:        data.Name.ValueString(),
 		Description: valueStringOrNull(data.Description),
 		ParentId:    valueInt64OrNull(data.ParentId),
 	})
+	collectionGraphMutex.Unlock()
 
 	resp.Diagnostics.Append(checkMetabaseResponse(createResp, err, []int{200}, "create collection")...)
 	if resp.Diagnostics.HasError() {
@@ -206,11 +211,14 @@ func (r *CollectionResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	collectionName := data.Name.ValueString()
+	// See `Create` for why this is serialized.
+	collectionGraphMutex.Lock()
 	updateResp, err := r.client.UpdateCollectionWithResponse(ctx, data.Id.ValueString(), metabase.UpdateCollectionBody{
 		Name:        &collectionName,
 		Description: valueStringOrNull(data.Description),
 		ParentId:    valueInt64OrNull(data.ParentId),
 	})
+	collectionGraphMutex.Unlock()
 
 	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update collection")...)
 	if resp.Diagnostics.HasError() {
@@ -234,10 +242,12 @@ func (r *CollectionResource) Delete(ctx context.Context, req resource.DeleteRequ
 	}
 
 	archived := true
-	// A collection cannot be deleted, but it can be archived.
+	// A collection cannot be deleted, but it can be archived. See `Create` for why this is serialized.
+	collectionGraphMutex.Lock()
 	updateResp, err := r.client.UpdateCollectionWithResponse(ctx, data.Id.ValueString(), metabase.UpdateCollectionBody{
 		Archived: &archived,
 	})
+	collectionGraphMutex.Unlock()
 
 	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "delete (archive) collection")...)
 	if resp.Diagnostics.HasError() {
