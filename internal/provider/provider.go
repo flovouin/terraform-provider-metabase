@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -110,6 +112,10 @@ func validateProviderConfigIsKnown(data MetabaseProviderModel) diag.Diagnostics 
 	return diags
 }
 
+// Headers that cannot be passed as extra headers, either because the Metabase client sets them itself, or because the
+// Go HTTP client ignores them when they are set on the request headers.
+var reservedHeaders = []string{"Content-Length", "Content-Type", "Host", "Transfer-Encoding"}
+
 // Returns the client options corresponding to the extra headers set on the provider, if any. The headers are set on
 // every request, including the session request made when authenticating with a username and password.
 func makeClientOptions(ctx context.Context, extraHeaders types.Map) ([]metabase.ClientOption, diag.Diagnostics) {
@@ -121,6 +127,19 @@ func makeClientOptions(ctx context.Context, extraHeaders types.Map) ([]metabase.
 
 	headers := make(map[string]string, len(extraHeaders.Elements()))
 	diags.Append(extraHeaders.ElementsAs(ctx, &headers, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(headers)) {
+		if slices.Contains(reservedHeaders, http.CanonicalHeaderKey(name)) {
+			diags.AddAttributeError(
+				path.Root("extra_headers").AtMapKey(name),
+				"Unsupported extra header",
+				fmt.Sprintf("The %s header cannot be passed as an extra header. It is either set by the provider itself, or ignored by its HTTP client.", name),
+			)
+		}
+	}
 	if diags.HasError() {
 		return nil, diags
 	}

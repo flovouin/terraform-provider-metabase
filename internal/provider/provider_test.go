@@ -3,6 +3,8 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"slices"
 	"testing"
@@ -131,15 +133,100 @@ func TestValidateProviderConfigIsKnown(t *testing.T) {
 
 			diags := validateProviderConfigIsKnown(data)
 
-			var paths []string
-			for _, d := range diags.Errors() {
-				if withPath, ok := d.(diag.DiagnosticWithPath); ok {
-					paths = append(paths, withPath.Path().String())
-				}
-			}
+			paths := errorPaths(diags)
 			if len(paths) != len(diags) || !slices.Equal(paths, test.expectedPaths) {
 				t.Fatalf("Expected errors on %v, got diagnostics: %v", test.expectedPaths, diags)
 			}
 		})
 	}
+}
+
+func TestMakeClientOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		extraHeaders    types.Map
+		expectedHeaders map[string]string
+		expectedPaths   []string
+	}{
+		"no extra headers": {
+			extraHeaders: types.MapNull(types.StringType),
+		},
+		"extra headers": {
+			extraHeaders: makeExtraHeaders(map[string]string{
+				"CF-Access-Client-Id":     "client-id",
+				"cf-access-client-secret": "client-secret",
+			}),
+			expectedHeaders: map[string]string{
+				"CF-Access-Client-Id":     "client-id",
+				"CF-Access-Client-Secret": "client-secret",
+			},
+		},
+		"reserved headers": {
+			extraHeaders: makeExtraHeaders(map[string]string{
+				"CF-Access-Client-Id": "client-id",
+				"Host":                "metabase.example.com",
+				"content-type":        "text/plain",
+			}),
+			expectedPaths: []string{`extra_headers["Host"]`, `extra_headers["content-type"]`},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			options, diags := makeClientOptions(ctx, test.extraHeaders)
+
+			paths := errorPaths(diags)
+			if len(paths) != len(diags) || !slices.Equal(paths, test.expectedPaths) {
+				t.Fatalf("Expected errors on %v, got diagnostics: %v", test.expectedPaths, diags)
+			}
+			if diags.HasError() {
+				return
+			}
+
+			client, err := metabase.NewClient("https://metabase.example.com/api", options...)
+			if err != nil {
+				t.Fatalf("Failed to create the client: %v", err)
+			}
+			req := httptest.NewRequest(http.MethodGet, "https://metabase.example.com/api/table", nil)
+			for _, editor := range client.RequestEditors {
+				if err := editor(ctx, req); err != nil {
+					t.Fatalf("Failed to edit the request: %v", err)
+				}
+			}
+			if len(req.Header) != len(test.expectedHeaders) {
+				t.Fatalf("Expected headers %v, got %v.", test.expectedHeaders, req.Header)
+			}
+			for name, value := range test.expectedHeaders {
+				if got := req.Header.Get(name); got != value {
+					t.Errorf("Expected the %s header to be %q, got %q.", name, value, got)
+				}
+			}
+		})
+	}
+}
+
+// Returns the extra headers provider attribute value for the given headers.
+func makeExtraHeaders(headers map[string]string) types.Map {
+	elements := make(map[string]attr.Value, len(headers))
+	for name, value := range headers {
+		elements[name] = types.StringValue(value)
+	}
+
+	return types.MapValueMust(types.StringType, elements)
+}
+
+// Returns the paths of the attributes the error diagnostics relate to.
+func errorPaths(diags diag.Diagnostics) []string {
+	var paths []string
+	for _, d := range diags.Errors() {
+		if withPath, ok := d.(diag.DiagnosticWithPath); ok {
+			paths = append(paths, withPath.Path().String())
+		}
+	}
+
+	return paths
 }
