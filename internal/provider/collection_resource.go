@@ -148,11 +148,15 @@ func (r *CollectionResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
+	// Metabase records a new revision of the collection graph when a collection is created, and concurrent revisions can
+	// fail with a duplicate key error. This is why creations are serialized (see `collectionGraphMutex`).
+	collectionGraphMutex.Lock()
 	createResp, err := r.client.CreateCollectionWithResponse(ctx, metabase.CreateCollectionBody{
 		Name:        data.Name.ValueString(),
 		Description: valueStringOrNull(data.Description),
 		ParentId:    valueInt64OrNull(data.ParentId),
 	})
+	collectionGraphMutex.Unlock()
 
 	resp.Diagnostics.Append(checkMetabaseResponse(createResp, err, []int{200}, "create collection")...)
 	if resp.Diagnostics.HasError() {
@@ -206,11 +210,15 @@ func (r *CollectionResource) Update(ctx context.Context, req resource.UpdateRequ
 	}
 
 	collectionName := data.Name.ValueString()
+	// Moving a collection can also record a new revision of the collection graph (e.g. when moving it out of a personal
+	// collection), which is why updates are serialized like creations.
+	collectionGraphMutex.Lock()
 	updateResp, err := r.client.UpdateCollectionWithResponse(ctx, data.Id.ValueString(), metabase.UpdateCollectionBody{
 		Name:        &collectionName,
 		Description: valueStringOrNull(data.Description),
 		ParentId:    valueInt64OrNull(data.ParentId),
 	})
+	collectionGraphMutex.Unlock()
 
 	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update collection")...)
 	if resp.Diagnostics.HasError() {

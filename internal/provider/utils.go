@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -12,6 +13,12 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
+
+// Serializes the requests made by the provider which record a new revision of the collection graph. Metabase records a
+// revision when a collection is created, or moved in a way that changes its permissions (e.g. out of a personal
+// collection), and concurrent revisions can fail with a duplicate key error. This only serializes the requests of a
+// single provider instance: Terraform starts a separate provider process for each provider configuration (e.g. aliases).
+var collectionGraphMutex sync.Mutex
 
 // Converts a possibly `nil` string to a Terraform `String` type.
 func stringValueOrNull[T ~string](v *T) types.String {
