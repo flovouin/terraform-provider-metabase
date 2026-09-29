@@ -2,8 +2,10 @@ package provider
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -28,6 +30,8 @@ type MetabaseProviderModel struct {
 	Username types.String `tfsdk:"username"` // The user name (or email address) to use to authenticate.
 	Password types.String `tfsdk:"password"` // The password to use to authenticate.
 	ApiKey   types.String `tfsdk:"api_key"`  // The API key to use to authenticate. This can be used instead of a user name and password.
+	// Additional HTTP headers sent with every request to the Metabase API.
+	ExtraHeaders types.Map `tfsdk:"extra_headers"`
 }
 
 func (p *MetabaseProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -60,8 +64,39 @@ While most Terraform resources fully define the Metabase objects using attribute
 				Optional:            true,
 				Sensitive:           true,
 			},
+			"extra_headers": schema.MapAttribute{
+				MarkdownDescription: "Additional HTTP headers to send with every request to the Metabase API. Useful when Metabase sits behind a proxy that expects credentials of its own, for example a Cloudflare Access service token (`CF-Access-Client-Id` and `CF-Access-Client-Secret`).",
+				ElementType:         types.StringType,
+				Optional:            true,
+				Sensitive:           true,
+			},
 		},
 	}
+}
+
+// Returns the client options corresponding to the extra headers set on the provider, if any. The headers are set on
+// every request, including the session request made when authenticating with a username and password.
+func makeClientOptions(ctx context.Context, extraHeaders types.Map) ([]metabase.ClientOption, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if extraHeaders.IsNull() || extraHeaders.IsUnknown() {
+		return nil, diags
+	}
+
+	headers := make(map[string]string, len(extraHeaders.Elements()))
+	diags.Append(extraHeaders.ElementsAs(ctx, &headers, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return []metabase.ClientOption{
+		metabase.WithRequestEditorFn(func(ctx context.Context, req *http.Request) error {
+			for name, value := range headers {
+				req.Header.Set(name, value)
+			}
+			return nil
+		}),
+	}, diags
 }
 
 func (p *MetabaseProvider) Configure(ctx context.Context, req provider.ConfigureRequest, resp *provider.ConfigureResponse) {
@@ -76,6 +111,12 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 	var err error
 	var authenticatedClient *metabase.ClientWithResponses
 
+	clientOptions, diags := makeClientOptions(ctx, data.ExtraHeaders)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	if !data.Username.IsNull() && !data.Password.IsNull() {
 		if !data.ApiKey.IsNull() {
 			resp.Diagnostics.AddError("Only one of username / password or API key can be provided.", "")
@@ -87,6 +128,7 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 			data.Endpoint.ValueString(),
 			data.Username.ValueString(),
 			data.Password.ValueString(),
+			clientOptions...,
 		)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to create the Metabase client from username and password.", err.Error())
@@ -102,6 +144,7 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 			ctx,
 			data.Endpoint.ValueString(),
 			data.ApiKey.ValueString(),
+			clientOptions...,
 		)
 		if err != nil {
 			resp.Diagnostics.AddError("Failed to create the Metabase client from the API key.", err.Error())

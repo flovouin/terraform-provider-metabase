@@ -24,6 +24,13 @@ provider "metabase" {
 
   # ...or using an API key.
   # api_key = "API key"
+
+  # When Metabase sits behind a proxy expecting credentials of its own, those can be passed as extra headers, sent with
+  # every request. For example, a Cloudflare Access service token:
+  # extra_headers = {
+  #   "CF-Access-Client-Id"     = "<client id>.access"
+  #   "CF-Access-Client-Secret" = "<client secret>"
+  # }
 }
 ```
 
@@ -37,5 +44,6 @@ provider "metabase" {
 ### Optional
 
 - `api_key` (String, Sensitive) The API key to use to authenticate. This can be used instead of a user name and password.
+- `extra_headers` (Map of String, Sensitive) Additional HTTP headers to send with every request to the Metabase API. Useful when Metabase sits behind a proxy that expects credentials of its own, for example a Cloudflare Access service token (`CF-Access-Client-Id` and `CF-Access-Client-Secret`).
 - `password` (String, Sensitive) The password to use to authenticate.
 - `username` (String) The user name (or email address) to use to authenticate.
