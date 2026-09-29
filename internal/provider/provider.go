@@ -2,10 +2,12 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -74,12 +76,47 @@ While most Terraform resources fully define the Metabase objects using attribute
 	}
 }
 
+// Returns an error for each provider attribute whose value is unknown, which happens when it depends on a value only
+// known after apply. The Metabase client cannot be created from such values.
+func validateProviderConfigIsKnown(data MetabaseProviderModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	extraHeadersAreUnknown := data.ExtraHeaders.IsUnknown()
+	for _, value := range data.ExtraHeaders.Elements() {
+		extraHeadersAreUnknown = extraHeadersAreUnknown || value.IsUnknown()
+	}
+
+	attributes := []struct {
+		name      string
+		isUnknown bool
+	}{
+		{"endpoint", data.Endpoint.IsUnknown()},
+		{"username", data.Username.IsUnknown()},
+		{"password", data.Password.IsUnknown()},
+		{"api_key", data.ApiKey.IsUnknown()},
+		{"extra_headers", extraHeadersAreUnknown},
+	}
+	for _, attribute := range attributes {
+		if !attribute.isUnknown {
+			continue
+		}
+
+		diags.AddAttributeError(
+			path.Root(attribute.name),
+			"Unknown provider configuration value",
+			fmt.Sprintf("%s must be known when configuring the provider, but it depends on a value only known after apply. Either set it statically, or apply the resources it depends on first (e.g. using -target).", attribute.name),
+		)
+	}
+
+	return diags
+}
+
 // Returns the client options corresponding to the extra headers set on the provider, if any. The headers are set on
 // every request, including the session request made when authenticating with a username and password.
 func makeClientOptions(ctx context.Context, extraHeaders types.Map) ([]metabase.ClientOption, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if extraHeaders.IsNull() || extraHeaders.IsUnknown() {
+	if extraHeaders.IsNull() {
 		return nil, diags
 	}
 
@@ -104,6 +141,11 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(validateProviderConfigIsKnown(data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
