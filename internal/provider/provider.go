@@ -2,10 +2,14 @@ package provider
 
 import (
 	"context"
+	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
@@ -26,12 +30,11 @@ type MetabaseProvider struct {
 
 // The Terraform model for the provider.
 type MetabaseProviderModel struct {
-	Endpoint types.String `tfsdk:"endpoint"` // The URL to the Metabase API.
-	Username types.String `tfsdk:"username"` // The user name (or email address) to use to authenticate.
-	Password types.String `tfsdk:"password"` // The password to use to authenticate.
-	ApiKey   types.String `tfsdk:"api_key"`  // The API key to use to authenticate. This can be used instead of a user name and password.
-	// Additional HTTP headers sent with every request to the Metabase API.
-	ExtraHeaders types.Map `tfsdk:"extra_headers"`
+	Endpoint     types.String `tfsdk:"endpoint"`      // The URL to the Metabase API.
+	Username     types.String `tfsdk:"username"`      // The user name (or email address) to use to authenticate.
+	Password     types.String `tfsdk:"password"`      // The password to use to authenticate.
+	ApiKey       types.String `tfsdk:"api_key"`       // The API key to use to authenticate. This can be used instead of a user name and password.
+	ExtraHeaders types.Map    `tfsdk:"extra_headers"` // Additional HTTP headers sent with every request to the Metabase API.
 }
 
 func (p *MetabaseProvider) Metadata(ctx context.Context, req provider.MetadataRequest, resp *provider.MetadataResponse) {
@@ -74,17 +77,69 @@ While most Terraform resources fully define the Metabase objects using attribute
 	}
 }
 
+// Returns an error for each provider attribute whose value is unknown, which happens when it depends on a value only
+// known after apply. The Metabase client cannot be created from such values.
+func validateProviderConfigIsKnown(data MetabaseProviderModel) diag.Diagnostics {
+	var diags diag.Diagnostics
+
+	extraHeadersAreUnknown := data.ExtraHeaders.IsUnknown()
+	for _, value := range data.ExtraHeaders.Elements() {
+		extraHeadersAreUnknown = extraHeadersAreUnknown || value.IsUnknown()
+	}
+
+	attributes := []struct {
+		name      string
+		isUnknown bool
+	}{
+		{"endpoint", data.Endpoint.IsUnknown()},
+		{"username", data.Username.IsUnknown()},
+		{"password", data.Password.IsUnknown()},
+		{"api_key", data.ApiKey.IsUnknown()},
+		{"extra_headers", extraHeadersAreUnknown},
+	}
+	for _, attribute := range attributes {
+		if !attribute.isUnknown {
+			continue
+		}
+
+		diags.AddAttributeError(
+			path.Root(attribute.name),
+			"Unknown provider configuration value",
+			fmt.Sprintf("%s must be known when configuring the provider, but it depends on a value only known after apply. Either set it statically, or apply the resources it depends on first (e.g. using -target).", attribute.name),
+		)
+	}
+
+	return diags
+}
+
+// Headers that cannot be passed as extra headers, either because the Metabase client sets them itself, or because the
+// Go HTTP client ignores them when they are set on the request headers.
+var reservedHeaders = []string{"Content-Length", "Content-Type", "Host", "Transfer-Encoding"}
+
 // Returns the client options corresponding to the extra headers set on the provider, if any. The headers are set on
 // every request, including the session request made when authenticating with a username and password.
 func makeClientOptions(ctx context.Context, extraHeaders types.Map) ([]metabase.ClientOption, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
-	if extraHeaders.IsNull() || extraHeaders.IsUnknown() {
+	if extraHeaders.IsNull() {
 		return nil, diags
 	}
 
 	headers := make(map[string]string, len(extraHeaders.Elements()))
 	diags.Append(extraHeaders.ElementsAs(ctx, &headers, false)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(headers)) {
+		if slices.Contains(reservedHeaders, http.CanonicalHeaderKey(name)) {
+			diags.AddAttributeError(
+				path.Root("extra_headers").AtMapKey(name),
+				"Unsupported extra header",
+				fmt.Sprintf("The %s header cannot be passed as an extra header. It is either set by the provider itself, or ignored by its HTTP client.", name),
+			)
+		}
+	}
 	if diags.HasError() {
 		return nil, diags
 	}
@@ -104,6 +159,11 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 
 	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
 
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(validateProviderConfigIsKnown(data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

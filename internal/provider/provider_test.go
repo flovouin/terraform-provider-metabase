@@ -3,10 +3,17 @@ package provider
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"slices"
+	"testing"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
+	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 )
 
@@ -54,3 +61,172 @@ var testAccMetabaseClient, _ = metabase.MakeAuthenticatedClientWithUsernameAndPa
 	os.Getenv("METABASE_USERNAME"),
 	os.Getenv("METABASE_PASSWORD"),
 )
+
+// Returns a provider configuration in which all values are known.
+func makeKnownProviderConfig() MetabaseProviderModel {
+	return MetabaseProviderModel{
+		Endpoint: types.StringValue("https://metabase.example.com/api"),
+		Username: types.StringValue("user@tests.com"),
+		Password: types.StringValue("password"),
+		ApiKey:   types.StringNull(),
+		ExtraHeaders: types.MapValueMust(types.StringType, map[string]attr.Value{
+			"CF-Access-Client-Id": types.StringValue("client-id"),
+		}),
+	}
+}
+
+func TestValidateProviderConfigIsKnown(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		update        func(data *MetabaseProviderModel)
+		expectedPaths []string
+	}{
+		"known values": {
+			update: func(data *MetabaseProviderModel) {},
+		},
+		"null optional values": {
+			update: func(data *MetabaseProviderModel) {
+				data.Username = types.StringNull()
+				data.Password = types.StringNull()
+				data.ApiKey = types.StringValue("api-key")
+				data.ExtraHeaders = types.MapNull(types.StringType)
+			},
+		},
+		"unknown endpoint": {
+			update: func(data *MetabaseProviderModel) {
+				data.Endpoint = types.StringUnknown()
+			},
+			expectedPaths: []string{"endpoint"},
+		},
+		"unknown credentials": {
+			update: func(data *MetabaseProviderModel) {
+				data.Username = types.StringUnknown()
+				data.Password = types.StringUnknown()
+				data.ApiKey = types.StringUnknown()
+			},
+			expectedPaths: []string{"username", "password", "api_key"},
+		},
+		"unknown extra headers": {
+			update: func(data *MetabaseProviderModel) {
+				data.ExtraHeaders = types.MapUnknown(types.StringType)
+			},
+			expectedPaths: []string{"extra_headers"},
+		},
+		"unknown extra header value": {
+			update: func(data *MetabaseProviderModel) {
+				data.ExtraHeaders = types.MapValueMust(types.StringType, map[string]attr.Value{
+					"CF-Access-Client-Id":     types.StringValue("client-id"),
+					"CF-Access-Client-Secret": types.StringUnknown(),
+				})
+			},
+			expectedPaths: []string{"extra_headers"},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			data := makeKnownProviderConfig()
+			test.update(&data)
+
+			diags := validateProviderConfigIsKnown(data)
+
+			paths := errorPaths(diags)
+			if len(paths) != len(diags) || !slices.Equal(paths, test.expectedPaths) {
+				t.Fatalf("Expected errors on %v, got diagnostics: %v", test.expectedPaths, diags)
+			}
+		})
+	}
+}
+
+func TestMakeClientOptions(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		extraHeaders    types.Map
+		expectedHeaders map[string]string
+		expectedPaths   []string
+	}{
+		"no extra headers": {
+			extraHeaders: types.MapNull(types.StringType),
+		},
+		"extra headers": {
+			extraHeaders: makeExtraHeaders(map[string]string{
+				"CF-Access-Client-Id":     "client-id",
+				"cf-access-client-secret": "client-secret",
+			}),
+			expectedHeaders: map[string]string{
+				"CF-Access-Client-Id":     "client-id",
+				"CF-Access-Client-Secret": "client-secret",
+			},
+		},
+		"reserved headers": {
+			extraHeaders: makeExtraHeaders(map[string]string{
+				"CF-Access-Client-Id": "client-id",
+				"Host":                "metabase.example.com",
+				"content-type":        "text/plain",
+			}),
+			expectedPaths: []string{`extra_headers["Host"]`, `extra_headers["content-type"]`},
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			options, diags := makeClientOptions(ctx, test.extraHeaders)
+
+			paths := errorPaths(diags)
+			if len(paths) != len(diags) || !slices.Equal(paths, test.expectedPaths) {
+				t.Fatalf("Expected errors on %v, got diagnostics: %v", test.expectedPaths, diags)
+			}
+			if diags.HasError() {
+				return
+			}
+
+			client, err := metabase.NewClient("https://metabase.example.com/api", options...)
+			if err != nil {
+				t.Fatalf("Failed to create the client: %v", err)
+			}
+			req := httptest.NewRequest(http.MethodGet, "https://metabase.example.com/api/table", nil)
+			for _, editor := range client.RequestEditors {
+				if err := editor(ctx, req); err != nil {
+					t.Fatalf("Failed to edit the request: %v", err)
+				}
+			}
+			if len(req.Header) != len(test.expectedHeaders) {
+				t.Fatalf("Expected headers %v, got %v.", test.expectedHeaders, req.Header)
+			}
+			for name, value := range test.expectedHeaders {
+				if got := req.Header.Get(name); got != value {
+					t.Errorf("Expected the %s header to be %q, got %q.", name, value, got)
+				}
+			}
+		})
+	}
+}
+
+// Returns the extra headers provider attribute value for the given headers.
+func makeExtraHeaders(headers map[string]string) types.Map {
+	elements := make(map[string]attr.Value, len(headers))
+	for name, value := range headers {
+		elements[name] = types.StringValue(value)
+	}
+
+	return types.MapValueMust(types.StringType, elements)
+}
+
+// Returns the paths of the attributes the error diagnostics relate to.
+func errorPaths(diags diag.Diagnostics) []string {
+	var paths []string
+	for _, d := range diags.Errors() {
+		if withPath, ok := d.(diag.DiagnosticWithPath); ok {
+			paths = append(paths, withPath.Path().String())
+		}
+	}
+
+	return paths
+}
