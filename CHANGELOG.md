@@ -1,8 +1,10 @@
 ## Unreleased
 
+## 0.17.0 (2026-09-29)
+
 NEW FEATURES:
 
-- Add the `extra_headers` provider attribute, a map of HTTP headers sent with every request to the Metabase API. This allows the provider to reach a Metabase instance behind a proxy that expects credentials of its own, such as a Cloudflare Access service token. The headers are also sent on the session request made when authenticating with a username and password.
+- Add the `extra_headers` provider attribute, a map of HTTP headers sent with every request to the Metabase API. This allows the provider to reach a Metabase instance behind a proxy that expects credentials of its own, such as a Cloudflare Access service token. The headers are also sent on the session request made when authenticating with a username and password. (Thanks @PJHRobles!)
 
 BUG FIXES:
 
