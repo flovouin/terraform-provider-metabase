@@ -1,5 +1,13 @@
 ## Unreleased
 
+NEW FEATURES:
+
+- Add the `metabase_database_permission` and `metabase_collection_permission` resources, which each manage a single edge of the permissions graph or the collection graph, and leave all other edges untouched. Unlike the `metabase_permissions_graph` and `metabase_collection_graph` resources, they can coexist with permissions set in the Metabase interface, much like the `google_*_iam_member` resources compared to `google_*_iam_policy`. Updates are sent from the latest graph revision, retried with a backoff when Metabase reports a conflicting revision, and serialized within the provider.
+
+BUG FIXES:
+
+- Serialize the creation, update and archiving of `metabase_collection` resources with updates to the collection graph. Metabase records a collection graph revision when a collection is created or moved, and concurrent revisions could fail with a duplicate key error.
+
 ## 0.17.0 (2026-09-29)
 
 NEW FEATURES:
