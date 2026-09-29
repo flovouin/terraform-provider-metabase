@@ -3,18 +3,10 @@ package metabase
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/oapi-codegen/oapi-codegen/v2/pkg/securityprovider"
 )
-
-// Returns a copy of the given options, with the extra ones appended. Copying avoids writing into the backing array of
-// the slice owned by the caller.
-func appendClientOptions(opts []ClientOption, extra ...ClientOption) []ClientOption {
-	combined := make([]ClientOption, 0, len(opts)+len(extra))
-	combined = append(combined, opts...)
-	combined = append(combined, extra...)
-	return combined
-}
 
 // Authenticates to the Metabase API using the given username and password, and returns an API client configured with
 // the session obtained during authentication. Any additional options are applied both to the client that authenticates
@@ -42,7 +34,7 @@ func MakeAuthenticatedClientWithUsernameAndPassword(ctx context.Context, endpoin
 		return nil, err
 	}
 
-	authenticatedClient, err := NewClientWithResponses(endpoint, appendClientOptions(opts, WithRequestEditorFn(apiKeyProvider.Intercept))...)
+	authenticatedClient, err := NewClientWithResponses(endpoint, slices.Concat(opts, []ClientOption{WithRequestEditorFn(apiKeyProvider.Intercept)})...)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +49,7 @@ func MakeAuthenticatedClientWithApiKey(ctx context.Context, endpoint string, api
 		return nil, err
 	}
 
-	authenticatedClient, err := NewClientWithResponses(endpoint, appendClientOptions(opts, WithRequestEditorFn(apiKeyProvider.Intercept))...)
+	authenticatedClient, err := NewClientWithResponses(endpoint, slices.Concat(opts, []ClientOption{WithRequestEditorFn(apiKeyProvider.Intercept)})...)
 	if err != nil {
 		return nil, err
 	}
