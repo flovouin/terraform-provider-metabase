@@ -1,5 +1,9 @@
 ## Unreleased
 
+BUG FIXES:
+
+- Apply the removal of the `description` or `parent_id` of a `metabase_collection`. Null values were omitted from the update request, which Metabase interprets as leaving the attributes unchanged, so moving a collection to the root collection or removing its description failed with an inconsistent result error.
+
 ## 0.17.0 (2026-09-29)
 
 NEW FEATURES:
