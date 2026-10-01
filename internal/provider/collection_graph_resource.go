@@ -307,6 +307,18 @@ func (r *CollectionGraphResource) Update(ctx context.Context, req resource.Updat
 			return
 		}
 
+		// Collections created or moved by the provider (e.g. in the same apply) can record new revisions of the graph, which
+		// should not cause the update to be rejected (see `collectionGraphTracker`).
+		collectionGraph.mutex.Lock()
+		defer collectionGraph.mutex.Unlock()
+
+		revision, diags := collectionGraph.baseRevision(ctx, r.client, body.Revision)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
+		body.Revision = revision
+
 		updateResp, err := r.client.ReplaceCollectionPermissionsGraphWithResponse(ctx, *body)
 
 		resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update collection graph")...)
