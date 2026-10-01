@@ -302,6 +302,12 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 	return &permissionsObject, diags
 }
 
+// Returns whether an edge returned by the Metabase API defines the `view-data` permission.
+func hasViewDataPermissions(p metabase.PermissionsGraphDatabasePermissions) bool {
+	viewDataBytes, err := p.ViewData.MarshalJSON()
+	return err == nil && len(viewDataBytes) > 0 && string(viewDataBytes) != "null"
+}
+
 // Updates the given `PermissionsGraphResourceModel` from the `PermissionsGraph` returned by the Metabase API.
 func updateModelFromPermissionsGraph(ctx context.Context, g metabase.PermissionsGraph, data *PermissionsGraphResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -344,7 +350,7 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 			// just `data-model` set) and omit `view-data` entirely. The provider models every edge around
 			// `view-data`, so it cannot represent these fragments; skip them rather than failing to parse the
 			// empty `view-data` union.
-			if viewDataBytes, err := dbPermissions.ViewData.MarshalJSON(); err != nil || len(viewDataBytes) == 0 || string(viewDataBytes) == "null" {
+			if !hasViewDataPermissions(dbPermissions) {
 				continue
 			}
 
@@ -423,6 +429,75 @@ func makeDatasetAccessFromModel(ctx context.Context, apObj types.Object, setIfNu
 	}, diags
 }
 
+// Makes the Metabase API permissions for a single edge of the graph (a group and a database) from its Terraform model.
+// `advancedPermissions` sets the advanced permissions that are not specified to their default values (forbidding any
+// access).
+func makeDatabasePermissionsFromModel(ctx context.Context, p DatabasePermissions, advancedPermissions bool) (*metabase.PermissionsGraphDatabasePermissions, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	viewDataString := p.ViewData.ValueString()
+	var viewData metabase.PermissionsGraphDatabasePermissions_ViewData
+	var viewDataObject map[string]any
+	// Tries to parse the string as JSON.
+	if err := json.Unmarshal([]byte(viewDataString), &viewDataObject); err == nil {
+		viewData.FromPermissionsGraphDatabasePermissionsViewData1(
+			metabase.PermissionsGraphDatabasePermissionsViewData1(viewDataObject),
+		)
+	} else {
+		viewData.FromPermissionsGraphDatabasePermissionsViewData0(
+			metabase.PermissionsGraphDatabasePermissionsViewData0(viewDataString),
+		)
+	}
+
+	var createQueries *metabase.PermissionsGraphDatabasePermissions_CreateQueries
+	if !p.CreateQueries.IsNull() && !p.CreateQueries.IsUnknown() {
+		createQueriesString := p.CreateQueries.ValueString()
+		var createQueriesObject map[string]any
+		var unionValue metabase.PermissionsGraphDatabasePermissions_CreateQueries
+		// Tries to parse the string as JSON.
+		if err := json.Unmarshal([]byte(createQueriesString), &createQueriesObject); err == nil {
+			unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries1(
+				metabase.PermissionsGraphDatabasePermissionsCreateQueries1(createQueriesObject),
+			)
+		} else {
+			unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries0(
+				metabase.PermissionsGraphDatabasePermissionsCreateQueries0(createQueriesString),
+			)
+		}
+		createQueries = &unionValue
+	} else {
+		var unionValue metabase.PermissionsGraphDatabasePermissions_CreateQueries
+		unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries0(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)
+		createQueries = &unionValue
+	}
+
+	download, accessDiags := makeDatasetAccessFromModel(ctx, p.Download, advancedPermissions)
+	diags.Append(accessDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	dataModel, accessDiags := makeDatasetAccessFromModel(ctx, p.DataModel, advancedPermissions)
+	diags.Append(accessDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	details := valueApproximateStringOrNull[metabase.PermissionsGraphDatabasePermissionsDetails](p.Details)
+	if details == nil && advancedPermissions {
+		no := metabase.PermissionsGraphDatabasePermissionsDetailsNo
+		details = &no
+	}
+
+	return &metabase.PermissionsGraphDatabasePermissions{
+		ViewData:      viewData,
+		CreateQueries: createQueries,
+		Download:      download,
+		DataModel:     dataModel,
+		Details:       details,
+	}, diags
+}
+
 // Makes the entire permissions graph from the Terraform model.
 // Passing the current state allows comparing the plan to an existing set of permissions. This allows explicitly
 // removing permissions by sending "none" values to the Metabase API.
@@ -464,67 +539,13 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 			return nil, diags
 		}
 
-		viewDataString := p.ViewData.ValueString()
-		var viewData metabase.PermissionsGraphDatabasePermissions_ViewData
-		var viewDataObject map[string]any
-		// Tries to parse the string as JSON.
-		if err := json.Unmarshal([]byte(viewDataString), &viewDataObject); err == nil {
-			viewData.FromPermissionsGraphDatabasePermissionsViewData1(
-				metabase.PermissionsGraphDatabasePermissionsViewData1(viewDataObject),
-			)
-		} else {
-			viewData.FromPermissionsGraphDatabasePermissionsViewData0(
-				metabase.PermissionsGraphDatabasePermissionsViewData0(viewDataString),
-			)
-		}
-
-		var createQueries *metabase.PermissionsGraphDatabasePermissions_CreateQueries
-		if !p.CreateQueries.IsNull() && !p.CreateQueries.IsUnknown() {
-			createQueriesString := p.CreateQueries.ValueString()
-			var createQueriesObject map[string]any
-			var unionValue metabase.PermissionsGraphDatabasePermissions_CreateQueries
-			// Tries to parse the string as JSON.
-			if err := json.Unmarshal([]byte(createQueriesString), &createQueriesObject); err == nil {
-				unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries1(
-					metabase.PermissionsGraphDatabasePermissionsCreateQueries1(createQueriesObject),
-				)
-			} else {
-				unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries0(
-					metabase.PermissionsGraphDatabasePermissionsCreateQueries0(createQueriesString),
-				)
-			}
-			createQueries = &unionValue
-		} else {
-			var unionValue metabase.PermissionsGraphDatabasePermissions_CreateQueries
-			unionValue.FromPermissionsGraphDatabasePermissionsCreateQueries0(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)
-			createQueries = &unionValue
-		}
-
-		download, accessDiags := makeDatasetAccessFromModel(ctx, p.Download, advancedPermissions)
-		diags.Append(accessDiags...)
+		dbPermissions, permDiags := makeDatabasePermissionsFromModel(ctx, p, advancedPermissions)
+		diags.Append(permDiags...)
 		if diags.HasError() {
 			return nil, diags
 		}
 
-		dataModel, accessDiags := makeDatasetAccessFromModel(ctx, p.DataModel, advancedPermissions)
-		diags.Append(accessDiags...)
-		if diags.HasError() {
-			return nil, diags
-		}
-
-		details := valueApproximateStringOrNull[metabase.PermissionsGraphDatabasePermissionsDetails](p.Details)
-		if details == nil && advancedPermissions {
-			no := metabase.PermissionsGraphDatabasePermissionsDetailsNo
-			details = &no
-		}
-
-		dbPermMap[databaseId] = metabase.PermissionsGraphDatabasePermissions{
-			ViewData:      viewData,
-			CreateQueries: createQueries,
-			Download:      download,
-			DataModel:     dataModel,
-			Details:       details,
-		}
+		dbPermMap[databaseId] = *dbPermissions
 	}
 
 	// If the state is passed, it is used to detect removed permissions (or permissions added outside of Terraform).
