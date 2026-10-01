@@ -142,3 +142,36 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 		},
 	})
 }
+
+// Creates a database in the same apply as an update of the permissions graph. Metabase grants default permissions on new
+// databases, which are not part of the plan when the database is not referenced by the graph.
+func TestAccPermissionsGraphResourceWithNewDatabase(t *testing.T) {
+	newDatabase := `
+resource "metabase_database" "new" {
+  name = "🆕 New database"
+
+  custom_details = {
+    engine       = "sqlite"
+    details_json = jsonencode({ db = "/plugins/sample-database.sqlite" })
+  }
+}
+`
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative)),
+					"\"unrestricted\"",
+				),
+			},
+			{
+				Config: providerApiKeyConfig + newDatabase + testAccPermissionsGraphResource(
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)),
+					"\"unrestricted\"",
+				),
+			},
+		},
+	})
+}
