@@ -326,10 +326,10 @@ func (r *CollectionGraphResource) Update(ctx context.Context, req resource.Updat
 			return
 		}
 
-		resp.Diagnostics.Append(updateModelFromCollectionPermissionsGraph(ctx, *updateResp.JSON200, data)...)
-		if resp.Diagnostics.HasError() {
-			return
-		}
+		// Only the revision is taken from the response, the permissions are the planned ones. The response can contain other
+		// permissions, e.g. for collections created in the same apply, which inherit the permissions of their parent. Those
+		// are reported as drift when the state is refreshed, like for collections created in a previous apply.
+		data.Revision = types.Int64Value(int64(updateResp.JSON200.Revision))
 	} else {
 		// If no update was performed, the current revision number is still valid.
 		data.Revision = state.Revision
