@@ -150,10 +150,16 @@ func (r *CollectionResource) Create(ctx context.Context, req resource.CreateRequ
 		return
 	}
 
-	createResp, err := r.client.CreateCollectionWithResponse(ctx, metabase.CreateCollectionBody{
-		Name:        data.Name.ValueString(),
-		Description: valueStringOrNull(data.Description),
-		ParentId:    valueInt64OrNull(data.ParentId),
+	// Creating a collection records a new revision of the collection graph (see `collectionGraphTracker`).
+	var createResp *metabase.CreateCollectionResponse
+	var err error
+	collectionGraph.trackRequest(ctx, r.client, func() bool {
+		createResp, err = r.client.CreateCollectionWithResponse(ctx, metabase.CreateCollectionBody{
+			Name:        data.Name.ValueString(),
+			Description: valueStringOrNull(data.Description),
+			ParentId:    valueInt64OrNull(data.ParentId),
+		})
+		return err == nil && createResp.StatusCode() == 200
 	})
 
 	resp.Diagnostics.Append(checkMetabaseResponse(createResp, err, []int{200}, "create collection")...)
@@ -222,7 +228,13 @@ func (r *CollectionResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	updateResp, err := r.client.UpdateCollectionWithBodyWithResponse(ctx, data.Id.ValueString(), "application/json", bytes.NewReader(body))
+	// Moving a collection can also record a new revision of the collection graph (e.g. when moving it out of a personal
+	// collection), which is why updates are tracked like creations.
+	var updateResp *metabase.UpdateCollectionResponse
+	collectionGraph.trackRequest(ctx, r.client, func() bool {
+		updateResp, err = r.client.UpdateCollectionWithBodyWithResponse(ctx, data.Id.ValueString(), "application/json", bytes.NewReader(body))
+		return err == nil && updateResp.StatusCode() == 200
+	})
 
 	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update collection")...)
 	if resp.Diagnostics.HasError() {

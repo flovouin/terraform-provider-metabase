@@ -156,3 +156,28 @@ func testAccCheckCollectionIsAtRootWithoutDescription(resourceName string) resou
 		return nil
 	}
 }
+
+// Creates many collections at once. Terraform applies them in parallel, and Metabase fails with a duplicate key error
+// when it records concurrent revisions of the collection graph, unless the provider serializes the requests.
+func TestAccCollectionResourceParallel(t *testing.T) {
+	const count = 12
+
+	config := providerConfig
+	checks := []resource.TestCheckFunc{}
+	for i := range count {
+		name := fmt.Sprintf("parallel_%d", i)
+		config += testAccCollectionResource(name, fmt.Sprintf("🏎️ Parallel %d", i), "🏁 Created in parallel", "null")
+		checks = append(checks, testAccCheckCollectionExists("metabase_collection."+name))
+	}
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckCollectionDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check:  resource.ComposeAggregateTestCheckFunc(checks...),
+			},
+		},
+	})
+}
