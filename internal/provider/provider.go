@@ -15,6 +15,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 
+	"github.com/flovouin/terraform-provider-metabase/internal/graphlock"
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 )
 
@@ -215,8 +216,13 @@ func (p *MetabaseProvider) Configure(ctx context.Context, req provider.Configure
 		return
 	}
 
+	// Data sources only read from Metabase, and do not need the graph trackers.
 	resp.DataSourceData = authenticatedClient
-	resp.ResourceData = authenticatedClient
+	resp.ResourceData = &metabaseResourceData{
+		client:           authenticatedClient,
+		collectionGraph:  graphlock.NewCollectionGraphTracker(),
+		permissionsGraph: graphlock.NewPermissionsGraphTracker(),
+	}
 }
 
 func (p *MetabaseProvider) Resources(ctx context.Context) []func() resource.Resource {

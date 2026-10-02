@@ -3,6 +3,8 @@
 BUG FIXES:
 
 - Apply the removal of the `description` or `parent_id` of a `metabase_collection`. Null values were omitted from the update request, which Metabase interprets as leaving the attributes unchanged, so moving a collection to the root collection or removing its description failed with an inconsistent result error.
+- Serialize the creation and update of `metabase_collection` resources. Metabase records a collection graph revision when a collection is created, or moved in a way that changes its permissions (e.g. out of a personal collection), and doing so for several collections in parallel could fail with a duplicate key error. Collections created through different provider configurations (e.g. aliases) are not serialized, as Terraform runs them in separate provider processes.
+- Update the `metabase_collection_graph` in the same apply as the creation of collections. Metabase rejects graph updates based on an outdated revision, and creating or moving a collection records a new one. The provider now ignores the revisions caused by its own requests, while updates are still rejected when the graph is changed by anything else. Graph updates are also serialized with the creation and update of collections, which could otherwise fail with a duplicate key error. Permissions inherited by collections created in the same apply are reported as drift on the next plan, rather than failing the apply.
 
 ## 0.17.0 (2026-09-29)
 
