@@ -111,6 +111,21 @@ func TestAccCollectionResource(t *testing.T) {
 					resource.TestCheckResourceAttrSet("metabase_collection.child", "parent_id"),
 				),
 			},
+			{
+				// Removing the description and the parent collection should be applied, rather than leaving them unchanged.
+				Config: providerConfig +
+					testAccCollectionResource("test", "🎁 Updated", "❓ Other", "null") + `
+resource "metabase_collection" "child" {
+  name = "🧒 Child"
+}
+`,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckNoResourceAttr("metabase_collection.child", "description"),
+					resource.TestCheckNoResourceAttr("metabase_collection.child", "parent_id"),
+					resource.TestCheckResourceAttr("metabase_collection.child", "location", "/"),
+					testAccCheckCollectionIsAtRootWithoutDescription("metabase_collection.child"),
+				),
+			},
 		},
 	})
 }
@@ -138,4 +153,31 @@ func TestAccCollectionResourceParallel(t *testing.T) {
 			},
 		},
 	})
+}
+
+// Checks that the collection has no description and belongs to the root collection in Metabase.
+func testAccCheckCollectionIsAtRootWithoutDescription(resourceName string) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return fmt.Errorf("Failed to find resource %s in state.", resourceName)
+		}
+
+		response, err := testAccMetabaseClient.GetCollectionWithResponse(context.Background(), rs.Primary.ID)
+		if err != nil {
+			return err
+		}
+		if response.StatusCode() != 200 {
+			return fmt.Errorf("Received unexpected response from the Metabase API when getting collection.")
+		}
+
+		if response.JSON200.Description != nil {
+			return fmt.Errorf("Expected the collection to have no description, got %q.", *response.JSON200.Description)
+		}
+		if response.JSON200.Location == nil || *response.JSON200.Location != "/" {
+			return fmt.Errorf("Expected the collection to belong to the root collection, got location %v.", response.JSON200.Location)
+		}
+
+		return nil
+	}
 }

@@ -1047,6 +1047,9 @@ components:
           description: |-
             Whether the collection is archived.
             When archived, a collection no longer appears in the list publicly.
+        # The generated type omits null values, which the API interprets as leaving the attribute unchanged. To remove
+        # the description or the parent collection (moving the collection to the root collection), the provider builds
+        # the update request body itself, such that null values are sent. The generated type is used for archiving.
         description:
           type: string
           description: A description for the collection.

@@ -1,7 +1,9 @@
 package provider
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -209,15 +211,25 @@ func (r *CollectionResource) Update(ctx context.Context, req resource.UpdateRequ
 		return
 	}
 
-	collectionName := data.Name.ValueString()
+	// The generated `UpdateCollectionBody` omits null values, which Metabase interprets as leaving the attributes
+	// unchanged. The body is built explicitly instead, such that removing the description or the parent collection
+	// (moving the collection to the root collection) is sent to Metabase as a null value. This is the same approach as
+	// `makeUpdateFromModel` for dashboards. The generated body is still used to archive the collection, where leaving the
+	// other attributes unchanged is expected.
+	body, err := json.Marshal(map[string]any{
+		"name":        data.Name.ValueString(),
+		"description": valueStringOrNull(data.Description),
+		"parent_id":   valueInt64OrNull(data.ParentId),
+	})
+	if err != nil {
+		resp.Diagnostics.AddError("Unexpected error serializing the collection update.", err.Error())
+		return
+	}
+
 	// Moving a collection can also record a new revision of the collection graph (e.g. when moving it out of a personal
 	// collection), which is why updates are serialized like creations.
 	collectionGraphMutex.Lock()
-	updateResp, err := r.client.UpdateCollectionWithResponse(ctx, data.Id.ValueString(), metabase.UpdateCollectionBody{
-		Name:        &collectionName,
-		Description: valueStringOrNull(data.Description),
-		ParentId:    valueInt64OrNull(data.ParentId),
-	})
+	updateResp, err := r.client.UpdateCollectionWithBodyWithResponse(ctx, data.Id.ValueString(), "application/json", bytes.NewReader(body))
 	collectionGraphMutex.Unlock()
 
 	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update collection")...)
