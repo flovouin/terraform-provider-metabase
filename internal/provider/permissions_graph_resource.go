@@ -665,7 +665,13 @@ func (r *PermissionsGraphResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	updateResp, err := r.client.ReplacePermissionsGraphWithResponse(ctx, *body)
+	// Serialized with the other updates of the graph (see `graphlock.PermissionsGraphTracker`).
+	var updateResp *metabase.ReplacePermissionsGraphResponse
+	err := r.permissionsGraph.Update(func() error {
+		var err error
+		updateResp, err = r.client.ReplacePermissionsGraphWithResponse(ctx, *body)
+		return err
+	})
 
 	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update permissions graph")...)
 	if resp.Diagnostics.HasError() {
