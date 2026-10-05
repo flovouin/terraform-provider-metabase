@@ -152,14 +152,14 @@ func (r *CollectionResource) Create(ctx context.Context, req resource.CreateRequ
 
 	// Creating a collection records a new revision of the collection graph (see `graphlock.CollectionGraphTracker`).
 	var createResp *metabase.CreateCollectionResponse
-	err := r.collectionGraph.Track(ctx, r.client, func() error {
+	err := r.collectionGraph.Track(ctx, r.client, func() (metabase.MetabaseResponse, error) {
 		var err error
 		createResp, err = r.client.CreateCollectionWithResponse(ctx, metabase.CreateCollectionBody{
 			Name:        data.Name.ValueString(),
 			Description: valueStringOrNull(data.Description),
 			ParentId:    valueInt64OrNull(data.ParentId),
 		})
-		return err
+		return createResp, err
 	})
 
 	resp.Diagnostics.Append(checkMetabaseResponse(createResp, err, []int{200}, "create collection")...)
@@ -230,10 +230,10 @@ func (r *CollectionResource) Update(ctx context.Context, req resource.UpdateRequ
 
 	// Updating a collection can record a new revision of the collection graph (see `graphlock.CollectionGraphTracker`).
 	var updateResp *metabase.UpdateCollectionResponse
-	err = r.collectionGraph.Track(ctx, r.client, func() error {
+	err = r.collectionGraph.Track(ctx, r.client, func() (metabase.MetabaseResponse, error) {
 		var err error
 		updateResp, err = r.client.UpdateCollectionWithBodyWithResponse(ctx, data.Id.ValueString(), "application/json", bytes.NewReader(body))
-		return err
+		return updateResp, err
 	})
 
 	resp.Diagnostics.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update collection")...)

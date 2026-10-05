@@ -17,7 +17,16 @@ import (
 // A fake Metabase API only serving the revision of the collection graph, which tests can advance.
 type fakeCollectionGraph struct {
 	revision atomic.Int64
+	// Whether reading the graph is forbidden, like for a user without admin permissions.
+	forbidden atomic.Bool
 }
+
+// A response from the Metabase API, with only a status code.
+type fakeResponse int
+
+func (r fakeResponse) StatusCode() int                            { return int(r) }
+func (r fakeResponse) BodyString() string                         { return "" }
+func (r fakeResponse) HasExpectedStatusWithoutExpectedBody() bool { return false }
 
 func newFakeCollectionGraph(t *testing.T) (*fakeCollectionGraph, *metabase.ClientWithResponses) {
 	t.Helper()
@@ -26,6 +35,10 @@ func newFakeCollectionGraph(t *testing.T) (*fakeCollectionGraph, *metabase.Clien
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/collection/graph" || r.URL.Query().Get("namespace") != "snippets" {
 			http.NotFound(w, r)
+			return
+		}
+		if f.forbidden.Load() {
+			http.Error(w, "You don't have permissions to do that.", http.StatusForbidden)
 			return
 		}
 
@@ -64,9 +77,9 @@ func TestCollectionGraphTrackerIgnoresOwnRevisions(t *testing.T) {
 
 	// Two tracked requests, e.g. collections created in the same apply, each recording a revision.
 	for range 2 {
-		_ = tracker.Track(context.Background(), client, func() error {
+		_ = tracker.Track(context.Background(), client, func() (metabase.MetabaseResponse, error) {
 			graph.revision.Add(1)
-			return nil
+			return fakeResponse(http.StatusOK), nil
 		})
 	}
 
@@ -92,9 +105,9 @@ func TestCollectionGraphTrackerRejectsUpdateAfterOtherChanges(t *testing.T) {
 	graph.revision.Store(3)
 	tracker := NewCollectionGraphTracker()
 
-	_ = tracker.Track(context.Background(), client, func() error {
+	_ = tracker.Track(context.Background(), client, func() (metabase.MetabaseResponse, error) {
 		graph.revision.Add(1)
-		return nil
+		return fakeResponse(http.StatusOK), nil
 	})
 	// A change made by someone else, e.g. in the Metabase interface.
 	graph.revision.Add(1)
@@ -106,20 +119,62 @@ func TestCollectionGraphTrackerRejectsUpdateAfterOtherChanges(t *testing.T) {
 }
 
 func TestCollectionGraphTrackerDoesNotRecordFailedRequests(t *testing.T) {
-	graph, client := newFakeCollectionGraph(t)
-	graph.revision.Store(3)
-	tracker := NewCollectionGraphTracker()
+	failure := errors.New("request failed")
 
-	// The revision is advanced by someone else while the request fails.
-	expected := errors.New("request failed")
-	err := tracker.Track(context.Background(), client, func() error {
-		graph.revision.Add(1)
-		return expected
-	})
-	if !errors.Is(err, expected) {
-		t.Errorf("Expected the error returned by the request, got %v.", err)
+	tests := map[string]struct {
+		resp     metabase.MetabaseResponse
+		err      error
+		expected error
+	}{
+		"transport error":      {resp: nil, err: failure, expected: failure},
+		"rejected by Metabase": {resp: fakeResponse(http.StatusInternalServerError), err: nil, expected: nil},
 	}
 
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			graph, client := newFakeCollectionGraph(t)
+			graph.revision.Store(3)
+			tracker := NewCollectionGraphTracker()
+
+			// The revision is advanced by someone else while the request fails, e.g. a concurrent creation causing a
+			// duplicate key error.
+			err := tracker.Track(context.Background(), client, func() (metabase.MetabaseResponse, error) {
+				graph.revision.Add(1)
+				return test.resp, test.err
+			})
+			if !errors.Is(err, test.expected) {
+				t.Errorf("Expected %v, got %v.", test.expected, err)
+			}
+
+			sent, err := updateRevision(tracker, client, 3)
+			if err == nil || sent != -1 {
+				t.Errorf("Expected an error without sending the update, got revision %d (error: %v).", sent, err)
+			}
+		})
+	}
+}
+
+func TestCollectionGraphTrackerPerformsRequestUntrackedWithoutAdminPermissions(t *testing.T) {
+	graph, client := newFakeCollectionGraph(t)
+	graph.revision.Store(3)
+	graph.forbidden.Store(true)
+	tracker := NewCollectionGraphTracker()
+
+	performed := false
+	err := tracker.Track(context.Background(), client, func() (metabase.MetabaseResponse, error) {
+		performed = true
+		graph.revision.Add(1)
+		return fakeResponse(http.StatusOK), nil
+	})
+	if err != nil {
+		t.Errorf("Expected no error, got %v.", err)
+	}
+	if !performed {
+		t.Errorf("Expected the request to be performed without admin permissions.")
+	}
+
+	// The revision recorded by the request could not be attributed to it.
+	graph.forbidden.Store(false)
 	sent, err := updateRevision(tracker, client, 3)
 	if err == nil || sent != -1 {
 		t.Errorf("Expected an error without sending the update, got revision %d (error: %v).", sent, err)
@@ -135,9 +190,9 @@ func TestCollectionGraphTrackerDoesNotPerformRequestWithoutRevision(t *testing.T
 	tracker := NewCollectionGraphTracker()
 
 	performed := false
-	err = tracker.Track(context.Background(), client, func() error {
+	err = tracker.Track(context.Background(), client, func() (metabase.MetabaseResponse, error) {
 		performed = true
-		return nil
+		return fakeResponse(http.StatusOK), nil
 	})
 	if err == nil {
 		t.Errorf("Expected an error when the revision cannot be fetched.")
@@ -155,6 +210,17 @@ func TestCollectionGraphTrackerUpdateReturnsErrors(t *testing.T) {
 	err := tracker.Update(context.Background(), client, 0, func(int) error { return expected })
 	if !errors.Is(err, expected) {
 		t.Errorf("Expected the error returned by the update, got %v.", err)
+	}
+}
+
+func TestCollectionGraphTrackerUpdateWithoutAdminPermissions(t *testing.T) {
+	graph, client := newFakeCollectionGraph(t)
+	graph.forbidden.Store(true)
+	tracker := NewCollectionGraphTracker()
+
+	sent, err := updateRevision(tracker, client, 0)
+	if !errors.Is(err, errCollectionGraphForbidden) || sent != -1 {
+		t.Errorf("Expected %v without sending the update, got revision %d (error: %v).", errCollectionGraphForbidden, sent, err)
 	}
 }
 
@@ -179,7 +245,9 @@ func TestCollectionGraphTrackerSerializesRequests(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = tracker.Track(context.Background(), client, request)
+			_ = tracker.Track(context.Background(), client, func() (metabase.MetabaseResponse, error) {
+				return fakeResponse(http.StatusOK), request()
+			})
 			_ = tracker.Update(context.Background(), client, 0, func(int) error { return request() })
 		}()
 	}

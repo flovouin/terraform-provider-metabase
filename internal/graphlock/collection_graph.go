@@ -11,6 +11,7 @@ package graphlock
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -39,6 +40,9 @@ import (
 // silently replaces `write` with `read` instead of failing. Other changes are left untouched by the update. Metabase
 // records the author and a remark with each revision, so reading them, if the API exposes them, could tell the two
 // apart.
+//
+// Reading the revision requires admin permissions, which are not needed to create or update collections. Without them,
+// the requests are still serialized but not tracked. Updating the graph requires admin permissions anyway.
 type CollectionGraphTracker struct {
 	// Serializes the requests which can record a new revision of the collection graph. It also protects
 	// `revisionsByProvider`.
@@ -53,7 +57,10 @@ func NewCollectionGraphTracker() *CollectionGraphTracker {
 	return &CollectionGraphTracker{revisionsByProvider: map[int]bool{}}
 }
 
-// Returns the current revision of the collection graph.
+// Returned when the revision of the collection graph cannot be read because it requires admin permissions.
+var errCollectionGraphForbidden = errors.New("reading the collection graph requires admin permissions")
+
+// Returns the current revision of the collection graph, or `errCollectionGraphForbidden` without admin permissions.
 // The revision is shared by all collection namespaces, so only the graph for snippets is requested, which is much
 // smaller than the graph for regular collections.
 func getCollectionGraphRevision(ctx context.Context, client metabase.ClientWithResponsesInterface) (int, error) {
@@ -66,6 +73,9 @@ func getCollectionGraphRevision(ctx context.Context, client metabase.ClientWithR
 	if err != nil {
 		return 0, err
 	}
+	if getResp.StatusCode() == http.StatusForbidden {
+		return 0, errCollectionGraphForbidden
+	}
 	if getResp.StatusCode() != http.StatusOK || getResp.JSON200 == nil {
 		return 0, fmt.Errorf("unexpected response when getting the collection graph revision (status code %d): %s", getResp.StatusCode(), string(getResp.Body))
 	}
@@ -75,27 +85,32 @@ func getCollectionGraphRevision(ctx context.Context, client metabase.ClientWithR
 
 // Performs a request which may record a new revision of the collection graph, e.g. creating or moving a collection, and
 // returns the error returned by `request` as is.
-// If `request` returns no error and exactly one revision was recorded meanwhile, this revision is attributed to the
-// request, even if it was recorded by someone else (see `CollectionGraphTracker`). This includes requests rejected by
-// Metabase (e.g. with an error status code), which do not record any revision. If the revision cannot be fetched before
-// the request, the error is returned and the request is not performed.
-func (t *CollectionGraphTracker) Track(ctx context.Context, client metabase.ClientWithResponsesInterface, request func() error) error {
+// If the request is accepted by Metabase (2xx status code) and exactly one revision was recorded meanwhile, this
+// revision is attributed to the request, even if it was recorded by someone else (see `CollectionGraphTracker`).
+// Without admin permissions, the revision cannot be read, and the request is performed untracked. If the revision
+// cannot be read for another reason, the error is returned and the request is not performed.
+func (t *CollectionGraphTracker) Track(ctx context.Context, client metabase.ClientWithResponsesInterface, request func() (metabase.MetabaseResponse, error)) error {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
 	before, err := getCollectionGraphRevision(ctx, client)
+	if errors.Is(err, errCollectionGraphForbidden) {
+		// Reading the revision requires admin permissions, which the request does not need: it is performed untracked.
+		_, err := request()
+		return err
+	}
 	if err != nil {
 		return err
 	}
 
-	if err := request(); err != nil {
+	resp, err := request()
+	// Only a request accepted by Metabase can have recorded a revision.
+	if err != nil || resp.StatusCode() < 200 || resp.StatusCode() >= 300 {
 		return err
 	}
 
-	// A request records at most one revision, and requests from the provider cannot record any meanwhile as they are
-	// serialized. So if exactly one revision was recorded, it is attributed to the request. If more were recorded, some
-	// were recorded by someone else and nothing is attributed. The request succeeded at this point, so failing to fetch
-	// the revision only means nothing is attributed, rather than an error.
+	// Requests from the provider are serialized, so the request recorded the revision if exactly one was recorded
+	// meanwhile. More than one means someone else changed the graph, and nothing is attributed.
 	after, err := getCollectionGraphRevision(ctx, client)
 	if err == nil && after == before+1 {
 		t.revisionsByProvider[after] = true
