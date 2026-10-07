@@ -8,6 +8,7 @@ description: |-
   The permissions graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
   Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
   Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: view_data is set to unrestricted, and create_queries, download (as well as data_model and details with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.
+  Metabase grants default permissions when a database or a group is created. Those are reported as changes on the next plan, and are revoked by the next apply if they are not part of the configuration.
 ---
 
 # metabase_permissions_graph (Resource)
@@ -21,6 +22,8 @@ The permissions graph cannot be created or deleted. Trying to create it will res
 Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
 
 Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: `view_data` is set to `unrestricted`, and `create_queries`, `download` (as well as `data_model` and `details` with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.
+
+Metabase grants default permissions when a database or a group is created. Those are reported as changes on the next plan, and are revoked by the next apply if they are not part of the configuration.
 
 ## Example Usage
 

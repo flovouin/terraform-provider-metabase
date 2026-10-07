@@ -94,7 +94,9 @@ The permissions graph cannot be created or deleted. Trying to create it will res
 
 Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
 
-Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: ` + "`view_data`" + ` is set to ` + "`unrestricted`" + `, and ` + "`create_queries`" + `, ` + "`download`" + ` (as well as ` + "`data_model`" + ` and ` + "`details`" + ` with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.`,
+Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: ` + "`view_data`" + ` is set to ` + "`unrestricted`" + `, and ` + "`create_queries`" + `, ` + "`download`" + ` (as well as ` + "`data_model`" + ` and ` + "`details`" + ` with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.
+
+Metabase grants default permissions when a database or a group is created. Those are reported as changes on the next plan, and are revoked by the next apply if they are not part of the configuration.`,
 
 		Attributes: map[string]schema.Attribute{
 			"revision": schema.Int64Attribute{
@@ -716,10 +718,10 @@ func (r *PermissionsGraphResource) Update(ctx context.Context, req resource.Upda
 		return
 	}
 
-	resp.Diagnostics.Append(updateModelFromPermissionsGraph(ctx, *updateResp.JSON200, data)...)
-	if resp.Diagnostics.HasError() {
-		return
-	}
+	// Only the revision is taken from the response, the permissions are the planned ones. Metabase grants default
+	// permissions on new databases and to new groups, e.g. created in the same apply, which would otherwise be reported
+	// as an inconsistent result. Those are reported as drift when the state is refreshed.
+	data.Revision = types.Int64Value(int64(updateResp.JSON200.Revision))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

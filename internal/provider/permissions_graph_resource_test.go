@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
@@ -184,6 +185,105 @@ func testAccCheckRevokedDatabasePermissions(groupId string, databaseId func(*ter
 
 		return nil
 	}
+}
+
+// Returns the ID of the given resource in the state.
+func testAccResourceId(resourceName string) func(*terraform.State) (string, error) {
+	return func(s *terraform.State) (string, error) {
+		rs, ok := s.RootModule().Resources[resourceName]
+		if !ok {
+			return "", fmt.Errorf("Failed to find resource %s in state.", resourceName)
+		}
+
+		return rs.Primary.ID, nil
+	}
+}
+
+// Creates a database in the same apply as an update of the permissions graph. Metabase grants the All Users group full
+// access to the new database, which is not part of the configuration. The graph returned after the update contains this
+// (group, database) pair, which is reported as drift after the apply rather than failing it, and revoked by the next
+// apply.
+func TestAccPermissionsGraphResourceWithNewDatabase(t *testing.T) {
+	newDatabase := fmt.Sprintf(`
+resource "metabase_database" "new" {
+  name = "🆕 New database"
+
+  custom_details = {
+    engine = "postgres"
+
+    details_json = jsonencode({
+      host           = "%s"
+      port           = 5432
+      dbname         = "%s"
+      user           = "%s"
+      password       = "%s"
+      ssl            = false
+      tunnel-enabled = false
+    })
+
+    redacted_attributes = [
+      "password",
+    ]
+  }
+}
+`,
+		os.Getenv("PG_HOST"),
+		os.Getenv("PG_DATABASE"),
+		os.Getenv("PG_USER"),
+		os.Getenv("PG_PASSWORD"),
+	)
+	// The graph is updated after the database is created, once Metabase has granted the default permissions.
+	graph := `
+import {
+  to = metabase_permissions_graph.graph
+  id = "1"
+}
+
+resource "metabase_permissions_graph" "graph" {
+  advanced_permissions = false
+
+  permissions = [
+    {
+      group    = 1
+      database = 1 # The sample database, not the new one.
+      download = {
+        schemas = "full"
+      }
+      view_data      = "unrestricted"
+      create_queries = "no" # Changed from the first step, such that the graph is updated.
+    },
+  ]
+
+  depends_on = [metabase_database.new]
+}
+`
+	config := providerApiKeyConfig + newDatabase + graph
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				// Sets other permissions for the All Users group on the sample database, such that the next step updates the
+				// graph.
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative)),
+					"\"unrestricted\"",
+				),
+			},
+			{
+				// The apply succeeds, but the full access of the All Users group to the new database is reported as drift.
+				Config:             config,
+				ExpectNonEmptyPlan: true,
+			},
+			{
+				// The full access of the All Users group to the new database is revoked, and no longer reported once revoked.
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckRevokedDatabasePermissions("1", testAccResourceId("metabase_database.new")),
+				),
+			},
+		},
+	})
 }
 
 func testAccPermissionsGraphResourceWithoutPermissions() string {
