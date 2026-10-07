@@ -1,11 +1,14 @@
 package provider
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/terraform"
 )
 
 // perTableCreateQueries builds a `create_queries` `jsonencode` expression covering every table in the sample
@@ -141,4 +144,160 @@ func TestAccPermissionsGraphResource(t *testing.T) {
 			},
 		},
 	})
+}
+
+// Returns the permissions of the given group on the given database, as returned by the Metabase API.
+func testAccGetDatabasePermissions(groupId string, databaseId string) (*metabase.PermissionsGraphDatabasePermissions, error) {
+	response, err := testAccMetabaseClient.GetPermissionsGraphWithResponse(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	if response.StatusCode() != 200 {
+		return nil, fmt.Errorf("Received unexpected response from the Metabase API when getting the permissions graph.")
+	}
+
+	permissions, ok := response.JSON200.Groups[groupId][databaseId]
+	if !ok {
+		return nil, fmt.Errorf("The permissions graph contains no permissions for group %s and database %s.", groupId, databaseId)
+	}
+
+	return &permissions, nil
+}
+
+// Checks that the permissions of the given group on the given database have been revoked in Metabase.
+func testAccCheckRevokedDatabasePermissions(groupId string, databaseId func(*terraform.State) (string, error)) resource.TestCheckFunc {
+	return func(s *terraform.State) error {
+		dbId, err := databaseId(s)
+		if err != nil {
+			return err
+		}
+
+		permissions, err := testAccGetDatabasePermissions(groupId, dbId)
+		if err != nil {
+			return err
+		}
+
+		if !isRevokedDatabasePermissions(*permissions) {
+			b, _ := json.Marshal(permissions)
+			return fmt.Errorf("Expected the permissions of group %s on database %s to be revoked, got: %s.", groupId, dbId, b)
+		}
+
+		return nil
+	}
+}
+
+func testAccPermissionsGraphResourceWithoutPermissions() string {
+	return `
+import {
+  to = metabase_permissions_graph.graph
+  id = "1"
+}
+
+resource "metabase_permissions_graph" "graph" {
+  advanced_permissions = false
+
+  permissions = []
+}
+`
+}
+
+// Removes a (group, database) pair from the configuration, which revokes its permissions.
+func TestAccPermissionsGraphResourceRevokesRemovedPermissions(t *testing.T) {
+	sampleDatabase := func(*terraform.State) (string, error) { return "1", nil }
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative)),
+					"\"unrestricted\"",
+				),
+			},
+			{
+				// The revoked permissions are no longer reported, otherwise the plan after the apply would not be empty.
+				Config: providerApiKeyConfig + testAccPermissionsGraphResourceWithoutPermissions(),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("metabase_permissions_graph.graph", "permissions.#", "0"),
+					testAccCheckRevokedDatabasePermissions("1", sampleDatabase),
+				),
+			},
+			{
+				// Restores the permissions of the All Users group on the sample database for the other tests.
+				Config: providerApiKeyConfig + testAccPermissionsGraphResource(
+					fmt.Sprintf("%q", string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0QueryBuilderAndNative)),
+					"\"unrestricted\"",
+				),
+			},
+		},
+	})
+}
+
+func TestIsRevokedDatabasePermissions(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		permissions string
+		expected    bool
+	}{
+		"revoked, as returned by the free edition": {`{"view-data":"unrestricted"}`, true},
+		"revoked, with explicit values":            {`{"view-data":"unrestricted","create-queries":"no","download":{"schemas":"none"},"data-model":{"schemas":"none"},"details":"no"}`, true},
+		"blocked view data":                        {`{"view-data":"blocked"}`, false},
+		"granular view data":                       {`{"view-data":{"PUBLIC":"unrestricted"}}`, false},
+		"create queries":                           {`{"view-data":"unrestricted","create-queries":"query-builder"}`, false},
+		"download":                                 {`{"view-data":"unrestricted","download":{"schemas":"full"}}`, false},
+		"data model":                               {`{"view-data":"unrestricted","data-model":{"schemas":"all"}}`, false},
+		"details":                                  {`{"view-data":"unrestricted","details":"yes"}`, false},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var permissions metabase.PermissionsGraphDatabasePermissions
+			if err := json.Unmarshal([]byte(test.permissions), &permissions); err != nil {
+				t.Fatalf("Failed to parse permissions: %v", err)
+			}
+
+			if actual := isRevokedDatabasePermissions(permissions); actual != test.expected {
+				t.Errorf("Expected %v, got %v.", test.expected, actual)
+			}
+		})
+	}
+}
+
+func TestMakeRevokedDatabasePermissions(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		advancedPermissions bool
+		expected            string
+	}{
+		"free edition": {
+			expected: `{"create-queries":"no","download":{"schemas":"none"},"view-data":"unrestricted"}`,
+		},
+		"advanced permissions": {
+			advancedPermissions: true,
+			expected:            `{"create-queries":"no","data-model":{"schemas":"none"},"details":"no","download":{"schemas":"none"},"view-data":"unrestricted"}`,
+		},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			permissions := makeRevokedDatabasePermissions(test.advancedPermissions)
+
+			actual, err := json.Marshal(permissions)
+			if err != nil {
+				t.Fatalf("Failed to marshal permissions: %v", err)
+			}
+			if string(actual) != test.expected {
+				t.Errorf("Expected %s, got %s.", test.expected, actual)
+			}
+			if !isRevokedDatabasePermissions(permissions) {
+				t.Errorf("Expected the revoked permissions to be detected as revoked.")
+			}
+		})
+	}
 }

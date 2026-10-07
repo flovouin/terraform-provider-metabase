@@ -7,6 +7,7 @@ description: |-
   Metabase exposes a single resource to define all permissions related to databases. This means a single permissions graph resource should be defined in the entire Terraform configuration. However this is not the same as the collection graph, and the two can be combined to grant permissions.
   The permissions graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
   Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
+  Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: view_data is set to unrestricted, and create_queries, download (as well as data_model and details with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.
 ---
 
 # metabase_permissions_graph (Resource)
@@ -18,6 +19,8 @@ Metabase exposes a single resource to define all permissions related to database
 The permissions graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
 
 Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
+
+Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: `view_data` is set to `unrestricted`, and `create_queries`, `download` (as well as `data_model` and `details` with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.
 
 ## Example Usage
 
@@ -44,6 +47,11 @@ resource "metabase_permissions_group" "business_stakeholders" {
 resource "metabase_permissions_graph" "graph" {
   advanced_permissions = false
 
+  # The permissions of the (group, database) pairs which are not listed below, e.g. for the "All Users" group, are
+  # revoked: the group can still view data through the questions it has access to, but it cannot create queries nor
+  # download results. On paid plans with advanced permissions, a pair can be listed with `view_data = "blocked"` to
+  # also prevent the group from viewing data.
+
   permissions = [
     {
       group          = metabase_permissions_group.data_analysts.id
@@ -57,19 +65,6 @@ resource "metabase_permissions_graph" "graph" {
       # This looks like no other value can be set, at least in the free version of Metabase.
       view_data      = "unrestricted"
       create_queries = "query-builder"
-    },
-    # Permissions for the "All Users" group. Those cannot be removed entirely, but they can be limited.
-    # The example below gives the minimum set of permissions for the free version of Metabase:
-    {
-      group    = 1 # ID for the "All Users" group.
-      database = metabase_database.bigquery.id
-      # Cannot be removed but has no impact when using the free version of Metabase.
-      download = {
-        schemas = "full"
-      }
-      view_data = "unrestricted"
-      # This gives the least access possible.
-      create_queries = "no"
     },
   ]
 }
