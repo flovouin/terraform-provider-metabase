@@ -92,7 +92,9 @@ Metabase exposes a single resource to define all permissions related to database
 
 The permissions graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
 
-Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.`,
+Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
+
+Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: ` + "`view_data`" + ` is set to ` + "`unrestricted`" + `, and ` + "`create_queries`" + `, ` + "`download`" + ` (as well as ` + "`data_model`" + ` and ` + "`details`" + ` with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.`,
 
 		Attributes: map[string]schema.Attribute{
 			"revision": schema.Int64Attribute{
@@ -308,6 +310,56 @@ func hasViewDataPermissions(p metabase.PermissionsGraphDatabasePermissions) bool
 	return err == nil && len(viewDataBytes) > 0 && string(viewDataBytes) != "null"
 }
 
+// Makes the permissions of a revoked edge. Metabase never removes an edge from the graph, so this is the lowest level of
+// permissions an edge can have: `view-data` is set to `unrestricted`, and `create-queries` and `download` are revoked,
+// as well as `data-model` and `details` with advanced permissions.
+func makeRevokedDatabasePermissions(advancedPermissions bool) metabase.PermissionsGraphDatabasePermissions {
+	none := metabase.NewDatabaseAccessSchemas(metabase.PermissionsGraphDatabaseAccessSchemas0None)
+	createQueriesNo := metabase.NewCreateQueries(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)
+
+	p := metabase.PermissionsGraphDatabasePermissions{
+		ViewData:      metabase.NewViewData(metabase.PermissionsGraphDatabasePermissionsViewData0Unrestricted),
+		CreateQueries: &createQueriesNo,
+		Download:      &metabase.PermissionsGraphDatabaseAccess{Schemas: &none},
+	}
+
+	if advancedPermissions {
+		no := metabase.PermissionsGraphDatabasePermissionsDetailsNo
+		p.DataModel = &metabase.PermissionsGraphDatabaseAccess{Schemas: &none}
+		p.Details = &no
+	}
+
+	return p
+}
+
+// Returns whether an edge returned by the Metabase API has the permissions of a revoked edge (see
+// `makeRevokedDatabasePermissions`). Metabase omits revoked permissions from its responses, e.g. a revoked edge is
+// returned as `{"view-data": "unrestricted"}` on the free edition.
+func isRevokedDatabasePermissions(p metabase.PermissionsGraphDatabasePermissions) bool {
+	if v, err := p.ViewData.AsPermissionsGraphDatabasePermissionsViewData0(); err != nil || v != metabase.PermissionsGraphDatabasePermissionsViewData0Unrestricted {
+		return false
+	}
+
+	if p.CreateQueries != nil {
+		if v, err := p.CreateQueries.AsPermissionsGraphDatabasePermissionsCreateQueries0(); err != nil || v != metabase.PermissionsGraphDatabasePermissionsCreateQueries0No {
+			return false
+		}
+	}
+
+	isNone := func(a *metabase.PermissionsGraphDatabaseAccess) bool {
+		if a == nil || a.Schemas == nil {
+			return true
+		}
+		v, err := a.Schemas.AsPermissionsGraphDatabaseAccessSchemas0()
+		return err == nil && v == metabase.PermissionsGraphDatabaseAccessSchemas0None
+	}
+	if !isNone(p.Download) || !isNone(p.DataModel) {
+		return false
+	}
+
+	return p.Details == nil || *p.Details == metabase.PermissionsGraphDatabasePermissionsDetailsNo
+}
+
 // Updates the given `PermissionsGraphResourceModel` from the `PermissionsGraph` returned by the Metabase API.
 func updateModelFromPermissionsGraph(ctx context.Context, g metabase.PermissionsGraph, data *PermissionsGraphResourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -360,13 +412,24 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 				return diags
 			}
 
-			// Get the existing permission in the model.
+			// The permissions of the pair in the Terraform model, if any.
 			var existingPermission *DatabasePermissions
 			for _, existingPerm := range existingModelPermissions {
 				if existingPerm.Group.Equal(types.Int64Value(int64(groupIdInt))) && existingPerm.Database.Equal(types.Int64Value(int64(dbIdInt))) {
 					existingPermission = &existingPerm
 					break
 				}
+			}
+
+			// Metabase never removes a pair from the graph: the pairs removed from the configuration are revoked instead (see
+			// `makeRevokedDatabasePermissions`). Such pairs are skipped, as if they were not in the graph, otherwise they would
+			// be reported as changes on every plan. A pair is skipped when both:
+			//   - It is not in the Terraform model, i.e. in the state, or in the plan after an update. A pair declared in the
+			//     configuration is always read, even with the lowest permissions, otherwise it would be missing from the state.
+			//   - It is revoked. The other pairs which are not in the Terraform model (e.g. permissions granted in the Metabase
+			//     interface) are read, such that they are reported as changes and revoked by the next apply.
+			if existingPermission == nil && isRevokedDatabasePermissions(dbPermissions) {
+				continue
 			}
 
 			permissionsObject, objDiags := makePermissionsObjectFromDatabasePermissions(ctx, groupIdInt, dbIdInt, dbPermissions, existingPermission)
@@ -500,8 +563,7 @@ func makeDatabasePermissionsFromModel(ctx context.Context, p DatabasePermissions
 
 // Makes the entire permissions graph from the Terraform model.
 // Passing the current state allows comparing the plan to an existing set of permissions. This allows explicitly
-// removing permissions by sending "none" values to the Metabase API.
-// The Metabase API automatically removes "none" values and does not return them.
+// revoking the permissions removed from the plan (see `makeRevokedDatabasePermissions`).
 func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphResourceModel, state *PermissionsGraphResourceModel) (*metabase.PermissionsGraph, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -549,7 +611,7 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 	}
 
 	// If the state is passed, it is used to detect removed permissions (or permissions added outside of Terraform).
-	// Those permissions are explicitly set to "none" in order to delete them.
+	// Those permissions are explicitly revoked.
 	if state != nil {
 		// When making the request to the Metabase API, the currently known revision number should be passed.
 		// It will be increased and returned by Metabase.
@@ -585,31 +647,7 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 				continue
 			}
 
-			var schemasNone metabase.PermissionsGraphDatabaseAccess_Schemas
-			err := schemasNone.FromPermissionsGraphDatabaseAccessSchemas0(metabase.PermissionsGraphDatabaseAccessSchemas0None)
-			if err != nil {
-				diags.AddError("Unexpected error setting schema none value", err.Error())
-				return nil, diags
-			}
-			var createQueriesNo metabase.PermissionsGraphDatabasePermissions_CreateQueries
-			if err := createQueriesNo.FromPermissionsGraphDatabasePermissionsCreateQueries0(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No); err != nil {
-				diags.AddError("Unexpected error setting create-queries to none value", err.Error())
-				return nil, diags
-			}
-			deletedPermissions := metabase.PermissionsGraphDatabasePermissions{
-				CreateQueries: &createQueriesNo,
-			}
-			if advancedPermissions {
-				deletedPermissions.Download = &metabase.PermissionsGraphDatabaseAccess{
-					Schemas: &schemasNone,
-				}
-				deletedPermissions.DataModel = &metabase.PermissionsGraphDatabaseAccess{
-					Schemas: &schemasNone,
-				}
-				no := metabase.PermissionsGraphDatabasePermissionsDetailsNo
-				deletedPermissions.Details = &no
-			}
-			dbPermMap[databaseId] = deletedPermissions
+			dbPermMap[databaseId] = makeRevokedDatabasePermissions(advancedPermissions)
 		}
 	}
 
