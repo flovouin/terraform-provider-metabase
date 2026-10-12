@@ -26,39 +26,104 @@ type cardTemplateData struct {
 	Json          string // The content of the card, as a JSON string.
 }
 
-// Replaces table integer IDs by references to Terraform `metabase_table` data sources.
-// A card may contain `source-table` attributes with a value which is a (integer) table ID.
-// For each of those attributes, the table is looked up, imported, and referenced by replacing the value with an
-// `importedTable`.
-func (ic *ImportContext) insertCardTableReferenceRecursively(ctx context.Context, obj any) error {
+// The name of the attribute in cards for which the value is the ID of a `Card` object the query is based on.
+const sourceCardAttribute = "source-card"
+
+// The prefix of the value of a `source-table` attribute when the query is based on a card rather than a table.
+const sourceTableCardPrefix = "card__"
+
+// Imports the table referenced by a `source-table` attribute.
+// Before MBQL 5, a query based on another card also uses this attribute, with the `card__<cardId>` value. In that case
+// the card is imported, and the prefix is preserved in the output.
+func (ic *ImportContext) importSourceTable(ctx context.Context, sourceTable any) (any, error) {
+	switch typedSourceTable := sourceTable.(type) {
+	case float64:
+		tableId := int(typedSourceTable)
+
+		importedTable, err := ic.importTable(ctx, tableId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to import table %d referenced in %s: %w", tableId, metabase.SourceTableAttribute, err)
+		}
+
+		return importedTable, nil
+	case string:
+		cardIdStr, ok := strings.CutPrefix(typedSourceTable, sourceTableCardPrefix)
+		if !ok {
+			break
+		}
+
+		cardId, err := strconv.Atoi(cardIdStr)
+		if err != nil {
+			break
+		}
+
+		importedCard, err := ic.importCard(ctx, cardId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to import card %d referenced in %s: %w", cardId, metabase.SourceTableAttribute, err)
+		}
+
+		return &importedCardAsSourceTable{importedCard}, nil
+	}
+
+	return nil, fmt.Errorf("unable to convert %s (%v) to a table ID or a card reference", metabase.SourceTableAttribute, sourceTable)
+}
+
+// Imports the card referenced by a `source-card` attribute.
+func (ic *ImportContext) importSourceCard(ctx context.Context, sourceCard any) (*importedCard, error) {
+	cardIdFloat, ok := sourceCard.(float64)
+	if !ok {
+		return nil, fmt.Errorf("unable to convert %s (%v) to a card ID", sourceCardAttribute, sourceCard)
+	}
+
+	cardId := int(cardIdFloat)
+
+	importedCard, err := ic.importCard(ctx, cardId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to import card %d referenced in %s: %w", cardId, sourceCardAttribute, err)
+	}
+
+	return importedCard, nil
+}
+
+// Replaces the IDs of the tables and cards a query is based on by references to the corresponding Terraform resources.
+// A card may contain:
+//   - `source-table` attributes with a value which is a (integer) table ID. For each of those attributes, the table is
+//     looked up, imported, and referenced by replacing the value with an `importedTable`.
+//   - `source-card` attributes with a value which is a (integer) card ID, since MBQL 5. For each of those attributes,
+//     the card is imported (even if it is not part of any dashboard), and referenced by replacing the value with an
+//     `importedCard`.
+//   - `source-table` attributes with a `card__<cardId>` value, before MBQL 5. Those are handled like `source-card`.
+func (ic *ImportContext) insertCardSourceReferencesRecursively(ctx context.Context, obj any) error {
 	switch typedObj := obj.(type) {
 	case map[string]any:
 		for k, i := range typedObj {
-			if k == metabase.SourceTableAttribute {
-				tableIdFloat, ok := i.(float64)
-				if !ok {
-					return errors.New("failed to unmarshal \"source-table\" field to float")
-				}
-
-				importedTable, err := ic.importTable(ctx, int(tableIdFloat))
+			switch k {
+			case metabase.SourceTableAttribute:
+				source, err := ic.importSourceTable(ctx, i)
 				if err != nil {
-					return nil
+					return err
 				}
 
-				typedObj[k] = importedTable
-				continue
-			}
+				typedObj[k] = source
+			case sourceCardAttribute:
+				source, err := ic.importSourceCard(ctx, i)
+				if err != nil {
+					return err
+				}
 
-			err := ic.insertCardTableReferenceRecursively(ctx, i)
-			if err != nil {
-				return nil
+				typedObj[k] = source
+			default:
+				err := ic.insertCardSourceReferencesRecursively(ctx, i)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
 		return nil
 	case []any:
 		for _, item := range typedObj {
-			err := ic.insertCardTableReferenceRecursively(ctx, item)
+			err := ic.insertCardSourceReferencesRecursively(ctx, item)
 			if err != nil {
 				return err
 			}
@@ -315,7 +380,7 @@ func (ic *ImportContext) makeCardJson(ctx context.Context, card []byte) (*string
 		return nil, err
 	}
 
-	err = ic.insertCardTableReferenceRecursively(ctx, cardMap)
+	err = ic.insertCardSourceReferencesRecursively(ctx, cardMap)
 	if err != nil {
 		return nil, err
 	}
@@ -376,11 +441,21 @@ func (ic *ImportContext) makeCardHcl(ctx context.Context, card []byte, slug stri
 }
 
 // Fetches a card from the Metabase API and produces the corresponding Terraform definition.
+// This will import the cards the card is built on if they haven't already been imported.
 func (ic *ImportContext) importCard(ctx context.Context, cardId int) (*importedCard, error) {
 	card, ok := ic.cards[cardId]
 	if ok {
 		return &card, nil
 	}
+
+	// A card is only added to the context once its definition has been produced, which requires importing the cards it
+	// is built on. Metabase does not allow cards to be built on each other, but this ensures this would be reported
+	// rather than importing them endlessly.
+	if ic.cardsInProgress[cardId] {
+		return nil, fmt.Errorf("card %d is built on itself, directly or through other cards", cardId)
+	}
+	ic.cardsInProgress[cardId] = true
+	defer delete(ic.cardsInProgress, cardId)
 
 	getResp, err := ic.client.GetCardWithResponse(ctx, cardId)
 	if err != nil {
