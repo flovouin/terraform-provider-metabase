@@ -399,6 +399,23 @@ func updateModelFromDatabase(ctx context.Context, db metabase.Database, data *Da
 	return diags
 }
 
+// Like `updateModelFromDatabase`, but keeps the planned custom details after a write.
+// Metabase may alter values on save, and Terraform rejects applied values that differ from the plan; drift is left to `Read`.
+func updateModelFromWrittenDatabase(ctx context.Context, db metabase.Database, data *DatabaseResourceModel) diag.Diagnostics {
+	plannedCustomDetails := data.CustomDetails
+
+	diags := updateModelFromDatabase(ctx, db, data)
+	if diags.HasError() {
+		return diags
+	}
+
+	if !plannedCustomDetails.IsNull() {
+		data.CustomDetails = plannedCustomDetails
+	}
+
+	return diags
+}
+
 // Contains the two fields fully describing the connection to a database.
 // This can then be used to populate payloads when making requests against the database API.
 type DatabaseEngineAndDetails struct {
@@ -527,7 +544,7 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
-	resp.Diagnostics.Append(updateModelFromDatabase(ctx, *createResp.JSON200, data)...)
+	resp.Diagnostics.Append(updateModelFromWrittenDatabase(ctx, *createResp.JSON200, data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
@@ -605,7 +622,7 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
-	resp.Diagnostics.Append(updateModelFromDatabase(ctx, *updateResp.JSON200, data)...)
+	resp.Diagnostics.Append(updateModelFromWrittenDatabase(ctx, *updateResp.JSON200, data)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
