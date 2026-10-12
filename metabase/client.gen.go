@@ -110,6 +110,30 @@ func (e DatabaseEngine) Valid() bool {
 	}
 }
 
+// Defines values for DatabaseScheduleScheduleType.
+const (
+	Daily   DatabaseScheduleScheduleType = "daily"
+	Hourly  DatabaseScheduleScheduleType = "hourly"
+	Monthly DatabaseScheduleScheduleType = "monthly"
+	Weekly  DatabaseScheduleScheduleType = "weekly"
+)
+
+// Valid indicates whether the value is a known member of the DatabaseScheduleScheduleType enum.
+func (e DatabaseScheduleScheduleType) Valid() bool {
+	switch e {
+	case Daily:
+		return true
+	case Hourly:
+		return true
+	case Monthly:
+		return true
+	case Weekly:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PermissionsGraphDatabaseAccessSchemas0.
 const (
 	PermissionsGraphDatabaseAccessSchemas0All  PermissionsGraphDatabaseAccessSchemas0 = "all"
@@ -369,6 +393,9 @@ type CreateDatabaseBody struct {
 
 	// Name The user-displayable name for the database.
 	Name string `json:"name"`
+
+	// Schedules The schedules of the recurring tasks of a database.
+	Schedules *DatabaseSchedules `json:"schedules,omitempty"`
 }
 
 // CreatePermissionsGroupBody The payload used to create a new permissions group.
@@ -566,6 +593,33 @@ type DatabaseList struct {
 
 	// Total The total number of databases.
 	Total int `json:"total"`
+}
+
+// DatabaseSchedule A schedule describing when Metabase runs a recurring database task.
+type DatabaseSchedule struct {
+	// ScheduleDay The day of the week (`mon` to `sun`) for weekly schedules, or for monthly schedules on a given weekday.
+	ScheduleDay *string `json:"schedule_day,omitempty"`
+
+	// ScheduleFrame The position of the day within the month for monthly schedules (`first`, `mid` or `last`).
+	ScheduleFrame *string `json:"schedule_frame,omitempty"`
+
+	// ScheduleHour The hour of the day (0-23) at which the task runs. Ignored for hourly schedules.
+	ScheduleHour *int `json:"schedule_hour,omitempty"`
+
+	// ScheduleType How often the task runs.
+	ScheduleType DatabaseScheduleScheduleType `json:"schedule_type"`
+}
+
+// DatabaseScheduleScheduleType How often the task runs.
+type DatabaseScheduleScheduleType string
+
+// DatabaseSchedules The schedules of the recurring tasks of a database.
+type DatabaseSchedules struct {
+	// CacheFieldValues A schedule describing when Metabase runs a recurring database task.
+	CacheFieldValues *DatabaseSchedule `json:"cache_field_values,omitempty"`
+
+	// MetadataSync A schedule describing when Metabase runs a recurring database task.
+	MetadataSync *DatabaseSchedule `json:"metadata_sync,omitempty"`
 }
 
 // Field A field in a database.
@@ -784,6 +838,9 @@ type UpdateDatabaseBody struct {
 
 	// Name The user-displayable name for the database.
 	Name *string `json:"name,omitempty"`
+
+	// Schedules The schedules of the recurring tasks of a database.
+	Schedules *DatabaseSchedules `json:"schedules,omitempty"`
 }
 
 // UpdateFieldBody The payload used to update a table field.

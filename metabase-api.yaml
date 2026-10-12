@@ -1367,6 +1367,37 @@ components:
       type: object
       description: A JSON object containing database details for unsupported engines.
       additionalProperties: true
+    DatabaseSchedule:
+      type: object
+      description: A schedule describing when Metabase runs a recurring database task.
+      properties:
+        schedule_type:
+          type: string
+          description: How often the task runs.
+          enum:
+            - hourly
+            - daily
+            - weekly
+            - monthly
+        schedule_hour:
+          type: integer
+          description: The hour of the day (0-23) at which the task runs. Ignored for hourly schedules.
+        schedule_day:
+          type: string
+          description: The day of the week (`mon` to `sun`) for weekly schedules, or for monthly schedules on a given weekday.
+        schedule_frame:
+          type: string
+          description: The position of the day within the month for monthly schedules (`first`, `mid` or `last`).
+      required:
+        - schedule_type
+    DatabaseSchedules:
+      type: object
+      description: The schedules of the recurring tasks of a database.
+      properties:
+        metadata_sync:
+          $ref: "#/components/schemas/DatabaseSchedule"
+        cache_field_values:
+          $ref: "#/components/schemas/DatabaseSchedule"
     CreateDatabaseBody:
       type: object
       description: The payload used to create a new database.
@@ -1378,6 +1409,8 @@ components:
           $ref: "#/components/schemas/DatabaseEngine"
         details:
           $ref: "#/components/schemas/DatabaseDetails"
+        schedules:
+          $ref: "#/components/schemas/DatabaseSchedules"
       required:
         - name
         - engine
@@ -1393,6 +1426,8 @@ components:
           $ref: "#/components/schemas/DatabaseEngine"
         details:
           $ref: "#/components/schemas/DatabaseDetails"
+        schedules:
+          $ref: "#/components/schemas/DatabaseSchedules"
     DatabaseEngine:
       type: string
       description: The type of database to connect to.
