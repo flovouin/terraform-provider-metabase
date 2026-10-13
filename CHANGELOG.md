@@ -1,5 +1,9 @@
 ## Unreleased
 
+NEW FEATURES:
+
+- Add the `metabase_collections` data source, listing all the collections along with a computed human-readable `path` and an `ids_by_path` lookup map.
+
 BUG FIXES:
 
 - Apply the removal of the `description` or `parent_id` of a `metabase_collection`. Null values were omitted from the update request, which Metabase interprets as leaving the attributes unchanged, so moving a collection to the root collection or removing its description failed with an inconsistent result error.

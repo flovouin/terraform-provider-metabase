@@ -56,6 +56,14 @@ func (r *CreateCollectionResponse) HasExpectedStatusWithoutExpectedBody() bool {
 	return r.StatusCode() == 200 && r.JSON200 == nil
 }
 
+func (r *ListCollectionsResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *ListCollectionsResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
 func (r *GetCollectionResponse) BodyString() string {
 	return string(r.Body)
 }

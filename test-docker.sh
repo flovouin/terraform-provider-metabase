@@ -175,6 +175,21 @@ ${API_RESPONSE}" 1>&2
     jq -r '.id'
   )
 
+  # `GET /api/collection` 500s while no personal collection exists (metabase/metabase#81600), and API key users never
+  # get one. A single session-authenticated call materialises the admin's, unblocking the collections data source.
+  COLLECTION_RESPONSE=$(
+    curl -X GET ${METABASE_URL}/api/collection \
+      --silent \
+      --fail-with-body \
+      --header "X-Metabase-Session: ${METABASE_SESSION}"
+  )
+
+  if [ $? -ne 0 ]; then
+    echo "❌ Failed to list collections:
+${COLLECTION_RESPONSE}" 1>&2
+    exit 1
+  fi
+
   METABASE_API_KEY_RESPONSE=$(
     curl -X POST ${METABASE_URL}/api/api-key/ \
       --silent \
