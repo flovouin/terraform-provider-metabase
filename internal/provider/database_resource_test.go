@@ -232,6 +232,43 @@ func TestMakeCustomDetailsFromResponseBodyPreservesRedactedDetails(t *testing.T)
 	}
 }
 
+func TestUpdateModelFromWrittenDatabaseKeepsPlannedDetails(t *testing.T) {
+	t.Parallel()
+
+	var databaseDetails metabase.DatabaseDetails
+	err := databaseDetails.FromDatabaseDetailsCustom(map[string]any{
+		"host": "postgres.example.internal",
+		"ssl":  true,
+	})
+	if err != nil {
+		t.Fatalf("Failed to prepare API database details: %v", err)
+	}
+
+	planned := testCustomDetailsValue(
+		`{"host":"postgres.example.internal","ssl":false}`,
+		types.StringNull(),
+		types.Int64Null(),
+	)
+	data := DatabaseResourceModel{CustomDetails: planned}
+
+	diags := updateModelFromWrittenDatabase(context.Background(), metabase.Database{
+		Id:      7,
+		Name:    "db",
+		Engine:  metabase.DatabaseEngine("postgres"),
+		Details: databaseDetails,
+	}, &data)
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %v", diags)
+	}
+
+	if !data.CustomDetails.Equal(planned) {
+		t.Fatalf("Planned custom details were overwritten: got %v, expected %v", data.CustomDetails, planned)
+	}
+	if data.Id.ValueInt64() != 7 || data.Name.ValueString() != "db" {
+		t.Fatalf("Id and name were not taken from the response: %v %v", data.Id, data.Name)
+	}
+}
+
 func TestValidateCustomDetails(t *testing.T) {
 	t.Parallel()
 
