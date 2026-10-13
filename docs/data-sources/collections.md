@@ -53,7 +53,7 @@ output "marketing_collection_ids" {
 ### Read-Only
 
 - `collections` (Attributes List) The list of collections, sorted by `path`. (see [below for nested schema](#nestedatt--collections))
-- `ids_by_path` (Map of String) A map where keys are collection `path`s and values are the corresponding collection IDs. When several collections share the same path, only the first one is present in the map and a warning is emitted.
+- `ids_by_path` (Map of String) A map where keys are collection `path`s and values are the corresponding collection IDs. When several collections share the same path, only the oldest one (with the lowest ID) is present in the map and a warning is emitted. This ensures a path keeps referencing the same collection when another one with the same path is created.
 
 <a id="nestedatt--collections"></a>
 ### Nested Schema for `collections`

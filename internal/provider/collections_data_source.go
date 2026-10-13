@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
@@ -112,7 +113,7 @@ This data source is useful to apply the same configuration to an entire subtree 
 				},
 			},
 			"ids_by_path": schema.MapAttribute{
-				MarkdownDescription: "A map where keys are collection `path`s and values are the corresponding collection IDs. When several collections share the same path, only the first one is present in the map and a warning is emitted.",
+				MarkdownDescription: "A map where keys are collection `path`s and values are the corresponding collection IDs. When several collections share the same path, only the oldest one (with the lowest ID) is present in the map and a warning is emitted. This ensures a path keeps referencing the same collection when another one with the same path is created.",
 				ElementType:         types.StringType,
 				Computed:            true,
 			},
@@ -211,6 +212,25 @@ func makeCollectionsDataSourceCollectionModel(c collectionWithHierarchy, namesBy
 	}
 }
 
+// Compares two collection IDs, as returned by `collectionIdToString`. The root collection comes first, followed by the
+// user-created collections in the order of their integer IDs, i.e. from the oldest to the most recent one. Comparing
+// the IDs as strings would not preserve this order, e.g. `10` would come before `9`.
+func compareCollectionIds(a string, b string) int {
+	aInt, aErr := strconv.ParseInt(a, 10, 64)
+	bInt, bErr := strconv.ParseInt(b, 10, 64)
+
+	switch {
+	case aErr != nil && bErr != nil:
+		return strings.Compare(a, b)
+	case aErr != nil:
+		return -1
+	case bErr != nil:
+		return 1
+	default:
+		return cmp.Compare(aInt, bInt)
+	}
+}
+
 // Updates the given `CollectionsDataSourceModel` from the list of `Collection`s returned by the Metabase API.
 func updateModelFromCollections(ctx context.Context, collections []metabase.Collection, data *CollectionsDataSourceModel) diag.Diagnostics {
 	var diags diag.Diagnostics
@@ -250,12 +270,14 @@ func updateModelFromCollections(ctx context.Context, collections []metabase.Coll
 	}
 
 	// The order in which the API returns collections is not guaranteed, and sorting avoids spurious changes in the state.
+	// Collections sharing the same path are sorted from the oldest to the most recent one, such that only the oldest one
+	// is referenced in `ids_by_path`.
 	slices.SortFunc(models, func(a CollectionsDataSourceCollectionModel, b CollectionsDataSourceCollectionModel) int {
 		if c := strings.Compare(a.Path.ValueString(), b.Path.ValueString()); c != 0 {
 			return c
 		}
 
-		return strings.Compare(a.Id.ValueString(), b.Id.ValueString())
+		return compareCollectionIds(a.Id.ValueString(), b.Id.ValueString())
 	})
 
 	idsByPath := make(map[string]string, len(models))
