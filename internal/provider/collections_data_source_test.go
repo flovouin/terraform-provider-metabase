@@ -145,3 +145,62 @@ func TestCollectionsDataSourceModelPaths(t *testing.T) {
 		t.Errorf("Expected %d paths in the map of IDs, got %d.", len(expectedPaths), len(idsByPath))
 	}
 }
+
+func TestCollectionsDataSourceModelDuplicatePaths(t *testing.T) {
+	var rootId metabase.Collection_Id
+	if err := rootId.FromCollectionId0("root"); err != nil {
+		t.Fatalf("Failed to create the ID for the root collection: %s", err)
+	}
+
+	collections := []metabase.Collection{
+		// A top-level collection sharing its name with the root collection.
+		makeTestCollection(t, 100, "Our analytics", "/"),
+		// Comparing IDs as strings would put the most recent collection first.
+		makeTestCollection(t, 10, "Marketing", "/"),
+		makeTestCollection(t, 9, "Marketing", "/"),
+		{Id: rootId, Name: "Our analytics"},
+	}
+
+	var data CollectionsDataSourceModel
+	diags := updateModelFromCollections(context.Background(), collections, &data)
+	if diags.HasError() {
+		t.Fatalf("Failed to build the model from the collections: %s", diags.Errors())
+	}
+
+	if diags.WarningsCount() != 2 {
+		t.Errorf("Expected 2 warnings about duplicate paths, got %d.", diags.WarningsCount())
+	}
+
+	var models []CollectionsDataSourceCollectionModel
+	if diags := data.Collections.ElementsAs(context.Background(), &models, false); diags.HasError() {
+		t.Fatalf("Failed to read back the list of collections: %s", diags.Errors())
+	}
+
+	expectedIds := []string{"9", "10", "root", "100"}
+
+	if len(models) != len(expectedIds) {
+		t.Fatalf("Expected %d collections, got %d.", len(expectedIds), len(models))
+	}
+
+	for i, expectedId := range expectedIds {
+		if models[i].Id.ValueString() != expectedId {
+			t.Errorf("Expected collection %d to have ID %s, got %s.", i, expectedId, models[i].Id.ValueString())
+		}
+	}
+
+	var idsByPath map[string]string
+	if diags := data.IdsByPath.ElementsAs(context.Background(), &idsByPath, false); diags.HasError() {
+		t.Fatalf("Failed to read back the map of IDs: %s", diags.Errors())
+	}
+
+	expectedIdsByPath := map[string]string{
+		"Marketing":     "9",
+		"Our analytics": "root",
+	}
+
+	for path, expectedId := range expectedIdsByPath {
+		if idsByPath[path] != expectedId {
+			t.Errorf("Expected path %s to reference collection %s, got %s.", path, expectedId, idsByPath[path])
+		}
+	}
+}
