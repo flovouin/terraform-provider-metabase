@@ -6,6 +6,7 @@ NEW FEATURES:
 
 BUG FIXES:
 
+- Summarize the body of unexpected Metabase API responses in error messages. Metabase 500 responses carry a large debug trace that can include submitted values such as database passwords. Only the `cause` or `message` is now reported, and other bodies are truncated.
 - Keep the planned `custom_details` of a `metabase_database` after it is created or updated. Metabase can alter values when saving (e.g. `ssl`), which made the apply fail with an "inconsistent values for sensitive attribute" error and left the database tainted. Such changes are now reported as an in-place update on the next plan.
 - Apply the removal of the `description` or `parent_id` of a `metabase_collection`. Null values were omitted from the update request, which Metabase interprets as leaving the attributes unchanged, so moving a collection to the root collection or removing its description failed with an inconsistent result error.
 - Serialize the creation and update of `metabase_collection` resources. Metabase records a collection graph revision when a collection is created, or moved in a way that changes its permissions (e.g. out of a personal collection), and doing so for several collections in parallel could fail with a duplicate key error. Collections created through different provider configurations (e.g. aliases) are not serialized, as Terraform runs them in separate provider processes.
