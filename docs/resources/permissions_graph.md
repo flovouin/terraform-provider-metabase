@@ -110,7 +110,7 @@ Optional:
 
 Optional:
 
-- `schemas` (String) The permission to access data through the Metabase interface
+- `schemas` (String) The permission to edit the table metadata of the entire database: `all` or `none`. Data model permissions are only available on paid plans.
 
 
 <a id="nestedatt--permissions--download"></a>
@@ -118,7 +118,7 @@ Optional:
 
 Optional:
 
-- `schemas` (String) The permission to access data through the Metabase interface
+- `schemas` (String) The permission to download results from the entire database: `full` (up to 1 million rows), `limited` (up to 10 thousand rows) or `none`. Download permissions are only available on paid plans.
 
 ## Import
 
