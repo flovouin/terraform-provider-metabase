@@ -3,10 +3,12 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -361,4 +363,30 @@ func makeDatabasePermissionsFromModel(ctx context.Context, p DatabasePermissions
 		DataModel:     dataModel,
 		Details:       details,
 	}, diags
+}
+
+// Returns whether the given database exists.
+func databaseExists(ctx context.Context, client *metabase.ClientWithResponses, databaseId int64) (bool, diag.Diagnostics) {
+	getResp, err := client.GetDatabaseWithResponse(ctx, int(databaseId))
+
+	diags := checkMetabaseResponse(getResp, err, []int{200, 404}, "get database")
+	if diags.HasError() {
+		return false, diags
+	}
+
+	return getResp.StatusCode() == 200, diags
+}
+
+// Returns an error if the given database does not exist.
+func checkDatabaseExists(ctx context.Context, client *metabase.ClientWithResponses, databaseId int64) diag.Diagnostics {
+	exists, diags := databaseExists(ctx, client, databaseId)
+	if !diags.HasError() && !exists {
+		diags.AddAttributeError(
+			path.Root("database"),
+			"Database not found.",
+			fmt.Sprintf("The database %d does not exist.", databaseId),
+		)
+	}
+
+	return diags
 }
