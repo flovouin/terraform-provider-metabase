@@ -40,6 +40,17 @@ type DatabaseResourceModel struct {
 	Name            types.String `tfsdk:"name"`             // A displayable name for the database.
 	BigQueryDetails types.Object `tfsdk:"bigquery_details"` // The configuration for a BigQuery database.
 	CustomDetails   types.Object `tfsdk:"custom_details"`   // The configuration for a database not supported by the provider.
+
+	MetadataSyncSchedule     types.Object `tfsdk:"metadata_sync_schedule"`      // When Metabase syncs the database metadata.
+	CacheFieldValuesSchedule types.Object `tfsdk:"cache_field_values_schedule"` // When Metabase rescans the field values.
+}
+
+// The content of the `metadata_sync_schedule` and `cache_field_values_schedule` attributes.
+type DatabaseSchedule struct {
+	ScheduleType  types.String `tfsdk:"schedule_type"`  // How often the task runs.
+	ScheduleHour  types.Int64  `tfsdk:"schedule_hour"`  // The hour of the day at which the task runs.
+	ScheduleDay   types.String `tfsdk:"schedule_day"`   // The day of the week.
+	ScheduleFrame types.String `tfsdk:"schedule_frame"` // The position within the month.
 }
 
 // The content of the `bigquery_details` attribute to set up a BigQuery connection.
@@ -57,6 +68,16 @@ type CustomDetails struct {
 	SensitiveDetailsJsonWo        types.String `tfsdk:"sensitive_details_json_wo"`         // A write-only JSON object merged into `details_json`.
 	SensitiveDetailsJsonWoVersion types.Int64  `tfsdk:"sensitive_details_json_wo_version"` // The version used to trigger updates of `sensitive_details_json_wo`.
 	RedactedAttributes            types.Set    `tfsdk:"redacted_attributes"`               // The list of `details_json` attributes that are sent back redacted by Metabase.
+}
+
+// The object type for database schedules.
+var databaseScheduleObjectType = types.ObjectType{
+	AttrTypes: map[string]attr.Type{
+		"schedule_type":  types.StringType,
+		"schedule_hour":  types.Int64Type,
+		"schedule_day":   types.StringType,
+		"schedule_frame": types.StringType,
+	},
 }
 
 // The object type for BigQuery details.
@@ -80,6 +101,31 @@ var customDetailsObjectType = types.ObjectType{
 			ElemType: types.StringType,
 		},
 	},
+}
+
+func databaseScheduleAttribute(description string) schema.SingleNestedAttribute {
+	return schema.SingleNestedAttribute{
+		MarkdownDescription: description + " Only sent to Metabase when creating or updating the database: it is not read back, so changes made in Metabase are not detected.",
+		Optional:            true,
+		Attributes: map[string]schema.Attribute{
+			"schedule_type": schema.StringAttribute{
+				MarkdownDescription: "How often the task runs. Can be `hourly`, `daily`, `weekly` or `monthly`.",
+				Required:            true,
+			},
+			"schedule_hour": schema.Int64Attribute{
+				MarkdownDescription: "The hour of the day (0-23) at which the task runs. Ignored for hourly schedules.",
+				Optional:            true,
+			},
+			"schedule_day": schema.StringAttribute{
+				MarkdownDescription: "The day of the week (`mon` to `sun`), for weekly schedules or monthly schedules on a given weekday.",
+				Optional:            true,
+			},
+			"schedule_frame": schema.StringAttribute{
+				MarkdownDescription: "The position within the month for monthly schedules. Can be `first`, `mid` or `last`.",
+				Optional:            true,
+			},
+		},
+	}
 }
 
 func (r *DatabaseResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -121,6 +167,8 @@ The configuration of this resource requires passing sensitive credentials to the
 					},
 				},
 			},
+			"metadata_sync_schedule":      databaseScheduleAttribute("When Metabase syncs the database metadata. Required, together with `cache_field_values_schedule`, when the database uses `let-user-control-scheduling`."),
+			"cache_field_values_schedule": databaseScheduleAttribute("When Metabase rescans the field values of the database."),
 			"custom_details": schema.SingleNestedAttribute{
 				MarkdownDescription: "Connection details when setting up a database which is not supported by this provider.",
 				Optional:            true,
@@ -514,6 +562,46 @@ func makeEngineAndDetailsFromModel(ctx context.Context, data DatabaseResourceMod
 	}, diags
 }
 
+// Converts the schedule attributes of a `DatabaseResourceModel` to the `schedules` payload, or `nil` if none is set.
+func makeSchedulesFromModel(ctx context.Context, data DatabaseResourceModel) (*metabase.DatabaseSchedules, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	convert := func(v types.Object) *metabase.DatabaseSchedule {
+		if v.IsNull() || v.IsUnknown() {
+			return nil
+		}
+
+		var s DatabaseSchedule
+		diags.Append(v.As(ctx, &s, basetypes.ObjectAsOptions{})...)
+		if diags.HasError() {
+			return nil
+		}
+
+		var hour *int
+		if !s.ScheduleHour.IsNull() {
+			h := int(s.ScheduleHour.ValueInt64())
+			hour = &h
+		}
+
+		return &metabase.DatabaseSchedule{
+			ScheduleType:  metabase.DatabaseScheduleScheduleType(s.ScheduleType.ValueString()),
+			ScheduleHour:  hour,
+			ScheduleDay:   valueStringOrNull(s.ScheduleDay),
+			ScheduleFrame: valueStringOrNull(s.ScheduleFrame),
+		}
+	}
+
+	schedules := metabase.DatabaseSchedules{
+		MetadataSync:     convert(data.MetadataSyncSchedule),
+		CacheFieldValues: convert(data.CacheFieldValuesSchedule),
+	}
+	if diags.HasError() || (schedules.MetadataSync == nil && schedules.CacheFieldValues == nil) {
+		return nil, diags
+	}
+
+	return &schedules, diags
+}
+
 func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var data *DatabaseResourceModel
 	var config *DatabaseResourceModel
@@ -533,10 +621,17 @@ func (r *DatabaseResource) Create(ctx context.Context, req resource.CreateReques
 		return
 	}
 
+	schedules, diags := makeSchedulesFromModel(ctx, *data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	createResp, err := r.client.CreateDatabaseWithResponse(ctx, metabase.CreateDatabaseBody{
-		Name:    data.Name.ValueString(),
-		Engine:  engineAndDetails.Engine,
-		Details: engineAndDetails.Details,
+		Name:      data.Name.ValueString(),
+		Engine:    engineAndDetails.Engine,
+		Details:   engineAndDetails.Details,
+		Schedules: schedules,
 	})
 
 	resp.Diagnostics.Append(checkMetabaseResponse(createResp, err, []int{200}, "create database")...)
@@ -598,8 +693,15 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		return
 	}
 
+	schedules, diags := makeSchedulesFromModel(ctx, *data)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
 	body := metabase.UpdateDatabaseBody{
-		Name: valueStringOrNull(data.Name),
+		Name:      valueStringOrNull(data.Name),
+		Schedules: schedules,
 	}
 
 	// Only updating database details if they have changed. This avoids unnecessarily passing credentials in API calls.

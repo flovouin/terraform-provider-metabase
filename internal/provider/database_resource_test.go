@@ -546,3 +546,110 @@ func TestAccDatabaseResource(t *testing.T) {
 		},
 	})
 }
+
+func TestMakeSchedulesFromModel(t *testing.T) {
+	t.Parallel()
+
+	scheduleType := databaseScheduleObjectType.AttrTypes
+	hourly := types.ObjectValueMust(scheduleType, map[string]attr.Value{
+		"schedule_type":  types.StringValue("hourly"),
+		"schedule_hour":  types.Int64Null(),
+		"schedule_day":   types.StringNull(),
+		"schedule_frame": types.StringNull(),
+	})
+	weekly := types.ObjectValueMust(scheduleType, map[string]attr.Value{
+		"schedule_type":  types.StringValue("weekly"),
+		"schedule_hour":  types.Int64Value(2),
+		"schedule_day":   types.StringValue("mon"),
+		"schedule_frame": types.StringNull(),
+	})
+	null := types.ObjectNull(scheduleType)
+
+	schedules, diags := makeSchedulesFromModel(context.Background(), DatabaseResourceModel{
+		MetadataSyncSchedule:     hourly,
+		CacheFieldValuesSchedule: weekly,
+	})
+	if diags.HasError() {
+		t.Fatalf("Unexpected diagnostics: %v", diags)
+	}
+	if schedules.MetadataSync.ScheduleType != metabase.Hourly || schedules.MetadataSync.ScheduleHour != nil {
+		t.Fatalf("Unexpected metadata sync schedule: %#v", schedules.MetadataSync)
+	}
+	cfv := schedules.CacheFieldValues
+	if cfv.ScheduleType != metabase.Weekly || *cfv.ScheduleHour != 2 || *cfv.ScheduleDay != "mon" || cfv.ScheduleFrame != nil {
+		t.Fatalf("Unexpected cache field values schedule: %#v", cfv)
+	}
+
+	schedules, diags = makeSchedulesFromModel(context.Background(), DatabaseResourceModel{
+		MetadataSyncSchedule:     null,
+		CacheFieldValuesSchedule: null,
+	})
+	if diags.HasError() || schedules != nil {
+		t.Fatalf("Expected no schedules when none is configured, got %#v (%v)", schedules, diags)
+	}
+}
+
+func testAccDatabaseResourceWithSchedules(syncType string) string {
+	return fmt.Sprintf(`
+resource "metabase_database" "test_schedules" {
+  name = "🕒 PG schedules"
+
+  custom_details = {
+    engine = "postgres"
+
+    details_json = jsonencode({
+      host                        = "%s"
+      port                        = 5432
+      dbname                      = "%s"
+      user                        = "%s"
+      password                    = "%s"
+      ssl                         = false
+      tunnel-enabled              = false
+      let-user-control-scheduling = true
+    })
+
+    redacted_attributes = [
+      "password",
+    ]
+  }
+
+  metadata_sync_schedule = {
+    schedule_type = "%s"
+  }
+
+  cache_field_values_schedule = {
+    schedule_type = "daily"
+    schedule_hour = 2
+  }
+}
+`,
+		os.Getenv("PG_HOST"),
+		os.Getenv("PG_DATABASE"),
+		os.Getenv("PG_USER"),
+		os.Getenv("PG_PASSWORD"),
+		syncType,
+	)
+}
+
+func TestAccDatabaseResourceSchedules(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		CheckDestroy:             testAccCheckDatabaseDestroy,
+		Steps: []resource.TestStep{
+			{
+				Config: providerConfig + testAccDatabaseResourceWithSchedules("hourly"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					testAccCheckDatabaseExists("metabase_database.test_schedules"),
+					resource.TestCheckResourceAttr("metabase_database.test_schedules", "metadata_sync_schedule.schedule_type", "hourly"),
+					resource.TestCheckResourceAttr("metabase_database.test_schedules", "cache_field_values_schedule.schedule_hour", "2"),
+				),
+			},
+			{
+				Config: providerConfig + testAccDatabaseResourceWithSchedules("daily"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("metabase_database.test_schedules", "metadata_sync_schedule.schedule_type", "daily"),
+				),
+			},
+		},
+	})
+}

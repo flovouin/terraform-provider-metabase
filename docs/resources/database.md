@@ -85,7 +85,9 @@ resource "metabase_database" "custom" {
 ### Optional
 
 - `bigquery_details` (Attributes) Connection details when setting up a BigQuery database. (see [below for nested schema](#nestedatt--bigquery_details))
+- `cache_field_values_schedule` (Attributes) When Metabase rescans the field values of the database. Only sent to Metabase when creating or updating the database: it is not read back, so changes made in Metabase are not detected. (see [below for nested schema](#nestedatt--cache_field_values_schedule))
 - `custom_details` (Attributes) Connection details when setting up a database which is not supported by this provider. (see [below for nested schema](#nestedatt--custom_details))
+- `metadata_sync_schedule` (Attributes) When Metabase syncs the database metadata. Required, together with `cache_field_values_schedule`, when the database uses `let-user-control-scheduling`. Only sent to Metabase when creating or updating the database: it is not read back, so changes made in Metabase are not detected. (see [below for nested schema](#nestedatt--metadata_sync_schedule))
 
 ### Read-Only
 
@@ -105,6 +107,20 @@ Optional:
 - `project_id` (String) The ID of the GCP project containing the BigQuery datasets.
 
 
+<a id="nestedatt--cache_field_values_schedule"></a>
+### Nested Schema for `cache_field_values_schedule`
+
+Required:
+
+- `schedule_type` (String) How often the task runs. Can be `hourly`, `daily`, `weekly` or `monthly`.
+
+Optional:
+
+- `schedule_day` (String) The day of the week (`mon` to `sun`), for weekly schedules or monthly schedules on a given weekday.
+- `schedule_frame` (String) The position within the month for monthly schedules. Can be `first`, `mid` or `last`.
+- `schedule_hour` (Number) The hour of the day (0-23) at which the task runs. Ignored for hourly schedules.
+
+
 <a id="nestedatt--custom_details"></a>
 ### Nested Schema for `custom_details`
 
@@ -118,6 +134,20 @@ Optional:
 - `redacted_attributes` (Set of String) The list of `details_json` attributes that are sent back redacted by Metabase.
 - `sensitive_details_json_wo` (String, Sensitive, [Write-only](https://developer.hashicorp.com/terraform/language/resources/ephemeral#write-only-arguments)) A write-only JSON object containing sensitive details. Its attributes are merged into `details_json` before requests are sent to Metabase. Attributes must not also appear in `details_json`. `sensitive_details_json_wo_version` must also be set. Requires Terraform 1.11 or later.
 - `sensitive_details_json_wo_version` (Number) A non-sensitive version for `sensitive_details_json_wo` that is stored in state. It must be configured together with `sensitive_details_json_wo`. Increment this value to send updated sensitive details to Metabase.
+
+
+<a id="nestedatt--metadata_sync_schedule"></a>
+### Nested Schema for `metadata_sync_schedule`
+
+Required:
+
+- `schedule_type` (String) How often the task runs. Can be `hourly`, `daily`, `weekly` or `monthly`.
+
+Optional:
+
+- `schedule_day` (String) The day of the week (`mon` to `sun`), for weekly schedules or monthly schedules on a given weekday.
+- `schedule_frame` (String) The position within the month for monthly schedules. Can be `first`, `mid` or `last`.
+- `schedule_hour` (Number) The hour of the day (0-23) at which the task runs. Ignored for hourly schedules.
 
 ## Import
 
