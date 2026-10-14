@@ -69,14 +69,6 @@ type AccessPermissions struct {
 	Schemas types.String `tfsdk:"schemas"` // Schemas permissions.
 }
 
-// The schema for the `AccessPermissions` model.
-var accessPermissionAttributes = map[string]schema.Attribute{
-	"schemas": schema.StringAttribute{
-		MarkdownDescription: "The permission to access data through the Metabase interface",
-		Optional:            true,
-	},
-}
-
 // The object type definition for the `AccessPermissions` model.
 var accessPermissionsObjectType = types.ObjectType{
 	AttrTypes: map[string]attr.Type{
@@ -136,12 +128,22 @@ Metabase grants default permissions when a database or a group is created. Those
 						"download": schema.SingleNestedAttribute{
 							MarkdownDescription: "The permission definition for downloading data.",
 							Optional:            true,
-							Attributes:          accessPermissionAttributes,
+							Attributes: map[string]schema.Attribute{
+								"schemas": schema.StringAttribute{
+									MarkdownDescription: "The permission to download results from the entire database: `full` (up to 1 million rows), `limited` (up to 10 thousand rows) or `none`. Download permissions are only available on paid plans.",
+									Optional:            true,
+								},
+							},
 						},
 						"data_model": schema.SingleNestedAttribute{
 							MarkdownDescription: "The permission definition for accessing the data model.",
 							Optional:            true,
-							Attributes:          accessPermissionAttributes,
+							Attributes: map[string]schema.Attribute{
+								"schemas": schema.StringAttribute{
+									MarkdownDescription: "The permission to edit the table metadata of the entire database: `all` or `none`. Data model permissions are only available on paid plans.",
+									Optional:            true,
+								},
+							},
 						},
 						"details": schema.StringAttribute{
 							MarkdownDescription: "The permission definition for accessing details.",

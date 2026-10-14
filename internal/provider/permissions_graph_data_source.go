@@ -83,7 +83,7 @@ Unlike the resource, this data source only reads the permissions graph and does 
 							Computed:            true,
 							Attributes: map[string]schema.Attribute{
 								"schemas": schema.StringAttribute{
-									MarkdownDescription: "The permission to access data through the Metabase interface.",
+									MarkdownDescription: "The permission to download results from the entire database: `full` (up to 1 million rows), `limited` (up to 10 thousand rows) or `none`. Download permissions are only available on paid plans.",
 									Computed:            true,
 								},
 							},
@@ -93,7 +93,7 @@ Unlike the resource, this data source only reads the permissions graph and does 
 							Computed:            true,
 							Attributes: map[string]schema.Attribute{
 								"schemas": schema.StringAttribute{
-									MarkdownDescription: "The permission to access data through the Metabase interface.",
+									MarkdownDescription: "The permission to edit the table metadata of the entire database: `all` or `none`. Data model permissions are only available on paid plans.",
 									Computed:            true,
 								},
 							},
