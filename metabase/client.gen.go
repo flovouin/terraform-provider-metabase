@@ -241,6 +241,9 @@ type Collection struct {
 	// Created collections will have an integer ID. The automatically-created root collection's ID is `root`.
 	Id Collection_Id `json:"id"`
 
+	// IsPersonal Whether the collection is a personal collection, or a descendant of one.
+	IsPersonal *bool `json:"is_personal,omitempty"`
+
 	// Location A path-like location, useful when this is a sub-collection.
 	Location *string `json:"location,omitempty"`
 

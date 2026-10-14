@@ -53,7 +53,9 @@ Metabase exposes a single resource to define all permissions related to collecti
 
 The collection graph cannot be created or deleted. Trying to create it will result in an error. It should be imported instead. Trying to delete the resource will succeed with no impact on Metabase (it is a no-op).
 
-Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.`,
+Permissions for the Administrators group cannot be changed. To avoid issues during the update, all permissions for the Administrators group are ignored by default. This behavior can be changed using the ignored groups attribute.
+
+To only manage the permission of a given group on a given collection, and leave all other permissions untouched, use the ` + "`metabase_collection_permission`" + ` resource instead.`,
 
 		Attributes: map[string]schema.Attribute{
 			"revision": schema.Int64Attribute{

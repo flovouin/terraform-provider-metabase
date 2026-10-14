@@ -1,5 +1,9 @@
 ## Unreleased
 
+NEW FEATURES:
+
+- Add the `metabase_collection_permission` resource, which manages a single (group, collection) pair of the collection graph, and leaves all other pairs untouched. Unlike the `metabase_collection_graph` resource, it can coexist with permissions set in the Metabase interface, much like the `google_*_iam_member` resources compared to `google_*_iam_policy`. The permission can be set to `none`, e.g. to make sure a group has no access to a collection, as new collections inherit the permissions of their parent collection. Deleting the resource sets the permission to `none`, like removing the pair from the graph resource.
+
 ## 0.18.0 (2026-10-13)
 
 NEW FEATURES:

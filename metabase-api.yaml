@@ -928,6 +928,9 @@ components:
           type: integer
           description: The ID of the user owning this collection, if it is a personal collection.
           nullable: true
+        is_personal:
+          type: boolean
+          description: Whether the collection is a personal collection, or a descendant of one.
         entity_id:
           type: string
           description: A unique string identifier for the collection.
