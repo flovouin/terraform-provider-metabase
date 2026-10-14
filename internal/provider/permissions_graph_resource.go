@@ -381,6 +381,23 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 		return diags
 	}
 
+	// Indexed by (group, database), as a linear scan per pair is quadratic in the size of the graph.
+	type permissionsKey struct {
+		group    int64
+		database int64
+	}
+	existingByKey := make(map[permissionsKey]*DatabasePermissions, len(existingModelPermissions))
+	for i := range existingModelPermissions {
+		existing := &existingModelPermissions[i]
+		if existing.Group.IsNull() || existing.Database.IsNull() {
+			continue
+		}
+		key := permissionsKey{existing.Group.ValueInt64(), existing.Database.ValueInt64()}
+		if _, ok := existingByKey[key]; !ok {
+			existingByKey[key] = existing
+		}
+	}
+
 	permissionsList := make([]attr.Value, 0, len(data.Permissions.Elements()))
 	for groupId, dbPermissionsMap := range g.Groups {
 		// Permissions for ignored groups are not stored in the state for clarity.
@@ -415,13 +432,7 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 			}
 
 			// The permissions of the pair in the Terraform model, if any.
-			var existingPermission *DatabasePermissions
-			for _, existingPerm := range existingModelPermissions {
-				if existingPerm.Group.Equal(types.Int64Value(int64(groupIdInt))) && existingPerm.Database.Equal(types.Int64Value(int64(dbIdInt))) {
-					existingPermission = &existingPerm
-					break
-				}
-			}
+			existingPermission := existingByKey[permissionsKey{int64(groupIdInt), int64(dbIdInt)}]
 
 			// Metabase never removes a pair from the graph: the pairs removed from the configuration are revoked instead (see
 			// `makeRevokedDatabasePermissions`). Such pairs are skipped, as if they were not in the graph, otherwise they would
