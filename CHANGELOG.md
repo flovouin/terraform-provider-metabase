@@ -1,5 +1,9 @@
 ## Unreleased
 
+BUG FIXES:
+
+- Read the `metabase_permissions_graph` in linear time. Each (group, database) pair returned by Metabase was matched against the existing state with a linear scan, which made reading large graphs (e.g. 126 groups and 100 databases) quadratic. (Thanks @samssh!)
+
 ## 0.18.0 (2026-10-13)
 
 NEW FEATURES:
