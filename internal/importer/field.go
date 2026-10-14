@@ -22,7 +22,8 @@ func (ic *ImportContext) insertFieldReferencesRecursively(ctx context.Context, o
 
 		return nil
 	case []any:
-		// A reference to a field is an array with the form `["field", <fieldId>, ...]`.
+		// A reference to a field is an array with the form `["field", <fieldId>, ...]`, or
+		// `["field", {<options>}, <fieldId>]` since MBQL 5.
 		// This first tries to find such a reference in the array. If it does not, the array is then searched recursively.
 		inserted, err := ic.tryInsertFieldReference(ctx, typedObj)
 		if err != nil {
@@ -56,7 +57,14 @@ func (ic *ImportContext) tryInsertFieldReference(ctx context.Context, array []an
 		return false, nil
 	}
 
-	fieldIdFloat, ok := array[1].(float64)
+	// Since MBQL 5, the options come before the ID: `["field", {<options>}, <fieldId>]`.
+	fieldIdIndex := 1
+	if _, ok := array[1].(map[string]any); ok && len(array) > 2 {
+		fieldIdIndex = 2
+	}
+
+	// A field can also be referenced by its name, e.g. when it is a column of another card. There is no ID to replace.
+	fieldIdFloat, ok := array[fieldIdIndex].(float64)
 	if !ok {
 		return false, nil
 	}
@@ -66,7 +74,7 @@ func (ic *ImportContext) tryInsertFieldReference(ctx context.Context, array []an
 		return false, err
 	}
 
-	array[1] = importedField
+	array[fieldIdIndex] = importedField
 
 	return true, nil
 }

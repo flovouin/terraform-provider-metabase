@@ -16,6 +16,10 @@ var cardRegexp = regexp.MustCompile("\\\"!!(metabase_card\\.\\w+\\.id)!!\\\"")
 // Used for sourceId references in visualization_settings.
 var cardWithPrefixRegexp = regexp.MustCompile("\\\"!!card:(metabase_card\\.\\w+\\.id)!!\\\"")
 
+// The regexp matching the placeholder for `metabase_card` resources with "card__" prefix.
+// Used for `source-table` attributes referencing a card.
+var cardAsSourceTableRegexp = regexp.MustCompile("\\\"!!card__(metabase_card\\.\\w+\\.id)!!\\\"")
+
 // The regexp matching the placeholder for `metabase_table` data sources, accessing their `fields` attribute.
 // The first group is the table and the second group is the name of the field (column).
 var fieldRegexp = regexp.MustCompile("\\\"!!(metabase_table\\.\\w+\\.fields)\\[(\\w+)\\]!!\\\"")
@@ -49,6 +53,12 @@ func (c *importedCardWithPrefix) MarshalJSON() ([]byte, error) {
 	return fmt.Appendf(nil, "\"!!card:metabase_card.%s.id!!\"", c.Slug), nil
 }
 
+// Marshals an `importedCardAsSourceTable` as a placeholder with "card__" prefix.
+// This is used for `source-table` attributes referencing a card.
+func (c *importedCardAsSourceTable) MarshalJSON() ([]byte, error) {
+	return fmt.Appendf(nil, "\"!!card__metabase_card.%s.id!!\"", c.Slug), nil
+}
+
 // Marshals an `importedField` as a placeholder which references the corresponding Terraform table data source, and
 // accesses the `field` attribute for this `metabase_table`.
 func (f *importedField) MarshalJSON() ([]byte, error) {
@@ -79,6 +89,7 @@ func (c *importedCollection) MarshalJSON() ([]byte, error) {
 func replacePlaceholders(hcl string) string {
 	hcl = cardRegexp.ReplaceAllString(hcl, "$1")
 	hcl = cardWithPrefixRegexp.ReplaceAllString(hcl, "\"card:${$1}\"")
+	hcl = cardAsSourceTableRegexp.ReplaceAllString(hcl, "\"card__${$1}\"")
 	hcl = fieldRegexp.ReplaceAllString(hcl, "$1[\"$2\"]")
 	hcl = fieldInStringRegexp.ReplaceAllString(hcl, "${$1[\"$2\"]}")
 	hcl = tableRegexp.ReplaceAllString(hcl, "$1")

@@ -17,6 +17,12 @@ type importedCardWithPrefix struct {
 	*importedCard
 }
 
+// A wrapper for an imported card that includes the "card__" prefix when marshalled.
+// Used for `source-table` attributes referencing a card rather than a table, before MBQL 5.
+type importedCardAsSourceTable struct {
+	*importedCard
+}
+
 // A table imported from the Metabase API and converted to HCL (as a data source).
 type importedTable struct {
 	Table metabase.TableMetadata // The table, as returned by the Metabase API.
@@ -57,6 +63,7 @@ type importedCollection struct {
 type ImportContext struct {
 	client          metabase.ClientWithResponses  // The client to use to perform calls to the API.
 	cards           map[int]importedCard          // The cards imported from the API.
+	cardsInProgress map[int]bool                  // The cards being imported, which are not yet part of `cards`.
 	tables          map[int]importedTable         // The tables imported from the API.
 	fields          map[int]importedField         // The fields imported from the API.
 	dashboards      map[int]importedDashboard     // The dashboards imported from the API.
@@ -72,6 +79,7 @@ func NewImportContext(client metabase.ClientWithResponses) ImportContext {
 	return ImportContext{
 		client:          client,
 		cards:           make(map[int]importedCard),
+		cardsInProgress: make(map[int]bool),
 		tables:          make(map[int]importedTable),
 		fields:          make(map[int]importedField),
 		dashboards:      make(map[int]importedDashboard),

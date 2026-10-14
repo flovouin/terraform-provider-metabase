@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -61,6 +63,25 @@ func valueInt64OrNull(v types.Int64) *int {
 	return &r
 }
 
+// Returns the ID of a collection as a string. The ID can be a string because of the "root" collection, while all
+// user-created collections have an integer ID.
+func collectionIdToString(id metabase.Collection_Id) (*string, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	if strId, err := id.AsCollectionId0(); err == nil {
+		return &strId, diags
+	}
+
+	if intId, err := id.AsCollectionId1(); err == nil {
+		strId := fmt.Sprint(intId)
+		return &strId, diags
+	}
+
+	marshalled, _ := id.MarshalJSON()
+	diags.AddError("Unable to parse collection ID.", string(marshalled))
+	return nil, diags
+}
+
 // Ensures that a Metabase response is not an error and has the expected status code. Otherwise, returns a diagnostic
 // error.
 func checkMetabaseResponse(r metabase.MetabaseResponse, err error, statusCodes []int, operation string) diag.Diagnostics {
@@ -77,7 +98,7 @@ func checkMetabaseResponse(r metabase.MetabaseResponse, err error, statusCodes [
 		return diag.Diagnostics{
 			diag.NewErrorDiagnostic(
 				fmt.Sprintf("Unexpected response while calling the Metabase API for operation '%s'.", operation),
-				fmt.Sprintf("Status code: %d, failed to parse body: %s", r.StatusCode(), r.BodyString()),
+				fmt.Sprintf("Status code: %d, failed to parse body: %s", r.StatusCode(), summarizeBody(r.BodyString())),
 			),
 		}
 	}
@@ -89,9 +110,34 @@ func checkMetabaseResponse(r metabase.MetabaseResponse, err error, statusCodes [
 	return diag.Diagnostics{
 		diag.NewErrorDiagnostic(
 			fmt.Sprintf("Unexpected response while calling the Metabase API for operation '%s'.", operation),
-			fmt.Sprintf("Status code: %d, body: %s", r.StatusCode(), string(r.BodyString())),
+			fmt.Sprintf("Status code: %d, body: %s", r.StatusCode(), summarizeBody(r.BodyString())),
 		),
 	}
+}
+
+const maxErrorBodyLength = 500
+
+// Reduces a response body to what is useful in a diagnostic.
+// Metabase errors can carry a very large debug trace that may include submitted values such as passwords.
+func summarizeBody(body string) string {
+	var parsed struct {
+		Message string `json:"message"`
+		Cause   string `json:"cause"`
+	}
+	if json.Unmarshal([]byte(body), &parsed) == nil {
+		if parsed.Cause != "" {
+			return parsed.Cause
+		}
+		if parsed.Message != "" {
+			return parsed.Message
+		}
+	}
+
+	if len(body) > maxErrorBodyLength {
+		return strings.ToValidUTF8(body[:maxErrorBodyLength], "") + "...(truncated)"
+	}
+
+	return body
 }
 
 // Performs the import operation for a resource identified using its `id` integer attribute.
