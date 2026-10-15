@@ -124,6 +124,13 @@ paths:
     put:
       operationId: replaceCollectionPermissionsGraph
       description: Replaces the collection permissions graph.
+      parameters:
+        - in: query
+          name: force
+          schema:
+            type: boolean
+          description: Whether the update should be applied even if the revision is outdated.
+          required: false
       requestBody:
         required: true
         content:
@@ -927,6 +934,15 @@ components:
         personal_owner_id:
           type: integer
           description: The ID of the user owning this collection, if it is a personal collection.
+          nullable: true
+        is_personal:
+          type: boolean
+          description: Whether the collection is a personal collection, or a descendant of one.
+        namespace:
+          type: string
+          description: |-
+            The namespace of the collection.
+            Regular collections have no namespace, while e.g. the folders of SQL snippets are in the `snippets` namespace.
           nullable: true
         entity_id:
           type: string
