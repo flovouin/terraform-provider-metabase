@@ -250,6 +250,10 @@ type Collection struct {
 	// Name The name of the collection.
 	Name string `json:"name"`
 
+	// Namespace The namespace of the collection.
+	// Regular collections have no namespace, while e.g. the folders of SQL snippets are in the `snippets` namespace.
+	Namespace *string `json:"namespace,omitempty"`
+
 	// ParentId The ID of the parent collection, if any.
 	ParentId *int `json:"parent_id,omitempty"`
 

@@ -8,7 +8,7 @@ description: |-
   ~> Warning: Do not use this resource together with a metabase_collection_graph resource, and do not define the same (group, collection) pair in several metabase_collection_permission resources. They would overwrite each other's permissions.
   Each change only sends the managed edge to Metabase, without checking the revision of the collection graph, as no other edge is changed. Changes made by the provider are performed one at a time, along with the creation and update of collections.
   The permission can be set to none, e.g. to make sure a group has no access to a collection, as new collections inherit the permissions of their parent collection. Metabase omits none from the collection graph, so a pair missing from the graph is read as none. When the group or the collection is deleted, when the collection is archived (like the metabase_collection resource does), or when the collection is moved inside a personal collection, the resource is considered deleted.
-  The permissions of personal collections, and of the collections inside them, are fixed and cannot be managed.
+  The permissions of personal collections, and of the collections inside them, are fixed and cannot be managed. The permissions of collections from other namespaces than regular collections, e.g. the folders of SQL snippets, are not part of the collection graph and cannot be managed either.
   When the resource is deleted, the permission is set to none, which is the same value used by the metabase_collection_graph resource when removing an edge.
   Permissions for the Administrators group (ID 2) cannot be changed, and will result in an error.
 ---
@@ -25,7 +25,7 @@ Each change only sends the managed edge to Metabase, without checking the revisi
 
 The permission can be set to `none`, e.g. to make sure a group has no access to a collection, as new collections inherit the permissions of their parent collection. Metabase omits `none` from the collection graph, so a pair missing from the graph is read as `none`. When the group or the collection is deleted, when the collection is archived (like the `metabase_collection` resource does), or when the collection is moved inside a personal collection, the resource is considered deleted.
 
-The permissions of personal collections, and of the collections inside them, are fixed and cannot be managed.
+The permissions of personal collections, and of the collections inside them, are fixed and cannot be managed. The permissions of collections from other namespaces than regular collections, e.g. the folders of SQL snippets, are not part of the collection graph and cannot be managed either.
 
 When the resource is deleted, the permission is set to `none`, which is the same value used by the `metabase_collection_graph` resource when removing an edge.
 

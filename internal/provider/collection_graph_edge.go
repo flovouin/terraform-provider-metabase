@@ -23,7 +23,14 @@ const (
 	// The collection is personal, or is inside a personal collection. Its permissions are fixed: they are not part of
 	// the collection graph, and Metabase ignores them when updating it.
 	collectionStatusPersonal
+	// The collection belongs to another namespace than regular collections, e.g. it is a folder of SQL snippets. Its
+	// permissions are not part of the collection graph, and Metabase ignores them when updating it.
+	collectionStatusOtherNamespace
 )
+
+// The namespace of the instance analytics collections, which Metabase keeps when updating the collection graph, and
+// includes in it when instance analytics are enabled (on paid plans).
+const instanceAnalyticsNamespace = "analytics"
 
 // Returns the status of the given collection. Metabase omits `none` from the collection graph, as well as the
 // collections which are not active, so the graph alone cannot tell them apart.
@@ -48,6 +55,10 @@ func getCollectionStatus(ctx context.Context, client *metabase.ClientWithRespons
 
 	if getResp.JSON200.IsPersonal != nil && *getResp.JSON200.IsPersonal {
 		return collectionStatusPersonal, diags
+	}
+
+	if getResp.JSON200.Namespace != nil && *getResp.JSON200.Namespace != instanceAnalyticsNamespace {
+		return collectionStatusOtherNamespace, diags
 	}
 
 	return collectionStatusActive, diags
@@ -75,6 +86,12 @@ func checkCollectionStatus(ctx context.Context, client *metabase.ClientWithRespo
 			path.Root("collection"),
 			"Personal collection.",
 			fmt.Sprintf("The collection %s is a personal collection, or is inside one. The permissions of personal collections are fixed, and cannot be changed.", collectionId),
+		)
+	case collectionStatusOtherNamespace:
+		diags.AddAttributeError(
+			path.Root("collection"),
+			"Collection from another namespace.",
+			fmt.Sprintf("The collection %s is not a regular collection, e.g. it is a folder of SQL snippets. Its permissions are not part of the collection graph, and cannot be changed through it.", collectionId),
 		)
 	}
 

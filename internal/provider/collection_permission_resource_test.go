@@ -355,6 +355,54 @@ func TestAccCollectionPermissionResourcePersonalCollection(t *testing.T) {
 	})
 }
 
+// The permissions of collections from other namespaces, e.g. the folders of SQL snippets, are not part of the collection
+// graph, and Metabase ignores them when updating it.
+func TestAccCollectionPermissionResourceOtherNamespace(t *testing.T) {
+	if os.Getenv(resource.EnvTfAcc) == "" {
+		t.Skipf("Acceptance tests skipped unless env '%s' set", resource.EnvTfAcc)
+	}
+
+	snippetFolderId := testAccCreateSnippetFolder(t, "✂️ Collection permission snippet folder")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config:      providerApiKeyConfig + testAccCollectionPermission("snippets", "1", fmt.Sprintf("%q", snippetFolderId), "read"),
+				PlanOnly:    true,
+				ExpectError: regexp.MustCompile("Collection from another namespace"),
+			},
+		},
+	})
+}
+
+// Creates a folder of SQL snippets directly using the Metabase API, and returns its ID. The folder is archived at the end
+// of the test, as Metabase only deletes regular collections.
+func testAccCreateSnippetFolder(t *testing.T, name string) string {
+	t.Helper()
+
+	body := fmt.Sprintf(`{"name": %q, "namespace": "snippets"}`, name)
+	response, err := testAccMetabaseClient.CreateCollectionWithBodyWithResponse(context.Background(), "application/json", strings.NewReader(body))
+	if err != nil || response.StatusCode() != 200 {
+		t.Fatalf("Failed to create the snippet folder: %v, %v", err, response)
+	}
+
+	id, err := response.JSON200.Id.MarshalJSON()
+	if err != nil {
+		t.Fatalf("Failed to read the snippet folder ID: %v", err)
+	}
+	collectionId := strings.Trim(string(id), `"`)
+
+	t.Cleanup(func() {
+		archived := true
+		_, _ = testAccMetabaseClient.UpdateCollectionWithResponse(context.Background(), collectionId, metabase.UpdateCollectionBody{
+			Archived: &archived,
+		})
+	})
+
+	return collectionId
+}
+
 // Deletes a group which is not managed by Terraform. Metabase omits the pairs of a deleted group from the collection
 // graph, like the pairs set to `none`. The resource is considered deleted rather than read as `none`, so the next apply
 // tries to create it again, and fails.
