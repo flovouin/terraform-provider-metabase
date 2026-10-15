@@ -198,36 +198,27 @@ func (r *CollectionPermissionResource) isDeleted(ctx context.Context, data Colle
 	return status != collectionStatusActive, diags
 }
 
-// Reads the collection graph from the Metabase API, and updates the model from it (see
-// `updateModelFromCollectionGraph`). Returns whether the pair was found in the graph.
-func (r *CollectionPermissionResource) readCollectionPermission(ctx context.Context, data *CollectionPermissionResourceModel) (bool, diag.Diagnostics) {
-	getResp, err := r.client.GetCollectionPermissionsGraphWithResponse(ctx)
+// Reads the permission for a single edge from the collection graph (see `findCollectionPermission`).
+func getCollectionPermission(ctx context.Context, client *metabase.ClientWithResponses, groupId int64, collectionId string) (metabase.CollectionPermissionLevel, diag.Diagnostics) {
+	getResp, err := client.GetCollectionPermissionsGraphWithResponse(ctx)
 
 	diags := checkMetabaseResponse(getResp, err, []int{200}, "get collection graph")
 	if diags.HasError() {
-		return false, diags
+		return "", diags
 	}
 
-	found := updateModelFromCollectionGraph(*getResp.JSON200, data)
-
-	return found, diags
+	return findCollectionPermission(*getResp.JSON200, groupId, collectionId), diags
 }
 
-// Updates the model from the collection graph returned by the Metabase API, and returns whether the pair was found in
-// the graph. Metabase omits `none` from the graph, so a pair missing from the graph is read as `none`.
-func updateModelFromCollectionGraph(g metabase.CollectionPermissionsGraph, data *CollectionPermissionResourceModel) bool {
-	groupId := data.Group.ValueInt64()
-	collectionId := data.Collection.ValueString()
-
-	permission, found := g.Groups[strconv.FormatInt(groupId, 10)][collectionId]
-	if !found {
-		permission = metabase.CollectionPermissionLevelNone
+// Returns the permission for a single edge of the collection graph. Metabase omits `none` from the graph, so a missing
+// edge is read as `none`.
+func findCollectionPermission(g metabase.CollectionPermissionsGraph, groupId int64, collectionId string) metabase.CollectionPermissionLevel {
+	permission, ok := g.Groups[strconv.FormatInt(groupId, 10)][collectionId]
+	if !ok {
+		return metabase.CollectionPermissionLevelNone
 	}
 
-	data.Id = types.StringValue(makeGraphEdgeId(groupId, collectionId))
-	data.Permission = types.StringValue(string(permission))
-
-	return found
+	return permission
 }
 
 // Sends the permission defined in the plan to Metabase, and updates the plan with the value returned by Metabase.
@@ -250,7 +241,7 @@ func (r *CollectionPermissionResource) writeCollectionPermission(ctx context.Con
 		return diags
 	}
 
-	updateModelFromCollectionGraph(*graph, data)
+	data.Permission = types.StringValue(string(findCollectionPermission(*graph, groupId, collectionId)))
 
 	return diags
 }
@@ -271,6 +262,8 @@ func (r *CollectionPermissionResource) Create(ctx context.Context, req resource.
 		return
 	}
 
+	data.Id = types.StringValue(makeGraphEdgeId(data.Group.ValueInt64(), data.Collection.ValueString()))
+
 	resp.Diagnostics.Append(r.writeCollectionPermission(ctx, data)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -287,15 +280,15 @@ func (r *CollectionPermissionResource) Read(ctx context.Context, req resource.Re
 		return
 	}
 
-	found, diags := r.readCollectionPermission(ctx, data)
+	permission, diags := getCollectionPermission(ctx, r.client, data.Group.ValueInt64(), data.Collection.ValueString())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// The graph only contains the pairs of existing groups and of active collections, so the group and the collection
-	// only need to be checked when the pair is missing, i.e. when it is `none` or when the resource was deleted.
-	if !found {
+	// only need to be checked when the pair is missing from the graph, which is read as `none`.
+	if permission == metabase.CollectionPermissionLevelNone {
 		deleted, diags := r.isDeleted(ctx, *data)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -307,6 +300,8 @@ func (r *CollectionPermissionResource) Read(ctx context.Context, req resource.Re
 			return
 		}
 	}
+
+	data.Permission = types.StringValue(string(permission))
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
@@ -366,16 +361,17 @@ func (r *CollectionPermissionResource) ImportState(ctx context.Context, req reso
 		return
 	}
 
-	data := CollectionPermissionResourceModel{
-		Group:      types.Int64Value(groupId),
-		Collection: types.StringValue(collectionId),
-		Permission: types.StringNull(),
-	}
-
-	_, diags = r.readCollectionPermission(ctx, &data)
+	permission, diags := getCollectionPermission(ctx, r.client, groupId, collectionId)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
+	}
+
+	data := CollectionPermissionResourceModel{
+		Id:         types.StringValue(makeGraphEdgeId(groupId, collectionId)),
+		Group:      types.Int64Value(groupId),
+		Collection: types.StringValue(collectionId),
+		Permission: types.StringValue(string(permission)),
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
