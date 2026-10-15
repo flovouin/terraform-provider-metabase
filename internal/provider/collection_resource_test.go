@@ -204,7 +204,7 @@ func testAccNonAdminProviderConfig(t *testing.T) string {
 	if err != nil || graph.StatusCode() != 200 {
 		t.Fatalf("Failed to get the collection graph: %v", err)
 	}
-	updated, err := testAccMetabaseClient.ReplaceCollectionPermissionsGraphWithResponse(ctx, metabase.CollectionPermissionsGraph{
+	updated, err := testAccMetabaseClient.ReplaceCollectionPermissionsGraphWithResponse(ctx, nil, metabase.CollectionPermissionsGraph{
 		Revision: graph.JSON200.Revision,
 		Groups: map[string]metabase.CollectionPermissionsGraphCollectionPermissionsMap{
 			strconv.Itoa(group.JSON200.Id): {"root": metabase.CollectionPermissionLevelWrite},

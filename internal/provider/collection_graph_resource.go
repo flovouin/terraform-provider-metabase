@@ -317,7 +317,7 @@ func (r *CollectionGraphResource) Update(ctx context.Context, req resource.Updat
 			body.Revision = revision
 
 			var err error
-			updateResp, err = r.client.ReplaceCollectionPermissionsGraphWithResponse(ctx, *body)
+			updateResp, err = r.client.ReplaceCollectionPermissionsGraphWithResponse(ctx, nil, *body)
 			return err
 		})
 

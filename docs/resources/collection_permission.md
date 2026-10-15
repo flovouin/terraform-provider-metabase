@@ -6,7 +6,7 @@ description: |-
   The permission of a single permissions group on a single collection.
   Unlike the metabase_collection_graph resource, which manages the entire collection graph and resets the permissions it does not define, this resource only manages a single (group, collection) edge of the graph. All other permissions are left untouched, whether they are managed by other metabase_collection_permission resources, or set outside of Terraform (e.g. in the Metabase interface). This is similar to the relationship between the google_*_iam_member and google_*_iam_policy resources of the Google provider.
   ~> Warning: Do not use this resource together with a metabase_collection_graph resource, and do not define the same (group, collection) pair in several metabase_collection_permission resources. They would overwrite each other's permissions.
-  Each change reads the current revision of the collection graph and sends only the managed edge to Metabase. Changes made by the provider are performed one at a time, along with the creation and update of collections.
+  Each change only sends the managed edge to Metabase, without checking the revision of the collection graph, as no other edge is changed. Changes made by the provider are performed one at a time, along with the creation and update of collections.
   The permission can be set to none, e.g. to make sure a group has no access to a collection, as new collections inherit the permissions of their parent collection. Metabase omits none from the collection graph, so a pair missing from the graph is read as none. When the group or the collection is deleted, when the collection is archived (like the metabase_collection resource does), or when the collection is moved inside a personal collection, the resource is considered deleted.
   The permissions of personal collections, and of the collections inside them, are fixed and cannot be managed.
   When the resource is deleted, the permission is set to none, which is the same value used by the metabase_collection_graph resource when removing an edge.
@@ -21,7 +21,7 @@ Unlike the `metabase_collection_graph` resource, which manages the entire collec
 
 ~> **Warning:** Do not use this resource together with a `metabase_collection_graph` resource, and do not define the same (group, collection) pair in several `metabase_collection_permission` resources. They would overwrite each other's permissions.
 
-Each change reads the current revision of the collection graph and sends only the managed edge to Metabase. Changes made by the provider are performed one at a time, along with the creation and update of collections.
+Each change only sends the managed edge to Metabase, without checking the revision of the collection graph, as no other edge is changed. Changes made by the provider are performed one at a time, along with the creation and update of collections.
 
 The permission can be set to `none`, e.g. to make sure a group has no access to a collection, as new collections inherit the permissions of their parent collection. Metabase omits `none` from the collection graph, so a pair missing from the graph is read as `none`. When the group or the collection is deleted, when the collection is archived (like the `metabase_collection` resource does), or when the collection is moved inside a personal collection, the resource is considered deleted.
 

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -53,7 +52,7 @@ Unlike the ` + "`metabase_collection_graph`" + ` resource, which manages the ent
 
 ~> **Warning:** Do not use this resource together with a ` + "`metabase_collection_graph`" + ` resource, and do not define the same (group, collection) pair in several ` + "`metabase_collection_permission`" + ` resources. They would overwrite each other's permissions.
 
-Each change reads the current revision of the collection graph and sends only the managed edge to Metabase. Changes made by the provider are performed one at a time, along with the creation and update of collections.
+Each change only sends the managed edge to Metabase, without checking the revision of the collection graph, as no other edge is changed. Changes made by the provider are performed one at a time, along with the creation and update of collections.
 
 The permission can be set to ` + "`none`" + `, e.g. to make sure a group has no access to a collection, as new collections inherit the permissions of their parent collection. Metabase omits ` + "`none`" + ` from the collection graph, so a pair missing from the graph is read as ` + "`none`" + `. When the group or the collection is deleted, when the collection is archived (like the ` + "`metabase_collection`" + ` resource does), or when the collection is moved inside a personal collection, the resource is considered deleted.
 
@@ -153,24 +152,18 @@ func checkCollectionPermissionLevel(permission string) diag.Diagnostics {
 	return diags
 }
 
-// Sets the permission for a single edge of the collection graph, leaving all other edges untouched. The graph is read
-// right before the update. The update records a new revision of the collection graph, so it is tracked like the creation
-// of collections (see `graphlock.CollectionGraphTracker`).
-func updateCollectionPermission(ctx context.Context, client *metabase.ClientWithResponses, tracker *graphlock.CollectionGraphTracker, groupId int64, collectionId string, permission metabase.CollectionPermissionLevel) diag.Diagnostics {
-	var diags diag.Diagnostics
+// Sets the permission for a single edge of the collection graph, leaving all other edges untouched, and returns the
+// graph after the update. The update is forced: it only contains this edge, so checking the revision of the graph would
+// protect nothing. The update records a new revision of the collection graph, so it is tracked like the creation of
+// collections (see `graphlock.CollectionGraphTracker`).
+func updateCollectionPermission(ctx context.Context, client *metabase.ClientWithResponses, tracker *graphlock.CollectionGraphTracker, groupId int64, collectionId string, permission metabase.CollectionPermissionLevel) (*metabase.CollectionPermissionsGraph, diag.Diagnostics) {
+	force := true
 
 	var updateResp *metabase.ReplaceCollectionPermissionsGraphResponse
 	err := tracker.Track(ctx, client, func() (metabase.MetabaseResponse, error) {
-		getResp, err := client.GetCollectionPermissionsGraphWithResponse(ctx)
-
-		diags.Append(checkMetabaseResponse(getResp, err, []int{200}, "get collection graph")...)
-		if diags.HasError() {
-			return nil, errCollectionGraphNotRead
-		}
-
 		// Metabase only updates the edges present in the request.
-		updateResp, err = client.ReplaceCollectionPermissionsGraphWithResponse(ctx, metabase.CollectionPermissionsGraph{
-			Revision: getResp.JSON200.Revision,
+		var err error
+		updateResp, err = client.ReplaceCollectionPermissionsGraphWithResponse(ctx, &metabase.ReplaceCollectionPermissionsGraphParams{Force: &force}, metabase.CollectionPermissionsGraph{
 			Groups: map[string]metabase.CollectionPermissionsGraphCollectionPermissionsMap{
 				strconv.FormatInt(groupId, 10): {
 					collectionId: permission,
@@ -179,19 +172,14 @@ func updateCollectionPermission(ctx context.Context, client *metabase.ClientWith
 		})
 		return updateResp, err
 	})
-	// The error of reading the graph is already reported as a diagnostic.
-	if errors.Is(err, errCollectionGraphNotRead) {
-		return diags
+
+	diags := checkMetabaseResponse(updateResp, err, []int{200}, "update collection graph")
+	if diags.HasError() {
+		return nil, diags
 	}
 
-	diags.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update collection graph")...)
-
-	return diags
+	return updateResp.JSON200, diags
 }
-
-// Returned to the collection graph tracker when the graph could not be read before updating it. The actual error is
-// reported as a diagnostic.
-var errCollectionGraphNotRead = errors.New("the collection graph could not be read")
 
 // Returns whether the resource is considered deleted, because its group or its collection no longer exists, or because
 // its collection was moved inside a personal collection, which fixes its permissions. Archived collections are
@@ -210,30 +198,36 @@ func (r *CollectionPermissionResource) isDeleted(ctx context.Context, data Colle
 	return status != collectionStatusActive, diags
 }
 
-// Updates the model from the collection graph returned by the Metabase API. Metabase omits `none` from the graph, so a
-// pair missing from the graph is read as `none`.
-func (r *CollectionPermissionResource) readCollectionPermission(ctx context.Context, data *CollectionPermissionResourceModel) diag.Diagnostics {
-	var diags diag.Diagnostics
-
+// Reads the collection graph from the Metabase API, and updates the model from it (see
+// `updateModelFromCollectionGraph`). Returns whether the pair was found in the graph.
+func (r *CollectionPermissionResource) readCollectionPermission(ctx context.Context, data *CollectionPermissionResourceModel) (bool, diag.Diagnostics) {
 	getResp, err := r.client.GetCollectionPermissionsGraphWithResponse(ctx)
 
-	diags.Append(checkMetabaseResponse(getResp, err, []int{200}, "get collection graph")...)
+	diags := checkMetabaseResponse(getResp, err, []int{200}, "get collection graph")
 	if diags.HasError() {
-		return diags
+		return false, diags
 	}
 
+	found := updateModelFromCollectionGraph(*getResp.JSON200, data)
+
+	return found, diags
+}
+
+// Updates the model from the collection graph returned by the Metabase API, and returns whether the pair was found in
+// the graph. Metabase omits `none` from the graph, so a pair missing from the graph is read as `none`.
+func updateModelFromCollectionGraph(g metabase.CollectionPermissionsGraph, data *CollectionPermissionResourceModel) bool {
 	groupId := data.Group.ValueInt64()
 	collectionId := data.Collection.ValueString()
 
-	permission, ok := getResp.JSON200.Groups[strconv.FormatInt(groupId, 10)][collectionId]
-	if !ok {
+	permission, found := g.Groups[strconv.FormatInt(groupId, 10)][collectionId]
+	if !found {
 		permission = metabase.CollectionPermissionLevelNone
 	}
 
 	data.Id = types.StringValue(makeGraphEdgeId(groupId, collectionId))
 	data.Permission = types.StringValue(string(permission))
 
-	return diags
+	return found
 }
 
 // Sends the permission defined in the plan to Metabase, and updates the plan with the value returned by Metabase.
@@ -249,12 +243,14 @@ func (r *CollectionPermissionResource) writeCollectionPermission(ctx context.Con
 		return diags
 	}
 
-	diags.Append(updateCollectionPermission(ctx, r.client, r.collectionGraph, groupId, collectionId, metabase.CollectionPermissionLevel(data.Permission.ValueString()))...)
+	// The response is the graph after the update, so the permission is read from it.
+	graph, updateDiags := updateCollectionPermission(ctx, r.client, r.collectionGraph, groupId, collectionId, metabase.CollectionPermissionLevel(data.Permission.ValueString()))
+	diags.Append(updateDiags...)
 	if diags.HasError() {
 		return diags
 	}
 
-	diags.Append(r.readCollectionPermission(ctx, data)...)
+	updateModelFromCollectionGraph(*graph, data)
 
 	return diags
 }
@@ -291,20 +287,25 @@ func (r *CollectionPermissionResource) Read(ctx context.Context, req resource.Re
 		return
 	}
 
-	deleted, diags := r.isDeleted(ctx, *data)
+	found, diags := r.readCollectionPermission(ctx, data)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if deleted {
-		resp.State.RemoveResource(ctx)
-		return
-	}
+	// The graph only contains the pairs of existing groups and of active collections, so the group and the collection
+	// only need to be checked when the pair is missing, i.e. when it is `none` or when the resource was deleted.
+	if !found {
+		deleted, diags := r.isDeleted(ctx, *data)
+		resp.Diagnostics.Append(diags...)
+		if resp.Diagnostics.HasError() {
+			return
+		}
 
-	resp.Diagnostics.Append(r.readCollectionPermission(ctx, data)...)
-	if resp.Diagnostics.HasError() {
-		return
+		if deleted {
+			resp.State.RemoveResource(ctx)
+			return
+		}
 	}
 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
@@ -342,7 +343,8 @@ func (r *CollectionPermissionResource) Delete(ctx context.Context, req resource.
 	}
 
 	// Like when an edge is removed from the `metabase_collection_graph` resource, the permission is set to `none`.
-	resp.Diagnostics.Append(updateCollectionPermission(ctx, r.client, r.collectionGraph, data.Group.ValueInt64(), data.Collection.ValueString(), metabase.CollectionPermissionLevelNone)...)
+	_, diags = updateCollectionPermission(ctx, r.client, r.collectionGraph, data.Group.ValueInt64(), data.Collection.ValueString(), metabase.CollectionPermissionLevelNone)
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *CollectionPermissionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -370,7 +372,8 @@ func (r *CollectionPermissionResource) ImportState(ctx context.Context, req reso
 		Permission: types.StringNull(),
 	}
 
-	resp.Diagnostics.Append(r.readCollectionPermission(ctx, &data)...)
+	_, diags = r.readCollectionPermission(ctx, &data)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}

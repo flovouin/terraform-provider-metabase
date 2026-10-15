@@ -124,6 +124,13 @@ paths:
     put:
       operationId: replaceCollectionPermissionsGraph
       description: Replaces the collection permissions graph.
+      parameters:
+        - in: query
+          name: force
+          schema:
+            type: boolean
+          description: Whether the update should be applied even if the revision is outdated.
+          required: false
       requestBody:
         required: true
         content:

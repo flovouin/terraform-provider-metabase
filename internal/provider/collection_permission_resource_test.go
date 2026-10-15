@@ -94,7 +94,7 @@ func testAccCheckCollectionPermissionDestroy(s *terraform.State) error {
 func testAccSetCollectionPermission(t *testing.T, groupId string, collectionId string, permission metabase.CollectionPermissionLevel) {
 	t.Helper()
 
-	diags := updateCollectionPermission(context.Background(), testAccMetabaseClient, graphlock.NewCollectionGraphTracker(), mustParseInt64(t, groupId), collectionId, permission)
+	_, diags := updateCollectionPermission(context.Background(), testAccMetabaseClient, graphlock.NewCollectionGraphTracker(), mustParseInt64(t, groupId), collectionId, permission)
 	if diags.HasError() {
 		t.Fatalf("Failed to set permission: %v", diags)
 	}

@@ -906,6 +906,12 @@ type ListCollectionsParams struct {
 	Archived *bool `form:"archived,omitempty" json:"archived,omitempty"`
 }
 
+// ReplaceCollectionPermissionsGraphParams defines parameters for ReplaceCollectionPermissionsGraph.
+type ReplaceCollectionPermissionsGraphParams struct {
+	// Force Whether the update should be applied even if the revision is outdated.
+	Force *bool `form:"force,omitempty" json:"force,omitempty"`
+}
+
 // ListCollectionItemsParams defines parameters for ListCollectionItems.
 type ListCollectionItemsParams struct {
 	// Models The list of item types to return.
@@ -1809,13 +1815,13 @@ type ClientInterface interface {
 	// with any type of body and a specified content type.
 	//
 	// Replaces the collection permissions graph.
-	ReplaceCollectionPermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReplaceCollectionPermissionsGraphWithBody(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReplaceCollectionPermissionsGraph performs a PUT /collection/graph (the `ReplaceCollectionPermissionsGraph` operationId) request.
 	// Takes a body of the `application/json` content type.
 	//
 	// Replaces the collection permissions graph.
-	ReplaceCollectionPermissionsGraph(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReplaceCollectionPermissionsGraph(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetCollection performs a GET /collection/{collectionId} (the `GetCollection` operationId) request.
 	//
@@ -2227,8 +2233,8 @@ func (c *Client) GetCollectionPermissionsGraph(ctx context.Context, reqEditors .
 // with any type of body and a specified content type.
 //
 // Replaces the collection permissions graph.
-func (c *Client) ReplaceCollectionPermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceCollectionPermissionsGraphRequestWithBody(c.Server, contentType, body)
+func (c *Client) ReplaceCollectionPermissionsGraphWithBody(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceCollectionPermissionsGraphRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2243,8 +2249,8 @@ func (c *Client) ReplaceCollectionPermissionsGraphWithBody(ctx context.Context, 
 // Takes a body of the `application/json` content type.
 //
 // Replaces the collection permissions graph.
-func (c *Client) ReplaceCollectionPermissionsGraph(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplaceCollectionPermissionsGraphRequest(c.Server, body)
+func (c *Client) ReplaceCollectionPermissionsGraph(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceCollectionPermissionsGraphRequest(c.Server, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -3222,18 +3228,18 @@ func NewGetCollectionPermissionsGraphRequest(server string) (*http.Request, erro
 }
 
 // NewReplaceCollectionPermissionsGraphRequest calls the generic ReplaceCollectionPermissionsGraph builder with application/json body
-func NewReplaceCollectionPermissionsGraphRequest(server string, body ReplaceCollectionPermissionsGraphJSONRequestBody) (*http.Request, error) {
+func NewReplaceCollectionPermissionsGraphRequest(server string, params *ReplaceCollectionPermissionsGraphParams, body ReplaceCollectionPermissionsGraphJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewReplaceCollectionPermissionsGraphRequestWithBody(server, "application/json", bodyReader)
+	return NewReplaceCollectionPermissionsGraphRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewReplaceCollectionPermissionsGraphRequestWithBody constructs an http.Request for the ReplaceCollectionPermissionsGraph method, with any body, and a specified content type
-func NewReplaceCollectionPermissionsGraphRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewReplaceCollectionPermissionsGraphRequestWithBody(server string, params *ReplaceCollectionPermissionsGraphParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -3249,6 +3255,33 @@ func NewReplaceCollectionPermissionsGraphRequestWithBody(server string, contentT
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Force != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "force", *params.Force, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
@@ -4763,13 +4796,13 @@ type ClientWithResponsesInterface interface {
 	// Replaces the collection permissions graph.
 	//
 	// Returns a wrapper object for the known response body format(s).
-	ReplaceCollectionPermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error)
+	ReplaceCollectionPermissionsGraphWithBodyWithResponse(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error)
 
 	// ReplaceCollectionPermissionsGraphWithResponse performs a PUT /collection/graph (the `ReplaceCollectionPermissionsGraph` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Replaces the collection permissions graph.
-	ReplaceCollectionPermissionsGraphWithResponse(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error)
+	ReplaceCollectionPermissionsGraphWithResponse(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error)
 
 	// GetCollectionWithResponse performs a GET /collection/{collectionId} (the `GetCollection` operationId) request.
 	//
@@ -6836,8 +6869,8 @@ func (c *ClientWithResponses) GetCollectionPermissionsGraphWithResponse(ctx cont
 // Replaces the collection permissions graph.
 //
 // Returns a wrapper object for the known response body format(s).
-func (c *ClientWithResponses) ReplaceCollectionPermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error) {
-	rsp, err := c.ReplaceCollectionPermissionsGraphWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) ReplaceCollectionPermissionsGraphWithBodyWithResponse(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error) {
+	rsp, err := c.ReplaceCollectionPermissionsGraphWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -6848,8 +6881,8 @@ func (c *ClientWithResponses) ReplaceCollectionPermissionsGraphWithBodyWithRespo
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Replaces the collection permissions graph.
-func (c *ClientWithResponses) ReplaceCollectionPermissionsGraphWithResponse(ctx context.Context, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error) {
-	rsp, err := c.ReplaceCollectionPermissionsGraph(ctx, body, reqEditors...)
+func (c *ClientWithResponses) ReplaceCollectionPermissionsGraphWithResponse(ctx context.Context, params *ReplaceCollectionPermissionsGraphParams, body ReplaceCollectionPermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceCollectionPermissionsGraphResponse, error) {
+	rsp, err := c.ReplaceCollectionPermissionsGraph(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
