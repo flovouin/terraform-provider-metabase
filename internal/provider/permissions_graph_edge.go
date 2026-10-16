@@ -199,62 +199,6 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 	return &permissionsObject, diags
 }
 
-// Returns whether an edge returned by the Metabase API defines the `view-data` permission.
-func hasViewDataPermissions(p metabase.PermissionsGraphDatabasePermissions) bool {
-	viewDataBytes, err := p.ViewData.MarshalJSON()
-	return err == nil && len(viewDataBytes) > 0 && string(viewDataBytes) != "null"
-}
-
-// Makes the permissions of a revoked edge. Metabase never removes an edge from the graph, so this is the lowest level of
-// permissions an edge can have: `view-data` is set to `unrestricted`, and `create-queries` and `download` are revoked,
-// as well as `data-model` and `details` with advanced permissions.
-func makeRevokedDatabasePermissions(advancedPermissions bool) metabase.PermissionsGraphDatabasePermissions {
-	none := metabase.NewDatabaseAccessSchemas(metabase.PermissionsGraphDatabaseAccessSchemas0None)
-	createQueriesNo := metabase.NewCreateQueries(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No)
-
-	p := metabase.PermissionsGraphDatabasePermissions{
-		ViewData:      metabase.NewViewData(metabase.PermissionsGraphDatabasePermissionsViewData0Unrestricted),
-		CreateQueries: &createQueriesNo,
-		Download:      &metabase.PermissionsGraphDatabaseAccess{Schemas: &none},
-	}
-
-	if advancedPermissions {
-		no := metabase.PermissionsGraphDatabasePermissionsDetailsNo
-		p.DataModel = &metabase.PermissionsGraphDatabaseAccess{Schemas: &none}
-		p.Details = &no
-	}
-
-	return p
-}
-
-// Returns whether an edge returned by the Metabase API has the permissions of a revoked edge (see
-// `makeRevokedDatabasePermissions`). Metabase omits revoked permissions from its responses, e.g. a revoked edge is
-// returned as `{"view-data": "unrestricted"}` on the free edition.
-func isRevokedDatabasePermissions(p metabase.PermissionsGraphDatabasePermissions) bool {
-	if v, err := p.ViewData.AsPermissionsGraphDatabasePermissionsViewData0(); err != nil || v != metabase.PermissionsGraphDatabasePermissionsViewData0Unrestricted {
-		return false
-	}
-
-	if p.CreateQueries != nil {
-		if v, err := p.CreateQueries.AsPermissionsGraphDatabasePermissionsCreateQueries0(); err != nil || v != metabase.PermissionsGraphDatabasePermissionsCreateQueries0No {
-			return false
-		}
-	}
-
-	isNone := func(a *metabase.PermissionsGraphDatabaseAccess) bool {
-		if a == nil || a.Schemas == nil {
-			return true
-		}
-		v, err := a.Schemas.AsPermissionsGraphDatabaseAccessSchemas0()
-		return err == nil && v == metabase.PermissionsGraphDatabaseAccessSchemas0None
-	}
-	if !isNone(p.Download) || !isNone(p.DataModel) {
-		return false
-	}
-
-	return p.Details == nil || *p.Details == metabase.PermissionsGraphDatabasePermissionsDetailsNo
-}
-
 // Makes a Metabase API `PermissionsGraphDatabaseAccess` struct from a Terraform model object.
 // `setIfNull` can be used to set the default values (forbidding any access) to permissions.
 // This is useful when removing permissions for example.

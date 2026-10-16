@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"testing"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -42,80 +41,11 @@ func testAccCheckRevokedDatabasePermissions(groupId string, databaseId func(*ter
 			return err
 		}
 
-		if !isRevokedDatabasePermissions(*permissions) {
+		if !permissions.IsRevoked() {
 			b, _ := json.Marshal(permissions)
 			return fmt.Errorf("Expected the permissions of group %s on database %s to be revoked, got: %s.", groupId, dbId, b)
 		}
 
 		return nil
-	}
-}
-
-func TestIsRevokedDatabasePermissions(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]struct {
-		permissions string
-		expected    bool
-	}{
-		"revoked, as returned by the free edition": {`{"view-data":"unrestricted"}`, true},
-		"revoked, with explicit values":            {`{"view-data":"unrestricted","create-queries":"no","download":{"schemas":"none"},"data-model":{"schemas":"none"},"details":"no"}`, true},
-		"blocked view data":                        {`{"view-data":"blocked"}`, false},
-		"granular view data":                       {`{"view-data":{"PUBLIC":"unrestricted"}}`, false},
-		"create queries":                           {`{"view-data":"unrestricted","create-queries":"query-builder"}`, false},
-		"download":                                 {`{"view-data":"unrestricted","download":{"schemas":"full"}}`, false},
-		"data model":                               {`{"view-data":"unrestricted","data-model":{"schemas":"all"}}`, false},
-		"details":                                  {`{"view-data":"unrestricted","details":"yes"}`, false},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			var permissions metabase.PermissionsGraphDatabasePermissions
-			if err := json.Unmarshal([]byte(test.permissions), &permissions); err != nil {
-				t.Fatalf("Failed to parse permissions: %v", err)
-			}
-
-			if actual := isRevokedDatabasePermissions(permissions); actual != test.expected {
-				t.Errorf("Expected %v, got %v.", test.expected, actual)
-			}
-		})
-	}
-}
-
-func TestMakeRevokedDatabasePermissions(t *testing.T) {
-	t.Parallel()
-
-	tests := map[string]struct {
-		advancedPermissions bool
-		expected            string
-	}{
-		"free edition": {
-			expected: `{"create-queries":"no","download":{"schemas":"none"},"view-data":"unrestricted"}`,
-		},
-		"advanced permissions": {
-			advancedPermissions: true,
-			expected:            `{"create-queries":"no","data-model":{"schemas":"none"},"details":"no","download":{"schemas":"none"},"view-data":"unrestricted"}`,
-		},
-	}
-
-	for name, test := range tests {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-
-			permissions := makeRevokedDatabasePermissions(test.advancedPermissions)
-
-			actual, err := json.Marshal(permissions)
-			if err != nil {
-				t.Fatalf("Failed to marshal permissions: %v", err)
-			}
-			if string(actual) != test.expected {
-				t.Errorf("Expected %s, got %s.", test.expected, actual)
-			}
-			if !isRevokedDatabasePermissions(permissions) {
-				t.Errorf("Expected the revoked permissions to be detected as revoked.")
-			}
-		})
 	}
 }

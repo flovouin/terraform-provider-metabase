@@ -177,7 +177,7 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 			// just `data-model` set) and omit `view-data` entirely. The provider models every edge around
 			// `view-data`, so it cannot represent these fragments; skip them rather than failing to parse the
 			// empty `view-data` union.
-			if !hasViewDataPermissions(dbPermissions) {
+			if !dbPermissions.HasViewData() {
 				continue
 			}
 
@@ -191,13 +191,13 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 			existingPermission := existingByKey[permissionsKey{int64(groupIdInt), int64(dbIdInt)}]
 
 			// Metabase never removes a pair from the graph: the pairs removed from the configuration are revoked instead (see
-			// `makeRevokedDatabasePermissions`). Such pairs are skipped, as if they were not in the graph, otherwise they would
-			// be reported as changes on every plan. A pair is skipped when both:
+			// `metabase.NewRevokedDatabasePermissions`). Such pairs are skipped, as if they were not in the graph, otherwise
+			// they would be reported as changes on every plan. A pair is skipped when both:
 			//   - It is not in the Terraform model, i.e. in the state, or in the plan after an update. A pair declared in the
 			//     configuration is always read, even with the lowest permissions, otherwise it would be missing from the state.
 			//   - It is revoked. The other pairs which are not in the Terraform model (e.g. permissions granted in the Metabase
 			//     interface) are read, such that they are reported as changes and revoked by the next apply.
-			if existingPermission == nil && isRevokedDatabasePermissions(dbPermissions) {
+			if existingPermission == nil && dbPermissions.IsRevoked() {
 				continue
 			}
 
@@ -224,7 +224,7 @@ func updateModelFromPermissionsGraph(ctx context.Context, g metabase.Permissions
 
 // Makes the entire permissions graph from the Terraform model.
 // Passing the current state allows comparing the plan to an existing set of permissions. This allows explicitly
-// revoking the permissions removed from the plan (see `makeRevokedDatabasePermissions`).
+// revoking the permissions removed from the plan (see `metabase.NewRevokedDatabasePermissions`).
 func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphResourceModel, state *PermissionsGraphResourceModel) (*metabase.PermissionsGraph, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
@@ -308,7 +308,7 @@ func makePermissionsGraphFromModel(ctx context.Context, data PermissionsGraphRes
 				continue
 			}
 
-			dbPermMap[databaseId] = makeRevokedDatabasePermissions(advancedPermissions)
+			dbPermMap[databaseId] = metabase.NewRevokedDatabasePermissions(advancedPermissions)
 		}
 	}
 
