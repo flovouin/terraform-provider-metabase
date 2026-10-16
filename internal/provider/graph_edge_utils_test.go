@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -125,21 +126,32 @@ func mustParseInt64(t *testing.T, s string) int64 {
 	return i
 }
 
-// A fake Metabase API serving permissions groups and collections.
+// A fake Metabase API serving permissions groups, collections, databases and the permissions graph. Like Metabase, it
+// rejects updates of the graph made from an outdated revision with a 409 status, and only updates the edges present in
+// the request.
 type fakeMetabaseServer struct {
 	mutex sync.Mutex
 	// The IDs of the permissions groups which do not exist. All the other groups exist.
 	missingGroups map[string]bool
 	// The collections returned by the API, by ID. The other collections do not exist.
 	collections map[string]string
+	// The IDs of the databases which do not exist. All the other databases exist.
+	missingDatabases map[string]bool
+	// The revision and the edges of the permissions graph.
+	permissionsGraphRevision int
+	permissionsGraph         map[string]map[string]json.RawMessage
+	// The bodies of the updates of the permissions graph that were accepted.
+	acceptedUpdates []map[string]map[string]json.RawMessage
 }
 
 func newFakeMetabaseServer(t *testing.T) (*fakeMetabaseServer, *metabase.ClientWithResponses) {
 	t.Helper()
 
 	f := &fakeMetabaseServer{
-		missingGroups: map[string]bool{},
-		collections:   map[string]string{},
+		missingGroups:    map[string]bool{},
+		collections:      map[string]string{},
+		missingDatabases: map[string]bool{},
+		permissionsGraph: map[string]map[string]json.RawMessage{},
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(f.handle))
@@ -157,6 +169,11 @@ func (f *fakeMetabaseServer) handle(w http.ResponseWriter, r *http.Request) {
 	f.mutex.Lock()
 	defer f.mutex.Unlock()
 
+	if r.URL.Path == "/permissions/graph" {
+		f.handlePermissionsGraph(w, r)
+		return
+	}
+
 	if r.Method != http.MethodGet {
 		http.NotFound(w, r)
 		return
@@ -172,6 +189,16 @@ func (f *fakeMetabaseServer) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if databaseId, ok := strings.CutPrefix(r.URL.Path, "/database/"); ok {
+		if f.missingDatabases[databaseId] {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"id": %s, "name": "Database %s", "engine": "postgres", "details": {}}`, databaseId, databaseId)
+		return
+	}
+
 	if collectionId, ok := strings.CutPrefix(r.URL.Path, "/collection/"); ok {
 		collection, exists := f.collections[collectionId]
 		if !exists {
@@ -184,4 +211,49 @@ func (f *fakeMetabaseServer) handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.NotFound(w, r)
+}
+
+func (f *fakeMetabaseServer) handlePermissionsGraph(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeFakePermissionsGraph(w, f.permissionsGraphRevision, f.permissionsGraph)
+	case http.MethodPut:
+		var body struct {
+			Revision int                                   `json:"revision"`
+			Groups   map[string]map[string]json.RawMessage `json:"groups"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if body.Revision != f.permissionsGraphRevision {
+			http.Error(w, "Looks like someone else edited the permissions and your data is out of date.", http.StatusConflict)
+			return
+		}
+
+		for groupId, edges := range body.Groups {
+			if f.permissionsGraph[groupId] == nil {
+				f.permissionsGraph[groupId] = map[string]json.RawMessage{}
+			}
+			for databaseId, permissions := range edges {
+				f.permissionsGraph[groupId][databaseId] = permissions
+			}
+		}
+		f.permissionsGraphRevision++
+		f.acceptedUpdates = append(f.acceptedUpdates, body.Groups)
+
+		// Like Metabase, only the edges that were sent are returned.
+		writeFakePermissionsGraph(w, f.permissionsGraphRevision, body.Groups)
+	default:
+		http.Error(w, "unexpected method", http.StatusMethodNotAllowed)
+	}
+}
+
+func writeFakePermissionsGraph(w http.ResponseWriter, revision int, groups map[string]map[string]json.RawMessage) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"revision": revision,
+		"groups":   groups,
+	})
 }
