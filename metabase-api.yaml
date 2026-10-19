@@ -469,6 +469,13 @@ paths:
     put:
       operationId: replacePermissionsGraph
       description: Replaces the permissions graph.
+      parameters:
+        - in: query
+          name: force
+          schema:
+            type: boolean
+          description: Whether the update should be applied even if the revision is outdated.
+          required: false
       requestBody:
         required: true
         content:
@@ -477,7 +484,26 @@ paths:
               $ref: "#/components/schemas/PermissionsGraph"
       responses:
         200:
-          description: The updated permissions graph.
+          description: The updated permissions graph, restricted to the groups present in the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionsGraph"
+
+  /permissions/graph/group/{groupId}:
+    get:
+      operationId: getPermissionsGraphForGroup
+      description: Retrieves the permissions graph, restricted to a single permissions group.
+      parameters:
+        - in: path
+          name: groupId
+          schema:
+            type: integer
+          required: true
+          description: The ID of the permissions group. The graph is empty if the group does not exist.
+      responses:
+        200:
+          description: The permissions graph, restricted to the given group.
           content:
             application/json:
               schema:

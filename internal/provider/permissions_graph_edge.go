@@ -3,10 +3,12 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
+	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
@@ -72,8 +74,26 @@ func makeAccessPermissionsFromDatabaseAccess(ctx context.Context, da *metabase.P
 	return &obj, diags
 }
 
-// Makes a single `DatabasePermissions` Terraform object from a Metabase API's response.
+// Makes a single `DatabasePermissions` Terraform object from a Metabase API's response (see
+// `makeDatabasePermissionsModel`).
 func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId int, dbId int, p metabase.PermissionsGraphDatabasePermissions, existing *DatabasePermissions) (*types.Object, diag.Diagnostics) {
+	model, diags := makeDatabasePermissionsModel(ctx, groupId, dbId, p, existing)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, model)
+	diags.Append(objectDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return &permissionsObject, diags
+}
+
+// Makes the `DatabasePermissions` model of a single edge from a Metabase API's response. When `existing` is not `nil`,
+// its JSON values of `view_data` and `create_queries` are kept if Metabase returns them in a different shape.
+func makeDatabasePermissionsModel(ctx context.Context, groupId int, dbId int, p metabase.PermissionsGraphDatabasePermissions, existing *DatabasePermissions) (*DatabasePermissions, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	downloadAccess, accessDiags := makeAccessPermissionsFromDatabaseAccess(ctx, p.Download)
@@ -182,7 +202,7 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 		}
 	}
 
-	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, DatabasePermissions{
+	return &DatabasePermissions{
 		Group:         types.Int64Value(int64(groupId)),
 		Database:      types.Int64Value(int64(dbId)),
 		ViewData:      types.StringValue(viewData),
@@ -190,13 +210,7 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 		Download:      *downloadAccess,
 		DataModel:     *dataModelAccess,
 		Details:       stringValueOrNull(p.Details),
-	})
-	diags.Append(objectDiags...)
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	return &permissionsObject, diags
+	}, diags
 }
 
 // Makes a Metabase API `PermissionsGraphDatabaseAccess` struct from a Terraform model object.
@@ -305,4 +319,30 @@ func makeDatabasePermissionsFromModel(ctx context.Context, p DatabasePermissions
 		DataModel:     dataModel,
 		Details:       details,
 	}, diags
+}
+
+// Returns whether the given database exists.
+func databaseExists(ctx context.Context, client *metabase.ClientWithResponses, databaseId int64) (bool, diag.Diagnostics) {
+	getResp, err := client.GetDatabaseWithResponse(ctx, int(databaseId))
+
+	diags := checkMetabaseResponse(getResp, err, []int{200, 404}, "get database")
+	if diags.HasError() {
+		return false, diags
+	}
+
+	return getResp.StatusCode() == 200, diags
+}
+
+// Returns an error if the given database does not exist.
+func checkDatabaseExists(ctx context.Context, client *metabase.ClientWithResponses, databaseId int64) diag.Diagnostics {
+	exists, diags := databaseExists(ctx, client, databaseId)
+	if !diags.HasError() && !exists {
+		diags.AddAttributeError(
+			path.Root("database"),
+			"Database not found.",
+			fmt.Sprintf("The database %d does not exist.", databaseId),
+		)
+	}
+
+	return diags
 }

@@ -50,7 +50,9 @@ Permissions for the Administrators group cannot be changed. To avoid issues duri
 
 Metabase never removes a (group, database) pair from the graph. Instead, the pairs which are not in the configuration have their permissions revoked: ` + "`view_data`" + ` is set to ` + "`unrestricted`" + `, and ` + "`create_queries`" + `, ` + "`download`" + ` (as well as ` + "`data_model`" + ` and ` + "`details`" + ` with advanced permissions) are revoked. Pairs with revoked permissions are considered absent when reading the graph.
 
-Metabase grants default permissions when a database or a group is created. Those are reported as changes on the next plan, and are revoked by the next apply if they are not part of the configuration.`,
+Metabase grants default permissions when a database or a group is created. Those are reported as changes on the next plan, and are revoked by the next apply if they are not part of the configuration.
+
+To only manage the permissions of a given group on a given database, and leave all other permissions untouched, use the ` + "`metabase_database_permission`" + ` resource instead.`,
 
 		Attributes: map[string]schema.Attribute{
 			"revision": schema.Int64Attribute{
@@ -368,7 +370,7 @@ func (r *PermissionsGraphResource) Update(ctx context.Context, req resource.Upda
 	var updateResp *metabase.ReplacePermissionsGraphResponse
 	err := r.permissionsGraph.Update(func() error {
 		var err error
-		updateResp, err = r.client.ReplacePermissionsGraphWithResponse(ctx, *body)
+		updateResp, err = r.client.ReplacePermissionsGraphWithResponse(ctx, nil, *body)
 		return err
 	})
 

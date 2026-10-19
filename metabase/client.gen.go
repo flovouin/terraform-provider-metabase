@@ -949,6 +949,12 @@ type UploadContentTranslationDictionaryMultipartBody struct {
 	File openapi_types.File `json:"file"`
 }
 
+// ReplacePermissionsGraphParams defines parameters for ReplacePermissionsGraph.
+type ReplacePermissionsGraphParams struct {
+	// Force Whether the update should be applied even if the revision is outdated.
+	Force *bool `form:"force,omitempty" json:"force,omitempty"`
+}
+
 // GetTableMetadataParams defines parameters for GetTableMetadata.
 type GetTableMetadataParams struct {
 	// IncludeHiddenFields Whether the query should return hidden fields.
@@ -1971,13 +1977,18 @@ type ClientInterface interface {
 	// with any type of body and a specified content type.
 	//
 	// Replaces the permissions graph.
-	ReplacePermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReplacePermissionsGraphWithBody(ctx context.Context, params *ReplacePermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ReplacePermissionsGraph performs a PUT /permissions/graph (the `ReplacePermissionsGraph` operationId) request.
 	// Takes a body of the `application/json` content type.
 	//
 	// Replaces the permissions graph.
-	ReplacePermissionsGraph(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	ReplacePermissionsGraph(ctx context.Context, params *ReplacePermissionsGraphParams, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetPermissionsGraphForGroup performs a GET /permissions/graph/group/{groupId} (the `GetPermissionsGraphForGroup` operationId) request.
+	//
+	// Retrieves the permissions graph, restricted to a single permissions group.
+	GetPermissionsGraphForGroup(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CreatePermissionsGroupWithBody performs a POST /permissions/group (the `CreatePermissionsGroup` operationId) request,
 	// with any type of body and a specified content type.
@@ -2649,8 +2660,8 @@ func (c *Client) GetPermissionsGraph(ctx context.Context, reqEditors ...RequestE
 // with any type of body and a specified content type.
 //
 // Replaces the permissions graph.
-func (c *Client) ReplacePermissionsGraphWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplacePermissionsGraphRequestWithBody(c.Server, contentType, body)
+func (c *Client) ReplacePermissionsGraphWithBody(ctx context.Context, params *ReplacePermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplacePermissionsGraphRequestWithBody(c.Server, params, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -2665,8 +2676,23 @@ func (c *Client) ReplacePermissionsGraphWithBody(ctx context.Context, contentTyp
 // Takes a body of the `application/json` content type.
 //
 // Replaces the permissions graph.
-func (c *Client) ReplacePermissionsGraph(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewReplacePermissionsGraphRequest(c.Server, body)
+func (c *Client) ReplacePermissionsGraph(ctx context.Context, params *ReplacePermissionsGraphParams, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplacePermissionsGraphRequest(c.Server, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetPermissionsGraphForGroup performs a GET /permissions/graph/group/{groupId} (the `GetPermissionsGraphForGroup` operationId) request.
+//
+// Retrieves the permissions graph, restricted to a single permissions group.
+func (c *Client) GetPermissionsGraphForGroup(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetPermissionsGraphForGroupRequest(c.Server, groupId)
 	if err != nil {
 		return nil, err
 	}
@@ -4051,18 +4077,18 @@ func NewGetPermissionsGraphRequest(server string) (*http.Request, error) {
 }
 
 // NewReplacePermissionsGraphRequest calls the generic ReplacePermissionsGraph builder with application/json body
-func NewReplacePermissionsGraphRequest(server string, body ReplacePermissionsGraphJSONRequestBody) (*http.Request, error) {
+func NewReplacePermissionsGraphRequest(server string, params *ReplacePermissionsGraphParams, body ReplacePermissionsGraphJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewReplacePermissionsGraphRequestWithBody(server, "application/json", bodyReader)
+	return NewReplacePermissionsGraphRequestWithBody(server, params, "application/json", bodyReader)
 }
 
 // NewReplacePermissionsGraphRequestWithBody constructs an http.Request for the ReplacePermissionsGraph method, with any body, and a specified content type
-func NewReplacePermissionsGraphRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+func NewReplacePermissionsGraphRequestWithBody(server string, params *ReplacePermissionsGraphParams, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -4080,12 +4106,73 @@ func NewReplacePermissionsGraphRequestWithBody(server string, contentType string
 		return nil, err
 	}
 
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Force != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "force", *params.Force, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
 	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetPermissionsGraphForGroupRequest constructs an http.Request for the GetPermissionsGraphForGroup method
+func NewGetPermissionsGraphForGroupRequest(server string, groupId int) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "groupId", groupId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/permissions/graph/group/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -4988,13 +5075,20 @@ type ClientWithResponsesInterface interface {
 	// Replaces the permissions graph.
 	//
 	// Returns a wrapper object for the known response body format(s).
-	ReplacePermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error)
+	ReplacePermissionsGraphWithBodyWithResponse(ctx context.Context, params *ReplacePermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error)
 
 	// ReplacePermissionsGraphWithResponse performs a PUT /permissions/graph (the `ReplacePermissionsGraph` operationId) request.
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Replaces the permissions graph.
-	ReplacePermissionsGraphWithResponse(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error)
+	ReplacePermissionsGraphWithResponse(ctx context.Context, params *ReplacePermissionsGraphParams, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error)
+
+	// GetPermissionsGraphForGroupWithResponse performs a GET /permissions/graph/group/{groupId} (the `GetPermissionsGraphForGroup` operationId) request.
+	//
+	// Retrieves the permissions graph, restricted to a single permissions group.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	GetPermissionsGraphForGroupWithResponse(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*GetPermissionsGraphForGroupResponse, error)
 
 	// CreatePermissionsGroupWithBodyWithResponse performs a POST /permissions/group (the `CreatePermissionsGroup` operationId) request,
 	// with any type of body and a specified content type.
@@ -6190,6 +6284,47 @@ func (r ReplacePermissionsGraphResponse) ContentType() string {
 	return ""
 }
 
+type GetPermissionsGraphForGroupResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PermissionsGraph
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetPermissionsGraphForGroupResponse) GetJSON200() *PermissionsGraph {
+	return r.JSON200
+}
+
+// GetBody returns the raw response body bytes
+func (r GetPermissionsGraphForGroupResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetPermissionsGraphForGroupResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetPermissionsGraphForGroupResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetPermissionsGraphForGroupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type CreatePermissionsGroupResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -7217,8 +7352,8 @@ func (c *ClientWithResponses) GetPermissionsGraphWithResponse(ctx context.Contex
 // Replaces the permissions graph.
 //
 // Returns a wrapper object for the known response body format(s).
-func (c *ClientWithResponses) ReplacePermissionsGraphWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error) {
-	rsp, err := c.ReplacePermissionsGraphWithBody(ctx, contentType, body, reqEditors...)
+func (c *ClientWithResponses) ReplacePermissionsGraphWithBodyWithResponse(ctx context.Context, params *ReplacePermissionsGraphParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error) {
+	rsp, err := c.ReplacePermissionsGraphWithBody(ctx, params, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -7229,12 +7364,25 @@ func (c *ClientWithResponses) ReplacePermissionsGraphWithBodyWithResponse(ctx co
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
 // Replaces the permissions graph.
-func (c *ClientWithResponses) ReplacePermissionsGraphWithResponse(ctx context.Context, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error) {
-	rsp, err := c.ReplacePermissionsGraph(ctx, body, reqEditors...)
+func (c *ClientWithResponses) ReplacePermissionsGraphWithResponse(ctx context.Context, params *ReplacePermissionsGraphParams, body ReplacePermissionsGraphJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplacePermissionsGraphResponse, error) {
+	rsp, err := c.ReplacePermissionsGraph(ctx, params, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
 	return ParseReplacePermissionsGraphResponse(rsp)
+}
+
+// GetPermissionsGraphForGroupWithResponse performs a GET /permissions/graph/group/{groupId} (the `GetPermissionsGraphForGroup` operationId) request.
+//
+// Retrieves the permissions graph, restricted to a single permissions group.
+//
+// Returns a wrapper object for the known response body format(s).
+func (c *ClientWithResponses) GetPermissionsGraphForGroupWithResponse(ctx context.Context, groupId int, reqEditors ...RequestEditorFn) (*GetPermissionsGraphForGroupResponse, error) {
+	rsp, err := c.GetPermissionsGraphForGroup(ctx, groupId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetPermissionsGraphForGroupResponse(rsp)
 }
 
 // CreatePermissionsGroupWithBodyWithResponse performs a POST /permissions/group (the `CreatePermissionsGroup` operationId) request,
@@ -8154,6 +8302,32 @@ func ParseReplacePermissionsGraphResponse(rsp *http.Response) (*ReplacePermissio
 	}
 
 	response := &ReplacePermissionsGraphResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PermissionsGraph
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetPermissionsGraphForGroupResponse parses an HTTP response from a GetPermissionsGraphForGroupWithResponse call
+func ParseGetPermissionsGraphForGroupResponse(rsp *http.Response) (*GetPermissionsGraphForGroupResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetPermissionsGraphForGroupResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}

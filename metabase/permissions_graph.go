@@ -1,5 +1,7 @@
 package metabase
 
+import "strconv"
+
 // This file defines constructors for the union types of the permissions graph, for the values which apply to an entire
 // database. Setting such a value marshals a string, which cannot fail.
 //
@@ -80,4 +82,38 @@ func (p PermissionsGraphDatabasePermissions) IsRevoked() bool {
 	}
 
 	return p.Details == nil || *p.Details == PermissionsGraphDatabasePermissionsDetailsNo
+}
+
+// Returns the permissions of the edge, with the omitted `download`, `data-model` and `details` permissions set to their
+// revoked values. Metabase omits revoked permissions from its responses, so the omitted permissions are revoked, like
+// an omitted `create-queries` permission is `no`. Advanced permissions are always omitted on the free edition.
+func (p PermissionsGraphDatabasePermissions) WithOmittedPermissionsRevoked() PermissionsGraphDatabasePermissions {
+	revoked := NewRevokedDatabasePermissions(true)
+	if p.Download == nil {
+		p.Download = revoked.Download
+	}
+	if p.DataModel == nil {
+		p.DataModel = revoked.DataModel
+	}
+	if p.Details == nil {
+		p.Details = revoked.Details
+	}
+
+	return p
+}
+
+// Returns the permissions of the given group on the given database, or `nil` if the graph does not contain them, or if
+// they do not define the `view-data` permission.
+func (g PermissionsGraph) FindDatabasePermissions(groupId int, databaseId int) *PermissionsGraphDatabasePermissions {
+	dbPermissionsMap, ok := g.Groups[strconv.Itoa(groupId)]
+	if !ok {
+		return nil
+	}
+
+	dbPermissions, ok := dbPermissionsMap[strconv.Itoa(databaseId)]
+	if !ok || !dbPermissions.HasViewData() {
+		return nil
+	}
+
+	return &dbPermissions
 }

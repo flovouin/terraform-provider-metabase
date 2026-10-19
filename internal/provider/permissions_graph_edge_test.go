@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"testing"
 
 	"github.com/flovouin/terraform-provider-metabase/metabase"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -48,4 +49,23 @@ func testAccCheckRevokedDatabasePermissions(groupId string, databaseId func(*ter
 
 		return nil
 	}
+}
+
+func TestDatabaseExists(t *testing.T) {
+	fake, client := newFakeMetabaseServer(t)
+	fake.missingDatabases["2"] = true
+
+	exists, diags := databaseExists(context.Background(), client, 1)
+	if diags.HasError() || !exists {
+		t.Errorf("Expected database 1 to exist, got %v (%v).", exists, diags)
+	}
+	if diags := checkDatabaseExists(context.Background(), client, 1); len(diags) != 0 {
+		t.Errorf("Expected no diagnostics for database 1, got: %v", diags)
+	}
+
+	exists, diags = databaseExists(context.Background(), client, 2)
+	if diags.HasError() || exists {
+		t.Errorf("Expected database 2 not to exist, got %v (%v).", exists, diags)
+	}
+	checkAttributeError(t, checkDatabaseExists(context.Background(), client, 2), "database", "Database not found.")
 }

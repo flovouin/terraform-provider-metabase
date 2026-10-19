@@ -177,3 +177,40 @@ func getIgnoredPermissionsGroups(ctx context.Context, list types.Set) (map[strin
 
 	return ignoredGroups, diags
 }
+
+// The private state of a resource, as provided by the framework (e.g. `req.Private` or `resp.Private`).
+type privateState interface {
+	GetKey(ctx context.Context, key string) ([]byte, diag.Diagnostics)
+	SetKey(ctx context.Context, key string, value []byte) diag.Diagnostics
+}
+
+// A key of the private state, under which a JSON value of type T is stored.
+type privateStateKey[T any] string
+
+// Returns the value stored under the given key of the private state, or `nil` if none is stored.
+func readPrivateState[T any](ctx context.Context, private privateState, key privateStateKey[T]) (*T, diag.Diagnostics) {
+	b, diags := private.GetKey(ctx, string(key))
+	if diags.HasError() || b == nil {
+		return nil, diags
+	}
+
+	var v T
+	if err := json.Unmarshal(b, &v); err != nil {
+		diags.AddError(fmt.Sprintf("Unexpected error reading %q from the private state.", key), err.Error())
+		return nil, diags
+	}
+
+	return &v, diags
+}
+
+// Stores the given value under the given key of the private state.
+func writePrivateState[T any](ctx context.Context, private privateState, key privateStateKey[T], value T) diag.Diagnostics {
+	b, err := json.Marshal(value)
+	if err != nil {
+		var diags diag.Diagnostics
+		diags.AddError(fmt.Sprintf("Unexpected error storing %q in the private state.", key), err.Error())
+		return diags
+	}
+
+	return private.SetKey(ctx, string(key), b)
+}
