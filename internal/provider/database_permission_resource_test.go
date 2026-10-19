@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -205,7 +206,7 @@ func testAccSetDatabasePermissions(t *testing.T, groupId string, databaseId stri
 		t.Fatalf("Failed to parse permissions: %v", err)
 	}
 
-	diags := updateDatabasePermissions(context.Background(), testAccMetabaseClient, graphlock.NewPermissionsGraphTracker(), mustParseInt64(t, groupId), mustParseInt64(t, databaseId), p)
+	_, diags := updateDatabasePermissions(context.Background(), testAccMetabaseClient, graphlock.NewPermissionsGraphTracker(), mustParseInt64(t, groupId), mustParseInt64(t, databaseId), p)
 	if diags.HasError() {
 		t.Fatalf("Failed to set permissions: %v", diags)
 	}
@@ -292,6 +293,112 @@ resource "metabase_database_permission" "blocked" {
 	})
 }
 
+// Deletes a group which is not managed by Terraform. Metabase drops the edges of a deleted group from the permissions
+// graph. The resource is considered deleted, so the next apply tries to create it again, and fails.
+func TestAccDatabasePermissionResourceDeletedGroup(t *testing.T) {
+	if os.Getenv(resource.EnvTfAcc) == "" {
+		t.Skipf("Acceptance tests skipped unless env '%s' set", resource.EnvTfAcc)
+	}
+
+	groupId := testAccCreateBystanderGroup(t, "🗑️ Database permission deleted group")
+	config := providerApiKeyConfig + testAccDatabasePermission("deleted", strconv.Itoa(groupId), "query-builder")
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+			},
+			{
+				PreConfig: func() {
+					resp, err := testAccMetabaseClient.DeletePermissionsGroupWithResponse(context.Background(), groupId)
+					if err != nil || resp.StatusCode() != 204 {
+						t.Fatalf("Failed to delete the group: %v", err)
+					}
+				},
+				Config:      config,
+				ExpectError: regexp.MustCompile("Group not found"),
+			},
+		},
+	})
+}
+
+// Deletes a database which is not managed by Terraform. Metabase drops the edges of a deleted database from the
+// permissions graph. The resource is considered deleted, so the next apply tries to create it again, and fails.
+func TestAccDatabasePermissionResourceDeletedDatabase(t *testing.T) {
+	if os.Getenv(resource.EnvTfAcc) == "" {
+		t.Skipf("Acceptance tests skipped unless env '%s' set", resource.EnvTfAcc)
+	}
+
+	databaseId := testAccCreateBystanderDatabase(t, "🗑️ Database permission deleted database")
+	config := providerApiKeyConfig + fmt.Sprintf(`
+resource "metabase_permissions_group" "deleted_database" {
+  name = "🗑️ Database permission deleted database"
+}
+
+resource "metabase_database_permission" "deleted" {
+  group          = metabase_permissions_group.deleted_database.id
+  database       = %d
+  view_data      = "unrestricted"
+  create_queries = "query-builder"
+}
+`, databaseId)
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+			},
+			{
+				PreConfig: func() {
+					resp, err := testAccMetabaseClient.DeleteDatabaseWithResponse(context.Background(), databaseId)
+					if err != nil || resp.StatusCode() != 204 {
+						t.Fatalf("Failed to delete the database: %v, %v", err, resp)
+					}
+				},
+				Config:      config,
+				ExpectError: regexp.MustCompile("Database not found"),
+			},
+		},
+	})
+}
+
+// Creates a database directly using the Metabase API, connected to the same PostgreSQL database as Metabase, and
+// returns its ID. The database is deleted at the end of the test, unless it was deleted by the test.
+func testAccCreateBystanderDatabase(t *testing.T, name string) int {
+	t.Helper()
+
+	var details metabase.DatabaseDetails
+	if err := details.FromDatabaseDetailsCustom(metabase.DatabaseDetailsCustom{
+		"host":           os.Getenv("PG_HOST"),
+		"port":           5432,
+		"dbname":         os.Getenv("PG_DATABASE"),
+		"user":           os.Getenv("PG_USER"),
+		"password":       os.Getenv("PG_PASSWORD"),
+		"ssl":            false,
+		"tunnel-enabled": false,
+	}); err != nil {
+		t.Fatalf("Failed to build the database details: %v", err)
+	}
+
+	response, err := testAccMetabaseClient.CreateDatabaseWithResponse(context.Background(), metabase.CreateDatabaseBody{
+		Name:    name,
+		Engine:  "postgres",
+		Details: details,
+	})
+	if err != nil || response.StatusCode() != 200 {
+		t.Fatalf("Failed to create the database: %v, %v", err, response)
+	}
+
+	databaseId := response.JSON200.Id
+	t.Cleanup(func() {
+		_, _ = testAccMetabaseClient.DeleteDatabaseWithResponse(context.Background(), databaseId)
+	})
+
+	return databaseId
+}
+
 // Creates many database permissions at once. Terraform applies them in parallel, which the provider should serialize.
 func TestAccDatabasePermissionResourceParallel(t *testing.T) {
 	const count = 8
@@ -326,7 +433,7 @@ resource "metabase_database_permission" "parallel_%[1]d" {
 	})
 }
 
-func testAccDatabasePermissionDrift() string {
+func testAccDatabasePermissionDrift(createQueries string) string {
 	return fmt.Sprintf(`
 resource "metabase_permissions_group" "drift" {
   name = "🌊 Database permission drift"
@@ -339,8 +446,7 @@ resource "metabase_database_permission" "drift" {
   create_queries = %s
 }
 `,
-		// Metabase prunes the table set to "no" from its response, which should not be reported as a change.
-		perTableCreateQueries(6),
+		createQueries,
 	)
 }
 
@@ -354,8 +460,14 @@ func TestAccDatabasePermissionResourceDrift(t *testing.T) {
 		Steps: []resource.TestStep{
 			{
 				// The framework fails the step if the plan after the apply is not empty, i.e. if the reshaped response
-				// is reported as a change.
-				Config: providerApiKeyConfig + testAccDatabasePermissionDrift(),
+				// is reported as a change. Every table has the same value, so Metabase collapses its response to a
+				// single value.
+				Config: providerApiKeyConfig + testAccDatabasePermissionDrift(perTableCreateQueries()),
+			},
+			{
+				// Metabase prunes the table set to "no" from its response, which should not be reported as a change
+				// either.
+				Config: providerApiKeyConfig + testAccDatabasePermissionDrift(perTableCreateQueries(6)),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					testAccStoreAttribute("metabase_database_permission.drift", "group", &groupId),
 				),
@@ -365,13 +477,13 @@ func TestAccDatabasePermissionResourceDrift(t *testing.T) {
 				PreConfig: func() {
 					testAccSetDatabasePermissions(t, groupId, "1", `{"view-data":"unrestricted","create-queries":"query-builder-and-native"}`)
 				},
-				Config:             providerApiKeyConfig + testAccDatabasePermissionDrift(),
+				Config:             providerApiKeyConfig + testAccDatabasePermissionDrift(perTableCreateQueries(6)),
 				PlanOnly:           true,
 				ExpectNonEmptyPlan: true,
 			},
 			{
 				// Applying the configuration reverts the change.
-				Config: providerApiKeyConfig + testAccDatabasePermissionDrift(),
+				Config: providerApiKeyConfig + testAccDatabasePermissionDrift(perTableCreateQueries(6)),
 				Check: resource.ComposeAggregateTestCheckFunc(
 					func(s *terraform.State) error {
 						createQueries, err := testAccGetCreateQueries(getGroup(), "1")
@@ -389,8 +501,57 @@ func TestAccDatabasePermissionResourceDrift(t *testing.T) {
 	})
 }
 
+// Reads the graph restricted to the group of the edge. Metabase drops the edges of deleted groups and databases from
+// the graph, which is how the resource is considered deleted. The edges themselves are found by
+// `metabase.PermissionsGraph.FindDatabasePermissions`.
+func TestGetDatabasePermissions(t *testing.T) {
+	fake, client := newFakeMetabaseServer(t)
+	fake.permissionsGraph["3"] = map[string]json.RawMessage{
+		"1": json.RawMessage(`{"view-data":"unrestricted","create-queries":"query-builder"}`),
+	}
+	fake.permissionsGraph["4"] = map[string]json.RawMessage{
+		"1": json.RawMessage(`{"view-data":"unrestricted"}`),
+	}
+	fake.missingGroups["4"] = true
+
+	tests := map[string]struct {
+		group         int64
+		database      int64
+		createQueries string
+	}{
+		"existing edge":           {group: 3, database: 1, createQueries: "query-builder"},
+		"group which was deleted": {group: 4, database: 1},
+	}
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			permissions, diags := getDatabasePermissions(context.Background(), client, test.group, test.database)
+			if diags.HasError() {
+				t.Fatalf("Unexpected error: %v", diags)
+			}
+
+			if test.createQueries == "" {
+				if permissions != nil {
+					t.Errorf("Expected no permissions, got %v.", permissions)
+				}
+				return
+			}
+
+			if permissions == nil || permissions.CreateQueries == nil {
+				t.Fatalf("Expected permissions, got %v.", permissions)
+			}
+			createQueries, err := permissions.CreateQueries.AsPermissionsGraphDatabasePermissionsCreateQueries0()
+			if err != nil || string(createQueries) != test.createQueries {
+				t.Errorf("Expected create-queries %q, got %q (%v).", test.createQueries, createQueries, err)
+			}
+		})
+	}
+}
+
 func TestWriteDatabasePermissionsOnlySendsConfiguredOptionalPermissions(t *testing.T) {
 	fake, client := newFakeMetabaseServer(t)
+	// The update is forced, so it is accepted even though the graph has changed since revision 0.
+	fake.permissionsGraphRevision = 3
 	r := &DatabasePermissionResource{MetabaseBaseResource{metabaseResourceData: metabaseResourceData{
 		client:           client,
 		permissionsGraph: graphlock.NewPermissionsGraphTracker(),
@@ -399,7 +560,7 @@ func TestWriteDatabasePermissionsOnlySendsConfiguredOptionalPermissions(t *testi
 	previousDownload := types.ObjectValueMust(accessPermissionsObjectType.AttrTypes, map[string]attr.Value{
 		"schemas": types.StringValue("full"),
 	})
-	plan := DatabasePermissionResourceModel{
+	plan := DatabasePermissionResourceModel{DatabasePermissions: DatabasePermissions{
 		Group:         types.Int64Value(3),
 		Database:      types.Int64Value(1),
 		ViewData:      types.StringValue("unrestricted"),
@@ -408,13 +569,13 @@ func TestWriteDatabasePermissionsOnlySendsConfiguredOptionalPermissions(t *testi
 		Download:  previousDownload,
 		DataModel: types.ObjectUnknown(accessPermissionsObjectType.AttrTypes),
 		Details:   types.StringUnknown(),
-	}
+	}}
 	config := plan
 	config.Download = types.ObjectNull(accessPermissionsObjectType.AttrTypes)
 	config.DataModel = types.ObjectNull(accessPermissionsObjectType.AttrTypes)
 	config.Details = types.StringNull()
 
-	_, diags := r.writeDatabasePermissions(context.Background(), &plan, config)
+	_, diags := r.writeDatabasePermissions(context.Background(), makeRequestedDatabasePermissions(plan, config))
 	if diags.HasError() {
 		t.Fatalf("Unexpected error: %v", diags)
 	}
@@ -433,7 +594,37 @@ func TestWriteDatabasePermissionsOnlySendsConfiguredOptionalPermissions(t *testi
 	}
 }
 
-func TestMakeComparableDatabasePermissions(t *testing.T) {
+// The permissions may be unknown when the configuration is validated, so they are checked again before the update.
+func TestWriteDatabasePermissionsChecksPermissions(t *testing.T) {
+	fake, client := newFakeMetabaseServer(t)
+	r := &DatabasePermissionResource{MetabaseBaseResource{metabaseResourceData: metabaseResourceData{
+		client:           client,
+		permissionsGraph: graphlock.NewPermissionsGraphTracker(),
+	}}}
+
+	plan := DatabasePermissionResourceModel{DatabasePermissions: DatabasePermissions{
+		Group:         types.Int64Value(3),
+		Database:      types.Int64Value(1),
+		ViewData:      types.StringValue("blocked"),
+		CreateQueries: types.StringValue("query-builder"),
+		Download:      types.ObjectUnknown(accessPermissionsObjectType.AttrTypes),
+		DataModel:     types.ObjectUnknown(accessPermissionsObjectType.AttrTypes),
+		Details:       types.StringUnknown(),
+	}}
+	config := plan
+	config.Download = types.ObjectNull(accessPermissionsObjectType.AttrTypes)
+	config.DataModel = types.ObjectNull(accessPermissionsObjectType.AttrTypes)
+	config.Details = types.StringNull()
+
+	_, diags := r.writeDatabasePermissions(context.Background(), makeRequestedDatabasePermissions(plan, config))
+	checkAttributeError(t, diags, "create_queries", "Invalid permissions for blocked data.")
+
+	if len(fake.acceptedUpdates) != 0 {
+		t.Errorf("Expected no update, got %d.", len(fake.acceptedUpdates))
+	}
+}
+
+func TestWrittenDatabasePermissionsEqual(t *testing.T) {
 	parse := func(s string) metabase.PermissionsGraphDatabasePermissions {
 		var p metabase.PermissionsGraphDatabasePermissions
 		if err := json.Unmarshal([]byte(s), &p); err != nil {
@@ -442,13 +633,59 @@ func TestMakeComparableDatabasePermissions(t *testing.T) {
 		return p
 	}
 
-	a, errA := makeComparableDatabasePermissions(parse(`{"view-data":"unrestricted","create-queries":{"PUBLIC":{"1":"query-builder","2":"no"}},"download":{"schemas":"full"}}`))
-	b, errB := makeComparableDatabasePermissions(parse(`{"create-queries":{"PUBLIC":{"2":"no","1":"query-builder"}},"view-data":"unrestricted"}`))
-	if errA != nil || errB != nil {
-		t.Fatalf("Unexpected errors: %v, %v", errA, errB)
+	tests := map[string]struct {
+		a        string
+		b        string
+		expected bool
+	}{
+		"key order and other permissions ignored": {
+			a:        `{"view-data":"unrestricted","create-queries":{"PUBLIC":{"1":"query-builder","2":"no"}},"download":{"schemas":"full"}}`,
+			b:        `{"create-queries":{"PUBLIC":{"2":"no","1":"query-builder"}},"view-data":"unrestricted"}`,
+			expected: true,
+		},
+		"different create queries": {
+			a:        `{"view-data":"unrestricted","create-queries":"query-builder"}`,
+			b:        `{"view-data":"unrestricted","create-queries":"query-builder-and-native"}`,
+			expected: false,
+		},
+		"missing create queries": {
+			a:        `{"view-data":"unrestricted","create-queries":"query-builder"}`,
+			b:        `{"view-data":"unrestricted"}`,
+			expected: false,
+		},
+		"reshaped view data": {
+			a:        `{"view-data":{"PUBLIC":"unrestricted"}}`,
+			b:        `{"view-data":"unrestricted"}`,
+			expected: false,
+		},
 	}
-	if string(a) != string(b) {
-		t.Errorf("Expected the key order and other permissions to be ignored, got %s and %s.", a, b)
+
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			a := makeWrittenDatabasePermissions(parse(test.a))
+			b := makeWrittenDatabasePermissions(parse(test.b))
+			if actual := a.equal(b); actual != test.expected {
+				t.Errorf("Expected %t, got %t.", test.expected, actual)
+			}
+		})
+	}
+}
+
+func TestMakeWrittenDatabasePermissions(t *testing.T) {
+	var p metabase.PermissionsGraphDatabasePermissions
+	if err := json.Unmarshal([]byte(`{"view-data":"unrestricted","create-queries":{"PUBLIC":{"1":"query-builder"}},"download":{"schemas":"full"},"details":"yes"}`), &p); err != nil {
+		t.Fatalf("Failed to parse permissions: %v", err)
+	}
+
+	written, err := json.Marshal(makeWrittenDatabasePermissions(p))
+	if err != nil {
+		t.Fatalf("Failed to serialize the permissions: %v", err)
+	}
+
+	// This is the JSON value stored in the private state.
+	expected := `{"view-data":"unrestricted","create-queries":{"PUBLIC":{"1":"query-builder"}}}`
+	if string(written) != expected {
+		t.Errorf("Expected %s, got %s.", expected, written)
 	}
 }
 
@@ -487,8 +724,6 @@ resource "metabase_database_permission" "lowest" {
 				ResourceName:      "metabase_database_permission.lowest",
 				ImportState:       true,
 				ImportStateVerify: true,
-				// Metabase omits revoked permissions, so an imported `download` permission set to `none` is read as null.
-				ImportStateVerifyIgnore: []string{"download"},
 			},
 		},
 	})
@@ -504,7 +739,7 @@ func testAccResourceAttribute(s *terraform.State, resourceName string, attribute
 	return rs.Primary.Attributes[attribute], nil
 }
 
-func TestCheckBlockedViewData(t *testing.T) {
+func TestCheckDatabasePermissions(t *testing.T) {
 	download := func(schemas string) types.Object {
 		return types.ObjectValueMust(accessPermissionsObjectType.AttrTypes, map[string]attr.Value{"schemas": types.StringValue(schemas)})
 	}
@@ -527,7 +762,7 @@ func TestCheckBlockedViewData(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			diags := checkBlockedViewData(DatabasePermissionResourceModel{
+			diags := checkDatabasePermissions(DatabasePermissions{
 				ViewData:      test.viewData,
 				CreateQueries: test.createQueries,
 				Download:      test.download,

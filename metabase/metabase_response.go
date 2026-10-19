@@ -168,6 +168,14 @@ func (r *GetPermissionsGraphResponse) HasExpectedStatusWithoutExpectedBody() boo
 	return r.StatusCode() == 200 && r.JSON200 == nil
 }
 
+func (r *GetPermissionsGraphForGroupResponse) BodyString() string {
+	return string(r.Body)
+}
+
+func (r *GetPermissionsGraphForGroupResponse) HasExpectedStatusWithoutExpectedBody() bool {
+	return r.StatusCode() == 200 && r.JSON200 == nil
+}
+
 func (r *ReplacePermissionsGraphResponse) BodyString() string {
 	return string(r.Body)
 }

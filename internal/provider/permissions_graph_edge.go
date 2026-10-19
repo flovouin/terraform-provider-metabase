@@ -74,8 +74,26 @@ func makeAccessPermissionsFromDatabaseAccess(ctx context.Context, da *metabase.P
 	return &obj, diags
 }
 
-// Makes a single `DatabasePermissions` Terraform object from a Metabase API's response.
+// Makes a single `DatabasePermissions` Terraform object from a Metabase API's response (see
+// `makeDatabasePermissionsModel`).
 func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId int, dbId int, p metabase.PermissionsGraphDatabasePermissions, existing *DatabasePermissions) (*types.Object, diag.Diagnostics) {
+	model, diags := makeDatabasePermissionsModel(ctx, groupId, dbId, p, existing)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, model)
+	diags.Append(objectDiags...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	return &permissionsObject, diags
+}
+
+// Makes the `DatabasePermissions` model of a single edge from a Metabase API's response. When `existing` is not `nil`,
+// its JSON values of `view_data` and `create_queries` are kept if Metabase returns them in a different shape.
+func makeDatabasePermissionsModel(ctx context.Context, groupId int, dbId int, p metabase.PermissionsGraphDatabasePermissions, existing *DatabasePermissions) (*DatabasePermissions, diag.Diagnostics) {
 	var diags diag.Diagnostics
 
 	downloadAccess, accessDiags := makeAccessPermissionsFromDatabaseAccess(ctx, p.Download)
@@ -184,7 +202,7 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 		}
 	}
 
-	permissionsObject, objectDiags := types.ObjectValueFrom(ctx, databasePermissionsObjectType.AttrTypes, DatabasePermissions{
+	return &DatabasePermissions{
 		Group:         types.Int64Value(int64(groupId)),
 		Database:      types.Int64Value(int64(dbId)),
 		ViewData:      types.StringValue(viewData),
@@ -192,13 +210,7 @@ func makePermissionsObjectFromDatabasePermissions(ctx context.Context, groupId i
 		Download:      *downloadAccess,
 		DataModel:     *dataModelAccess,
 		Details:       stringValueOrNull(p.Details),
-	})
-	diags.Append(objectDiags...)
-	if diags.HasError() {
-		return nil, diags
-	}
-
-	return &permissionsObject, diags
+	}, diags
 }
 
 // Makes a Metabase API `PermissionsGraphDatabaseAccess` struct from a Terraform model object.

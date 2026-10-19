@@ -370,7 +370,7 @@ func (r *PermissionsGraphResource) Update(ctx context.Context, req resource.Upda
 	var updateResp *metabase.ReplacePermissionsGraphResponse
 	err := r.permissionsGraph.Update(func() error {
 		var err error
-		updateResp, err = r.client.ReplacePermissionsGraphWithResponse(ctx, *body)
+		updateResp, err = r.client.ReplacePermissionsGraphWithResponse(ctx, nil, *body)
 		return err
 	})
 

@@ -1,10 +1,10 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strconv"
 
 	"github.com/flovouin/terraform-provider-metabase/internal/graphlock"
@@ -18,7 +18,6 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/types"
-	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 )
 
 // Ensures provider defined types fully satisfy framework interfaces.
@@ -42,40 +41,8 @@ type DatabasePermissionResource struct {
 // The Terraform model for a single edge of the permissions graph.
 // Apart from the ID, the attributes are the same as an edge in the `metabase_permissions_graph` resource.
 type DatabasePermissionResourceModel struct {
-	Id            types.String `tfsdk:"id"`             // The ID of the edge, as `<group>/<database>`.
-	Group         types.Int64  `tfsdk:"group"`          // The ID of the permissions group to which the permission applies.
-	Database      types.Int64  `tfsdk:"database"`       // The ID of the database to which the permission applies.
-	ViewData      types.String `tfsdk:"view_data"`      // View data access permission.
-	CreateQueries types.String `tfsdk:"create_queries"` // Create queries access permission.
-	Download      types.Object `tfsdk:"download"`       // Download-related permission.
-	DataModel     types.Object `tfsdk:"data_model"`     // Data-model-related permission.
-	Details       types.String `tfsdk:"details"`        // Details permission.
-}
-
-// Converts the resource model to the model of an edge in the permissions graph. Values which are not known yet (not set
-// in the configuration and not in the state) are converted to null, meaning they are not sent to Metabase.
-func (m DatabasePermissionResourceModel) toEdge() DatabasePermissions {
-	nullIfUnknown := func(o types.Object) types.Object {
-		if o.IsUnknown() {
-			return types.ObjectNull(accessPermissionsObjectType.AttrTypes)
-		}
-		return o
-	}
-
-	details := m.Details
-	if details.IsUnknown() {
-		details = types.StringNull()
-	}
-
-	return DatabasePermissions{
-		Group:         m.Group,
-		Database:      m.Database,
-		ViewData:      m.ViewData,
-		CreateQueries: m.CreateQueries,
-		Download:      nullIfUnknown(m.Download),
-		DataModel:     nullIfUnknown(m.DataModel),
-		Details:       details,
-	}
+	Id types.String `tfsdk:"id"` // The ID of the edge, as `<group>/<database>`.
+	DatabasePermissions
 }
 
 func (r *DatabasePermissionResource) Schema(ctx context.Context, req resource.SchemaRequest, resp *resource.SchemaResponse) {
@@ -86,7 +53,7 @@ Unlike the ` + "`metabase_permissions_graph`" + ` resource, which manages the en
 
 ~> **Warning:** Do not use this resource together with a ` + "`metabase_permissions_graph`" + ` resource, and do not define the same (group, database) pair in several ` + "`metabase_database_permission`" + ` resources. They would overwrite each other's permissions.
 
-Each change reads the current revision of the permissions graph and sends only the managed edge to Metabase. Changes made by the provider are performed one at a time.
+Each change only sends the managed edge to Metabase, without checking the revision of the permissions graph, as no other edge is changed. Changes made by the provider are performed one at a time. The permissions are read from the permissions graph restricted to the group, rather than from the entire graph.
 
 ~> **Warning:** Metabase grants default permissions when a database or a group is created, e.g. full access to the All Users group on a new database. This resource only manages its own (group, database) pair, so it cannot see those default permissions. Managing the permissions of the All Users group explicitly is recommended, e.g. with the lowest permissions.
 
@@ -133,7 +100,7 @@ Permissions for the Administrators group (ID ` + "`2`" + `) cannot be changed, a
 				Required:            true,
 			},
 			"download": schema.SingleNestedAttribute{
-				MarkdownDescription: "The permission definition for downloading data. If not set, the current value in Metabase is left as is.",
+				MarkdownDescription: "The permission definition for downloading data. If not set, the current value in Metabase is left as is. When the permission is revoked, Metabase omits it from its responses, and it is reported as `none`.",
 				Optional:            true,
 				Computed:            true,
 				Attributes: map[string]schema.Attribute{
@@ -145,7 +112,7 @@ Permissions for the Administrators group (ID ` + "`2`" + `) cannot be changed, a
 				PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 			},
 			"data_model": schema.SingleNestedAttribute{
-				MarkdownDescription: "The permission definition for accessing the data model. If not set, the current value in Metabase is left as is.",
+				MarkdownDescription: "The permission definition for accessing the data model. If not set, the current value in Metabase is left as is. When the permission is revoked, Metabase omits it from its responses, and it is reported as `none`, which is always the case on the free edition.",
 				Optional:            true,
 				Computed:            true,
 				Attributes: map[string]schema.Attribute{
@@ -157,7 +124,7 @@ Permissions for the Administrators group (ID ` + "`2`" + `) cannot be changed, a
 				PlanModifiers: []planmodifier.Object{objectplanmodifier.UseStateForUnknown()},
 			},
 			"details": schema.StringAttribute{
-				MarkdownDescription: "The permission definition for accessing details. If not set, the current value in Metabase is left as is.",
+				MarkdownDescription: "The permission definition for accessing details. If not set, the current value in Metabase is left as is. When the permission is revoked, Metabase omits it from its responses, and it is reported as `no`, which is always the case on the free edition.",
 				Optional:            true,
 				Computed:            true,
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
@@ -167,31 +134,32 @@ Permissions for the Administrators group (ID ` + "`2`" + `) cannot be changed, a
 }
 
 func (r *DatabasePermissionResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
-	var data DatabasePermissionResourceModel
+	var config DatabasePermissionResourceModel
 
-	resp.Diagnostics.Append(req.Config.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// The group may only be known during the apply, in which case it is checked when creating the resource.
-	if !data.Group.IsNull() && !data.Group.IsUnknown() {
-		resp.Diagnostics.Append(checkGroupIsNotAdministrators(data.Group.ValueInt64())...)
+	if !config.Group.IsNull() && !config.Group.IsUnknown() {
+		resp.Diagnostics.Append(checkGroupIsNotAdministrators(config.Group.ValueInt64())...)
 	}
 
-	resp.Diagnostics.Append(checkBlockedViewData(data)...)
+	resp.Diagnostics.Append(checkDatabasePermissions(config.DatabasePermissions)...)
 }
 
-// Returns an error if the permissions contradict a `view_data` permission set to `blocked` for the entire database.
-// Metabase then revokes `create-queries` and `download`, which would differ from the configuration after the apply.
-func checkBlockedViewData(data DatabasePermissionResourceModel) diag.Diagnostics {
+// Returns errors for the combinations of permissions which Metabase changes when they are applied, and which would then
+// differ from the configuration after the apply. When `view_data` is set to `blocked` for the entire database, Metabase
+// revokes `create-queries` and `download`.
+func checkDatabasePermissions(permissions DatabasePermissions) diag.Diagnostics {
 	var diags diag.Diagnostics
 
-	if data.ViewData.IsUnknown() || data.ViewData.ValueString() != string(metabase.PermissionsGraphDatabasePermissionsViewData0Blocked) {
+	if permissions.ViewData.IsUnknown() || permissions.ViewData.ValueString() != string(metabase.PermissionsGraphDatabasePermissionsViewData0Blocked) {
 		return diags
 	}
 
-	if !data.CreateQueries.IsUnknown() && data.CreateQueries.ValueString() != string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No) {
+	if !permissions.CreateQueries.IsUnknown() && permissions.CreateQueries.ValueString() != string(metabase.PermissionsGraphDatabasePermissionsCreateQueries0No) {
 		diags.AddAttributeError(
 			path.Root("create_queries"),
 			"Invalid permissions for blocked data.",
@@ -199,8 +167,8 @@ func checkBlockedViewData(data DatabasePermissionResourceModel) diag.Diagnostics
 		)
 	}
 
-	if !data.Download.IsNull() && !data.Download.IsUnknown() {
-		schemas, ok := data.Download.Attributes()["schemas"].(types.String)
+	if !permissions.Download.IsNull() && !permissions.Download.IsUnknown() {
+		schemas, ok := permissions.Download.Attributes()["schemas"].(types.String)
 		if ok && !schemas.IsUnknown() && schemas.ValueString() != string(metabase.PermissionsGraphDatabaseAccessSchemas0None) {
 			diags.AddAttributeError(
 				path.Root("download"),
@@ -213,18 +181,19 @@ func checkBlockedViewData(data DatabasePermissionResourceModel) diag.Diagnostics
 	return diags
 }
 
-// When the optional permissions are not set in the configuration, their values from the state are used in the plan
-// (see the `UseStateForUnknown` plan modifiers). However Metabase revokes the `download` permission when `view-data` is
-// set to `blocked`, so it is marked as unknown instead when `view_data` changes, unless it becomes `unrestricted`.
+// Checks that the group and the database exist when the resource is created, such that a wrong ID is reported by the
+// plan rather than during the apply. They can only change when the resource is created, as they require a replacement.
+//
+// When the resource is updated, marks `download` as unknown if Metabase may revoke it. When the optional permissions
+// are not set in the configuration, their values from the state are used in the plan (see the `UseStateForUnknown`
+// plan modifiers). However Metabase revokes the `download` permission when `view-data` is set to `blocked`, so it is
+// marked as unknown instead when `view_data` changes, unless it becomes `unrestricted`.
 func (r *DatabasePermissionResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
 	// Nothing to do when deleting the resource.
 	if req.Plan.Raw.IsNull() {
 		return
 	}
 
-	// The group and the database can only change when the resource is created, as they require a replacement. They are
-	// checked by the plan, such that a wrong ID is reported before the apply, unless it is unknown (e.g. when the group
-	// or the database is created in the same apply), in which case it is checked when creating the resource.
 	if req.State.Raw.IsNull() {
 		var plan DatabasePermissionResourceModel
 		resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -232,6 +201,8 @@ func (r *DatabasePermissionResource) ModifyPlan(ctx context.Context, req resourc
 			return
 		}
 
+		// The IDs are unknown when the group or the database is created in the same apply, in which case they are
+		// checked when creating the resource.
 		if !plan.Group.IsUnknown() {
 			resp.Diagnostics.Append(checkPermissionsGroupExists(ctx, r.client, plan.Group.ValueInt64())...)
 		}
@@ -259,213 +230,146 @@ func (r *DatabasePermissionResource) ModifyPlan(ctx context.Context, req resourc
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
 
-// Returns the permissions for the given group and database in the graph, or `nil` if the graph does not contain it or
-// if it does not define the `view-data` permission.
-func findDatabasePermissions(g metabase.PermissionsGraph, groupId int64, databaseId int64) *metabase.PermissionsGraphDatabasePermissions {
-	dbPermissionsMap, ok := g.Groups[strconv.FormatInt(groupId, 10)]
-	if !ok {
-		return nil
+// Reads the permissions for a single edge from the permissions graph restricted to its group (see
+// `metabase.PermissionsGraph.FindDatabasePermissions`). The graph is empty when the group does not exist.
+func getDatabasePermissions(ctx context.Context, client *metabase.ClientWithResponses, groupId int64, databaseId int64) (*metabase.PermissionsGraphDatabasePermissions, diag.Diagnostics) {
+	getResp, err := client.GetPermissionsGraphForGroupWithResponse(ctx, int(groupId))
+
+	diags := checkMetabaseResponse(getResp, err, []int{200}, "get permissions graph")
+	if diags.HasError() {
+		return nil, diags
 	}
 
-	dbPermissions, ok := dbPermissionsMap[strconv.FormatInt(databaseId, 10)]
-	if !ok || !dbPermissions.HasViewData() {
-		return nil
-	}
-
-	return &dbPermissions
+	return getResp.JSON200.FindDatabasePermissions(int(groupId), int(databaseId)), diags
 }
 
-// Sends the given permissions for a single edge of the permissions graph, leaving all other edges untouched. The graph
-// is read right before the update, as the update must include its current revision. The update is serialized with the
-// other updates of the graph by the provider.
-func updateDatabasePermissions(ctx context.Context, client *metabase.ClientWithResponses, tracker *graphlock.PermissionsGraphTracker, groupId int64, databaseId int64, permissions metabase.PermissionsGraphDatabasePermissions) diag.Diagnostics {
-	var diags diag.Diagnostics
-
-	_ = tracker.Update(func() error {
-		getResp, err := client.GetPermissionsGraphWithResponse(ctx)
-
-		diags.Append(checkMetabaseResponse(getResp, err, []int{200}, "get permissions graph")...)
-		if diags.HasError() {
-			return nil
-		}
-
+// Sends the given permissions for a single edge of the permissions graph, leaving all other edges untouched. The
+// revision of the graph is not checked, as no other edge is changed. The update is serialized with the other updates
+// of the graph by the provider. Returns the graph after the update, restricted to the group of the edge.
+func updateDatabasePermissions(ctx context.Context, client *metabase.ClientWithResponses, tracker *graphlock.PermissionsGraphTracker, groupId int64, databaseId int64, permissions metabase.PermissionsGraphDatabasePermissions) (*metabase.PermissionsGraph, diag.Diagnostics) {
+	force := true
+	var updateResp *metabase.ReplacePermissionsGraphResponse
+	err := tracker.Update(func() error {
+		var err error
 		// Metabase only updates the edges present in the request.
-		updateResp, err := client.ReplacePermissionsGraphWithResponse(ctx, metabase.PermissionsGraph{
-			Revision: getResp.JSON200.Revision,
+		updateResp, err = client.ReplacePermissionsGraphWithResponse(ctx, &metabase.ReplacePermissionsGraphParams{Force: &force}, metabase.PermissionsGraph{
 			Groups: map[string]metabase.PermissionsGraphDatabasePermissionsMap{
 				strconv.FormatInt(groupId, 10): {
 					strconv.FormatInt(databaseId, 10): permissions,
 				},
 			},
 		})
-
-		diags.Append(checkMetabaseResponse(updateResp, err, []int{200}, "update permissions graph")...)
-		return nil
+		return err
 	})
 
-	return diags
-}
-
-// The key in the private state storing the `view-data` and `create-queries` permissions returned by Metabase after the
-// last write. See `readDatabasePermissions`.
-const writtenDatabasePermissionsPrivateKey = "written_permissions"
-
-// Returns a canonical JSON serialization of the `view-data` and `create-queries` permissions returned by Metabase, such
-// that two responses can be compared.
-func makeComparableDatabasePermissions(p metabase.PermissionsGraphDatabasePermissions) ([]byte, error) {
-	b, err := json.Marshal(metabase.PermissionsGraphDatabasePermissions{
-		ViewData:      p.ViewData,
-		CreateQueries: p.CreateQueries,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Going through a generic value sorts the keys of JSON objects.
-	var v any
-	if err := json.Unmarshal(b, &v); err != nil {
-		return nil, err
-	}
-
-	return json.Marshal(v)
-}
-
-// Updates the model from the permissions graph returned by the Metabase API.
-// Returns `false` if the graph does not contain the edge for the model. Otherwise, also returns the comparable
-// permissions from the response, which should be stored in the private state after a write.
-//
-// Metabase can return JSON permissions in a different but equivalent shape (e.g. collapsing a uniform object to a
-// single value). To avoid a perpetual diff, the JSON values of the model are kept, as long as the response has not
-// changed since the last write (`written`). If it has, the permissions were changed outside of Terraform, and the
-// response is used instead, such that the change is reported. If `written` is `nil`, the model values are kept.
-func (r *DatabasePermissionResource) readDatabasePermissions(ctx context.Context, data *DatabasePermissionResourceModel, written []byte) (bool, []byte, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	getResp, err := r.client.GetPermissionsGraphWithResponse(ctx)
-
-	diags.Append(checkMetabaseResponse(getResp, err, []int{200}, "get permissions graph")...)
-	if diags.HasError() {
-		return false, nil, diags
-	}
-
-	groupId := data.Group.ValueInt64()
-	databaseId := data.Database.ValueInt64()
-
-	permissions := findDatabasePermissions(*getResp.JSON200, groupId, databaseId)
-	if permissions == nil {
-		return false, nil, diags
-	}
-
-	current, err := makeComparableDatabasePermissions(*permissions)
-	if err != nil {
-		diags.AddError("Unexpected error serializing permissions.", err.Error())
-		return false, nil, diags
-	}
-
-	// Passing the existing model allows keeping the serialization of JSON permissions when Metabase reshapes them.
-	var existing *DatabasePermissions
-	if written == nil || bytes.Equal(written, current) {
-		edge := data.toEdge()
-		existing = &edge
-	}
-	edgeObject, objDiags := makePermissionsObjectFromDatabasePermissions(ctx, int(groupId), int(databaseId), *permissions, existing)
-	diags.Append(objDiags...)
-	if diags.HasError() {
-		return false, nil, diags
-	}
-
-	var edge DatabasePermissions
-	diags.Append(edgeObject.As(ctx, &edge, basetypes.ObjectAsOptions{})...)
-	if diags.HasError() {
-		return false, nil, diags
-	}
-
-	data.Id = types.StringValue(makeGraphEdgeId(groupId, strconv.FormatInt(databaseId, 10)))
-	data.ViewData = edge.ViewData
-	data.CreateQueries = edge.CreateQueries
-	// Metabase omits revoked permissions from its responses, so the revoked values of the model are kept.
-	data.Download = keepRevokedAccessPermissions(edge.Download, data.Download)
-	data.DataModel = keepRevokedAccessPermissions(edge.DataModel, data.DataModel)
-	if !edge.Details.IsNull() || data.Details.ValueString() != string(metabase.PermissionsGraphDatabasePermissionsDetailsNo) {
-		data.Details = edge.Details
-	}
-
-	return true, current, diags
-}
-
-// Returns the access permissions read from Metabase, unless they are missing and the model revokes them. Metabase omits
-// revoked permissions (`none`) from its responses, which would otherwise be reported as a different value.
-func keepRevokedAccessPermissions(read types.Object, model types.Object) types.Object {
-	if !read.IsNull() || model.IsNull() || model.IsUnknown() {
-		return read
-	}
-
-	schemas, ok := model.Attributes()["schemas"].(types.String)
-	if ok && schemas.ValueString() == string(metabase.PermissionsGraphDatabaseAccessSchemas0None) {
-		return model
-	}
-
-	return read
-}
-
-// Sends the permissions defined in the plan to Metabase, and updates the plan with the values returned by Metabase.
-// The optional permissions are only sent when they are set in the configuration. Otherwise, the plan would contain
-// the previous values from the state (or unknown values), which should not be sent back to Metabase.
-// Returns the value to store in the private state (see `readDatabasePermissions`).
-func (r *DatabasePermissionResource) writeDatabasePermissions(ctx context.Context, data *DatabasePermissionResourceModel, config DatabasePermissionResourceModel) ([]byte, diag.Diagnostics) {
-	var diags diag.Diagnostics
-
-	groupId := data.Group.ValueInt64()
-	databaseId := data.Database.ValueInt64()
-
-	diags.Append(checkGroupIsNotAdministrators(groupId)...)
+	diags := checkMetabaseResponse(updateResp, err, []int{200}, "update permissions graph")
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	edge := data.toEdge()
-	configEdge := config.toEdge()
-	edge.Download = configEdge.Download
-	edge.DataModel = configEdge.DataModel
-	edge.Details = configEdge.Details
+	return updateResp.JSON200, diags
+}
 
-	permissions, permDiags := makeDatabasePermissionsFromModel(ctx, edge, false)
+// The `view-data` and `create-queries` permissions of an edge returned by Metabase after a write, which are stored in
+// the private state. They are the only permissions which can be JSON objects, whose shape Metabase can change (see
+// `Read`).
+type writtenDatabasePermissions struct {
+	ViewData      metabase.PermissionsGraphDatabasePermissions_ViewData       `json:"view-data"`
+	CreateQueries *metabase.PermissionsGraphDatabasePermissions_CreateQueries `json:"create-queries,omitempty"`
+}
+
+// The key in the private state storing the permissions written by the last write.
+const writtenDatabasePermissionsKey privateStateKey[writtenDatabasePermissions] = "written_permissions"
+
+// Returns the written permissions of an edge returned by Metabase.
+func makeWrittenDatabasePermissions(p metabase.PermissionsGraphDatabasePermissions) writtenDatabasePermissions {
+	return writtenDatabasePermissions{
+		ViewData:      p.ViewData,
+		CreateQueries: p.CreateQueries,
+	}
+}
+
+// Returns whether the permissions are the same, whatever the order of the keys of JSON objects. Permissions which
+// cannot be compared are considered different.
+func (w writtenDatabasePermissions) equal(other writtenDatabasePermissions) bool {
+	decode := func(p writtenDatabasePermissions) (any, error) {
+		serialized, err := json.Marshal(p)
+		if err != nil {
+			return nil, err
+		}
+
+		// JSON objects are decoded as Go maps, which have no order.
+		var v any
+		err = json.Unmarshal(serialized, &v)
+		return v, err
+	}
+
+	va, errA := decode(w)
+	vb, errB := decode(other)
+
+	return errA == nil && errB == nil && reflect.DeepEqual(va, vb)
+}
+
+// Makes the permissions to send to Metabase: the permissions of the plan, except the optional permissions, which are
+// only sent when they are set in the configuration. Otherwise, the plan contains their values from the state (or
+// unknown values), which should not be sent back to Metabase.
+func makeRequestedDatabasePermissions(plan DatabasePermissionResourceModel, config DatabasePermissionResourceModel) DatabasePermissions {
+	return DatabasePermissions{
+		Group:         plan.Group,
+		Database:      plan.Database,
+		ViewData:      plan.ViewData,
+		CreateQueries: plan.CreateQueries,
+		Download:      config.Download,
+		DataModel:     config.DataModel,
+		Details:       config.Details,
+	}
+}
+
+// Sends the given permissions of an edge to Metabase, and returns the permissions of the edge after the update.
+func (r *DatabasePermissionResource) writeDatabasePermissions(ctx context.Context, request DatabasePermissions) (*metabase.PermissionsGraphDatabasePermissions, diag.Diagnostics) {
+	var diags diag.Diagnostics
+
+	groupId := request.Group.ValueInt64()
+	databaseId := request.Database.ValueInt64()
+
+	diags.Append(checkGroupIsNotAdministrators(groupId)...)
+	// The permissions are checked again, as they may have been unknown when the configuration was validated.
+	diags.Append(checkDatabasePermissions(request)...)
+	if diags.HasError() {
+		return nil, diags
+	}
+
+	// `false` leaves the optional permissions which are not set out of the request, rather than revoking them.
+	permissions, permDiags := makeDatabasePermissionsFromModel(ctx, request, false)
 	diags.Append(permDiags...)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	diags.Append(updateDatabasePermissions(ctx, r.client, r.permissionsGraph, groupId, databaseId, *permissions)...)
+	graph, updateDiags := updateDatabasePermissions(ctx, r.client, r.permissionsGraph, groupId, databaseId, *permissions)
+	diags.Append(updateDiags...)
 	if diags.HasError() {
 		return nil, diags
 	}
 
-	// The response to the update only contains the edges that were sent, which is why the graph is read again.
-	// The permissions have just been written, so the values from the plan are kept.
-	//
-	// TODO: The JSON values from the plan are kept even if Metabase stored different permissions, rather than the same
-	// permissions in a different shape. The response is then stored as the written permissions, so the difference is
-	// never reported. `metabase_permissions_graph` keeps the JSON values of its model in the same way.
-	found, written, readDiags := r.readDatabasePermissions(ctx, data, nil)
-	diags.Append(readDiags...)
-	if diags.HasError() {
-		return nil, diags
-	}
-	if !found {
+	// The response is the graph after the update, restricted to the group of the edge.
+	updated := graph.FindDatabasePermissions(int(groupId), int(databaseId))
+	if updated == nil {
 		diags.AddError(
 			"Permissions not found after update.",
 			fmt.Sprintf("Metabase did not return the permissions for group %d and database %d after updating them.", groupId, databaseId),
 		)
+		return nil, diags
 	}
 
-	return written, diags
+	return updated, diags
 }
 
 func (r *DatabasePermissionResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
-	var data *DatabasePermissionResourceModel
+	var plan *DatabasePermissionResourceModel
 	var config DatabasePermissionResourceModel
 
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
@@ -473,99 +377,137 @@ func (r *DatabasePermissionResource) Create(ctx context.Context, req resource.Cr
 
 	// The group and the database can only change when the resource is created, as they require a replacement. Both are
 	// checked, such that all the errors are reported at once.
-	resp.Diagnostics.Append(checkPermissionsGroupExists(ctx, r.client, data.Group.ValueInt64())...)
-	resp.Diagnostics.Append(checkDatabaseExists(ctx, r.client, data.Database.ValueInt64())...)
+	resp.Diagnostics.Append(checkPermissionsGroupExists(ctx, r.client, plan.Group.ValueInt64())...)
+	resp.Diagnostics.Append(checkDatabaseExists(ctx, r.client, plan.Database.ValueInt64())...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	written, diags := r.writeDatabasePermissions(ctx, data, config)
+	plan.Id = types.StringValue(makeGraphEdgeId(plan.Group.ValueInt64(), strconv.FormatInt(plan.Database.ValueInt64(), 10)))
+
+	updated, diags := r.writeDatabasePermissions(ctx, makeRequestedDatabasePermissions(*plan, config))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(resp.Private.SetKey(ctx, writtenDatabasePermissionsPrivateKey, written)...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// The permissions have just been written, so the JSON values of the plan are kept.
+	//
+	// TODO: The JSON values from the plan are kept even if Metabase stored different permissions, rather than the same
+	// permissions in a different shape. The response is then stored as the written permissions, so the difference is
+	// never reported. `metabase_permissions_graph` keeps the JSON values of its model in the same way.
+	permissions, diags := makeDatabasePermissionsModel(ctx, int(plan.Group.ValueInt64()), int(plan.Database.ValueInt64()), updated.WithOmittedPermissionsRevoked(), &plan.DatabasePermissions)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.DatabasePermissions = *permissions
+
+	resp.Diagnostics.Append(writePrivateState(ctx, resp.Private, writtenDatabasePermissionsKey, makeWrittenDatabasePermissions(*updated))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *DatabasePermissionResource) Read(ctx context.Context, req resource.ReadRequest, resp *resource.ReadResponse) {
-	var data *DatabasePermissionResourceModel
+	var state *DatabasePermissionResourceModel
 
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	written, diags := req.Private.GetKey(ctx, writtenDatabasePermissionsPrivateKey)
+	written, diags := readPrivateState(ctx, req.Private, writtenDatabasePermissionsKey)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	found, _, diags := r.readDatabasePermissions(ctx, data, written)
+	permissions, diags := getDatabasePermissions(ctx, r.client, state.Group.ValueInt64(), state.Database.ValueInt64())
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if !found {
+	// Metabase drops the edges of deleted groups and databases from the graph.
+	if permissions == nil {
 		resp.State.RemoveResource(ctx)
 		return
 	}
 
+	// The JSON values of the state are kept as long as the response has not changed since the last write, or when no
+	// permissions were stored after a write. Otherwise, the permissions were changed outside of Terraform, and the
+	// response is used instead, such that the change is reported.
+	var existing *DatabasePermissions
+	if written == nil || written.equal(makeWrittenDatabasePermissions(*permissions)) {
+		existing = &state.DatabasePermissions
+	}
+
+	model, diags := makeDatabasePermissionsModel(ctx, int(state.Group.ValueInt64()), int(state.Database.ValueInt64()), permissions.WithOmittedPermissionsRevoked(), existing)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	state.DatabasePermissions = *model
+
 	// The private state is left as is: it should only change when the permissions are written. This way, changes made
 	// outside of Terraform keep being reported until they are reverted.
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &state)...)
 }
 
 func (r *DatabasePermissionResource) Update(ctx context.Context, req resource.UpdateRequest, resp *resource.UpdateResponse) {
-	var data *DatabasePermissionResourceModel
+	var plan *DatabasePermissionResourceModel
 	var config DatabasePermissionResourceModel
 
-	resp.Diagnostics.Append(req.Plan.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
 	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	written, diags := r.writeDatabasePermissions(ctx, data, config)
+	updated, diags := r.writeDatabasePermissions(ctx, makeRequestedDatabasePermissions(*plan, config))
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(resp.Private.SetKey(ctx, writtenDatabasePermissionsPrivateKey, written)...)
-	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
+	// The permissions have just been written, so the JSON values of the plan are kept (see `Create`).
+	permissions, diags := makeDatabasePermissionsModel(ctx, int(plan.Group.ValueInt64()), int(plan.Database.ValueInt64()), updated.WithOmittedPermissionsRevoked(), &plan.DatabasePermissions)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.DatabasePermissions = *permissions
+
+	resp.Diagnostics.Append(writePrivateState(ctx, resp.Private, writtenDatabasePermissionsKey, makeWrittenDatabasePermissions(*updated))...)
+	resp.Diagnostics.Append(resp.State.Set(ctx, &plan)...)
 }
 
 func (r *DatabasePermissionResource) Delete(ctx context.Context, req resource.DeleteRequest, resp *resource.DeleteResponse) {
-	var data *DatabasePermissionResourceModel
+	var state *DatabasePermissionResourceModel
 
-	resp.Diagnostics.Append(req.State.Get(ctx, &data)...)
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	groupId := data.Group.ValueInt64()
-	databaseId := data.Database.ValueInt64()
+	groupId := state.Group.ValueInt64()
+	databaseId := state.Database.ValueInt64()
 
-	getResp, err := r.client.GetPermissionsGraphWithResponse(ctx)
-
-	resp.Diagnostics.Append(checkMetabaseResponse(getResp, err, []int{200}, "get permissions graph")...)
+	permissions, diags := getDatabasePermissions(ctx, r.client, groupId, databaseId)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
 	// There is nothing to revoke when the edge has no `view-data` permission, e.g. when its group or its database was
 	// deleted.
-	if findDatabasePermissions(*getResp.JSON200, groupId, databaseId) == nil {
+	if permissions == nil {
 		return
 	}
 
 	// Metabase never removes an edge from the graph, so its permissions are revoked instead, like when an edge is removed
 	// from the `metabase_permissions_graph` resource. Revoking advanced permissions is ignored on the free edition.
-	resp.Diagnostics.Append(updateDatabasePermissions(ctx, r.client, r.permissionsGraph, groupId, databaseId, metabase.NewRevokedDatabasePermissions(true))...)
+	_, diags = updateDatabasePermissions(ctx, r.client, r.permissionsGraph, groupId, databaseId, metabase.NewRevokedDatabasePermissions(true))
+	resp.Diagnostics.Append(diags...)
 }
 
 func (r *DatabasePermissionResource) ImportState(ctx context.Context, req resource.ImportStateRequest, resp *resource.ImportStateResponse) {
@@ -593,21 +535,12 @@ func (r *DatabasePermissionResource) ImportState(ctx context.Context, req resour
 		return
 	}
 
-	var data DatabasePermissionResourceModel
-	data.Group = types.Int64Value(groupId)
-	data.Database = types.Int64Value(databaseIdInt)
-	data.ViewData = types.StringNull()
-	data.CreateQueries = types.StringNull()
-	data.Download = types.ObjectNull(accessPermissionsObjectType.AttrTypes)
-	data.DataModel = types.ObjectNull(accessPermissionsObjectType.AttrTypes)
-	data.Details = types.StringNull()
-
-	found, written, readDiags := r.readDatabasePermissions(ctx, &data, nil)
-	resp.Diagnostics.Append(readDiags...)
+	permissions, diags := getDatabasePermissions(ctx, r.client, groupId, databaseIdInt)
+	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	if !found {
+	if permissions == nil {
 		resp.Diagnostics.AddError(
 			"Permissions not found.",
 			fmt.Sprintf("The permissions graph does not define the view data permission for group %d and database %d.", groupId, databaseIdInt),
@@ -615,6 +548,18 @@ func (r *DatabasePermissionResource) ImportState(ctx context.Context, req resour
 		return
 	}
 
-	resp.Diagnostics.Append(resp.Private.SetKey(ctx, writtenDatabasePermissionsPrivateKey, written)...)
+	// There is no JSON value to keep, so the values of the response are used.
+	model, diags := makeDatabasePermissionsModel(ctx, int(groupId), int(databaseIdInt), permissions.WithOmittedPermissionsRevoked(), nil)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	data := DatabasePermissionResourceModel{
+		Id:                  types.StringValue(makeGraphEdgeId(groupId, databaseId)),
+		DatabasePermissions: *model,
+	}
+
+	resp.Diagnostics.Append(writePrivateState(ctx, resp.Private, writtenDatabasePermissionsKey, makeWrittenDatabasePermissions(*permissions))...)
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }

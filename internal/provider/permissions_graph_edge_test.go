@@ -50,6 +50,7 @@ func testAccCheckRevokedDatabasePermissions(groupId string, databaseId func(*ter
 		return nil
 	}
 }
+
 func TestDatabaseExists(t *testing.T) {
 	fake, client := newFakeMetabaseServer(t)
 	fake.missingDatabases["2"] = true

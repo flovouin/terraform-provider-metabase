@@ -33,3 +33,26 @@ resource "metabase_database_permission" "all_users_bigquery" {
     schemas = "none"
   }
 }
+
+resource "metabase_permissions_group" "marketing" {
+  name = "📣 Marketing"
+}
+
+data "metabase_table" "campaigns" {
+  db_id  = metabase_database.bigquery.id
+  schema = "included_dataset"
+  name   = "campaigns"
+}
+
+# Permissions can also be set per schema (dataset for BigQuery) or per table, with a JSON object. For a single table,
+# Metabase only accepts `query-builder` or `no`, as native queries can only be allowed for the entire database.
+resource "metabase_database_permission" "marketing_bigquery" {
+  group     = metabase_permissions_group.marketing.id
+  database  = metabase_database.bigquery.id
+  view_data = "unrestricted"
+  create_queries = jsonencode({
+    included_dataset = {
+      (data.metabase_table.campaigns.id) = "query-builder"
+    }
+  })
+}
