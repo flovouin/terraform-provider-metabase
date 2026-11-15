@@ -157,7 +157,8 @@ func validateDatabaseSchedule(schedulePath path.Path, schedule DatabaseSchedule)
 }
 
 // Checks that the schedules are consistent with the `let-user-control-scheduling` detail of custom details.
-// Without it, Metabase silently replaces the schedules with its own. With it, Metabase requires both schedules.
+// Without it, Metabase silently replaces the schedules with its own. With it, Metabase requires both schedules when
+// creating the database, so both are always required, although Metabase accepts enabling it on an existing database.
 func validateCustomDetailsSchedules(customDetails CustomDetails, metadataSync types.Object, cacheFieldValues types.Object) diag.Diagnostics {
 	var diags diag.Diagnostics
 
@@ -193,7 +194,7 @@ func validateCustomDetailsSchedules(customDetails CustomDetails, metadataSync ty
 			diags.AddAttributeError(
 				path.Root(schedule.attribute),
 				"Missing database schedule",
-				fmt.Sprintf("%s must be set when %s is enabled in details_json, as Metabase then requires both schedules.", schedule.attribute, userControlledSchedulingDetail),
+				fmt.Sprintf("%s must be set when %s is enabled in details_json, as Metabase requires both schedules when creating such a database.", schedule.attribute, userControlledSchedulingDetail),
 			)
 		}
 		if !userControlled && !schedule.value.IsNull() {

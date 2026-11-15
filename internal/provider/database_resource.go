@@ -657,9 +657,11 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 		Name: valueStringOrNull(data.Name),
 	}
 
+	schedulesChanged := !state.MetadataSyncSchedule.Equal(data.MetadataSyncSchedule) ||
+		!state.CacheFieldValuesSchedule.Equal(data.CacheFieldValuesSchedule)
+
 	// Only updating schedules if they have changed. Metabase could otherwise pick new ones on each update.
-	if !state.MetadataSyncSchedule.Equal(data.MetadataSyncSchedule) ||
-		!state.CacheFieldValuesSchedule.Equal(data.CacheFieldValuesSchedule) {
+	if schedulesChanged {
 		schedules, diags := makeSchedulesFromModel(ctx, *data)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
@@ -670,10 +672,11 @@ func (r *DatabaseResource) Update(ctx context.Context, req resource.UpdateReques
 	}
 
 	// Only updating database details if they have changed. This avoids unnecessarily passing credentials in API calls.
-	// The BigQuery details also depend on whether schedules are set, as the provider then lets the user control them.
+	// The BigQuery details are also sent whenever the schedules change, as they carry `let-user-control-scheduling`,
+	// which is not part of the state. If it was turned off in Metabase, the schedules would otherwise be ignored.
 	if !state.BigQueryDetails.Equal(data.BigQueryDetails) ||
 		!state.CustomDetails.Equal(data.CustomDetails) ||
-		(!data.BigQueryDetails.IsNull() && hasDatabaseSchedules(*state) != hasDatabaseSchedules(*data)) {
+		(!data.BigQueryDetails.IsNull() && schedulesChanged) {
 		engineAndDetails, diags := makeEngineAndDetailsFromModel(ctx, *data, config.CustomDetails)
 		resp.Diagnostics.Append(diags...)
 		if resp.Diagnostics.HasError() {
